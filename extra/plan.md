@@ -83,10 +83,12 @@ There may be issues with: assumptions, numbers, flaws.
 
 ## Luigi can run tasks in parallel
 
-I'm not making use of it. However I'm having this limitation: The PythonAnywhere doesn't like long running child processes/threads, anything longer than 5 minutes gets killed. There are always-on workers, but these must not spawn long running processes/threads. I'm considering finding another provider.
+I'm not making use of it. 
+
+Until 2026-jan-01 I had this limitation: The PythonAnywhere doesn't like long running child processes/threads, anything longer than 5 minutes gets killed. There are always-on workers, but these must not spawn long running processes/threads. I'm considering finding another provider.
+Starting from 2026-jan-01 I’m using Docker and no longer using pythonanywhere, I can start looking into running parallel tasks within Luigi.
 
 With MCP lots of the code use async/await. Make a proof of concept with Luigi+MCP and async/await, and verify that it works in the cloud.
-Then proceed to 
 
 
 ## MCP Experiments
@@ -129,11 +131,30 @@ Can I obtain relevant info via MCP?, when I instead could provide a longer initi
 
 # Tertiary issues
 
+## Debugging
+
+Get step-by-step debugging working again.
+Now that I have switched to Docker, I have multiple python projects in the same repo, that use different incompatible packages.
+
+
+## GitHub CI that runs tests
+
+The hard thing is getting the venv's working.
+
+
+## Token counting
+
+So that I can see how much does it cost to generate a plan.
+
+
 ## Table of content
 
 Currently the generated report has expandable/collapsible sections. There is an overwhelming amount of content inside each sections.
 I'm considering having a table of content in the left sidebar, similar to this:
 https://docs.railway.com/guides/dockerfiles
+It uses Docusaurus which uses React. I'm no fan of React.
+I'm considering using mkdocs instead.
+
 
 ## Eliminate redundant user prompts in the log file
 
