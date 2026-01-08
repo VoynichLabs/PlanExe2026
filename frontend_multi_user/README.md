@@ -7,7 +7,7 @@ Flask-based multi-user UI for PlanExe. Runs in Docker, uses Postgres (defaults t
 ## Quickstart with Docker
 - Ensure `.env` and `llm_config.json` exist in the repo root (they are mounted into the container).
 - `docker compose up frontend_multi_user`
-- Open http://localhost:${PLANEXE_FRONTEND_MULTIUSER_PORT:-5001}/ (container listens on 5000). Health endpoint: `/health`.
+- Open http://localhost:${PLANEXE_FRONTEND_MULTIUSER_PORT:-5001}/ (container listens on 5000). Health endpoint: `/healthcheck`.
 
 ## Config (env)
 - `PLANEXE_FRONTEND_MULTIUSER_DB_HOST|PORT|NAME|USER|PASSWORD`: Postgres target (defaults follow `database_postgres` / `planexe` values).

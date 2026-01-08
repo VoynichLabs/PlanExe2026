@@ -84,8 +84,8 @@ def open_path(request: OpenPathRequest):
     return OpenPathResponse(status="ok", message=f"Requested OS to open {target}.")
 
 
-@app.get("/healthz")
-def health() -> dict:
+@app.get("/healthcheck")
+def healthcheck() -> dict:
     return {
         "status": "ok",
         "allowed_base": str(ALLOWED_BASE) if ALLOWED_BASE else None,

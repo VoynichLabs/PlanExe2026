@@ -472,7 +472,7 @@ def purge_runs(request: PurgeRunsRequest) -> PurgeRunsResponse:
     )
 
 
-@app.get("/healthz")
+@app.get("/healthcheck")
 def healthcheck() -> dict:
     return {"status": "ok", "run_base_path": str(RUN_BASE_PATH)}
 

@@ -88,7 +88,7 @@ services:
       - ./llm_config.json:/app/llm_config.json:ro
       - ./run:/app/run
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz').read()"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthcheck').read()"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -197,7 +197,7 @@ services:
     ports:
       - "${PLANEXE_FRONTEND_MULTIUSER_PORT:-5001}:5000"
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health').read()"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/healthcheck').read()"]
       interval: 10s
       timeout: 5s
       retries: 5

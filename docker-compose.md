@@ -71,14 +71,14 @@ Service: `frontend_multi_user` (multi user UI)
 - Purpose: Multi-user Flask UI with admin views (tasks/events/nonce/workers) backed by Postgres.
 - Build: `frontend_multi_user/Dockerfile`.
 - Env defaults: DB host `database_postgres`, port `5432`, db/user/password `planexe` (follows `PLANEXE_POSTGRES_*`); admin credentials must be provided via `PLANEXE_FRONTEND_MULTIUSER_ADMIN_USERNAME`/`PLANEXE_FRONTEND_MULTIUSER_ADMIN_PASSWORD` (compose will fail if missing); container listens on fixed port `5000`, host maps `${PLANEXE_FRONTEND_MULTIUSER_PORT:-5001}`.
-- Health: depends on `database_postgres` health; its own healthcheck hits `/health` on port 5000.
+- Health: depends on `database_postgres` health; its own healthcheck hits `/healthcheck` on port 5000.
 
 Service: `worker_plan` (pipeline API)
 -------------------------------------
 - Purpose: runs the PlanExe pipeline and exposes the API on port 8000; the frontend depends on its health.
 - Build: `worker_plan/Dockerfile`.
 - Env: `PLANEXE_CONFIG_PATH=/app`, `PLANEXE_RUN_DIR=/app/run`, `PLANEXE_HOST_RUN_DIR=${PWD}/run`, `PLANEXE_WORKER_RELAY_PROCESS_OUTPUT=true`.
-- Health: `http://localhost:8000/healthz` checked via the compose healthcheck.
+- Health: `http://localhost:8000/healthcheck` checked via the compose healthcheck.
 - Volumes: `.env` (ro), `llm_config.json` (ro), `run/` (rw).
 - Watch: sync `worker_plan/` into `/app/worker_plan`, rebuild on `worker_plan/pyproject.toml`, restart on compose edits.
 

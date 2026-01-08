@@ -440,8 +440,8 @@ class MyFlaskApp:
         def index():
             return render_template('index.html')
 
-        @self.app.route('/health')
-        def health():
+        @self.app.route('/healthcheck')
+        def healthcheck():
             response_payload = {"status": "ok", "database_target": self.database_settings}
             try:
                 self.db.session.execute(text("SELECT 1"))

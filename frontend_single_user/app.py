@@ -144,7 +144,7 @@ def is_open_dir_service_running(timeout_seconds: float = 3.0) -> bool:
         logger.info("Open dir button hidden: PLANEXE_OPEN_DIR_SERVER_URL not set.")
         return False
 
-    health_url = f"{OPEN_DIR_SERVER_URL.rstrip('/')}/healthz"
+    health_url = f"{OPEN_DIR_SERVER_URL.rstrip('/')}/healthcheck"
     try:
         response = httpx.get(health_url, timeout=timeout_seconds)
         response.raise_for_status()
