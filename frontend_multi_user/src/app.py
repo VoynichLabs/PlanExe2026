@@ -4,7 +4,6 @@ Flask UI for PlanExe-server.
 PROMPT> python3 -m src.app
 """
 from datetime import datetime, UTC
-import importlib.util
 import logging
 import os
 import re
@@ -16,9 +15,6 @@ import io
 from urllib.parse import quote_plus
 from typing import ClassVar, Dict, Optional, Tuple, Any
 from dataclasses import dataclass
-import subprocess
-import threading
-from enum import Enum
 from pathlib import Path
 from flask import Flask, render_template, Response, request, jsonify, send_file, redirect, url_for
 from flask_admin import Admin, AdminIndexView, expose
@@ -32,9 +28,8 @@ import requests
 from worker_plan_api.generate_run_id import generate_run_id
 from worker_plan_api.start_time import StartTime
 from worker_plan_api.plan_file import PlanFile
-from worker_plan_api.filenames import FilenameEnum, ExtraFilenameEnum
+from worker_plan_api.filenames import FilenameEnum
 from worker_plan_api.prompt_catalog import PromptCatalog
-from worker_plan_api.speedvsdetail import SpeedVsDetailEnum
 from sqlalchemy import text, inspect
 from sqlalchemy.exc import OperationalError
 from database_api.model_taskitem import TaskItem, TaskState
@@ -44,26 +39,12 @@ from database_api.model_nonce import NonceItem
 from planexe_modelviews import WorkerItemView, TaskItemView, NonceItemView
 logger = logging.getLogger(__name__)
 
-# Best-effort probe for the pipeline module; avoid crashing if the package is absent.
-def _has_pipeline_module() -> bool:
-    try:
-        return importlib.util.find_spec(MODULE_PATH_PIPELINE) is not None
-    except ModuleNotFoundError:
-        return False
-    except Exception as exc:
-        logger.warning("Error checking for pipeline module %s: %s", MODULE_PATH_PIPELINE, exc)
-        return False
-
 from worker_plan_internal.utils.planexe_dotenv import DotEnvKeyEnum, PlanExeDotEnv
 from worker_plan_internal.utils.planexe_config import PlanExeConfig
-from worker_plan_internal.plan.pipeline_environment import PipelineEnvironmentEnum
 
-MODULE_PATH_PIPELINE = "worker_plan_internal.plan.run_plan_pipeline"
 RUN_DIR = "run"
 
 SHOW_DEMO_PLAN = False
-
-SPECIAL_AUTO_ID = "auto"
 
 DEMO_INSTANT_RUN_PROMPT_UUID = "4dc34d55-0d0d-4e9d-92f4-23765f49dd29"
 DEMO_FORM_RUN_PROMPT_UUIDS = [
@@ -90,32 +71,6 @@ class Config:
 CONFIG = Config(
     use_uuid_as_run_id=False,
 )
-
-class JobStatus(str, Enum):
-    running = 'running'
-    completed = 'completed'
-    failed = 'failed'
-    cancelled = 'cancelled'
-    pending = 'pending'
-
-@dataclass
-class JobState:
-    """State for a single job"""
-    run_id: str
-    run_id_dir: Path
-    environment: Dict[str, str]
-    process: Optional[subprocess.Popen] = None
-    stop_event: threading.Event = threading.Event()
-    status: JobStatus = JobStatus.pending
-    error: Optional[str] = None
-    progress_message: str = ""
-    progress_percentage: int = 0
-
-@dataclass
-class UserState:
-    """State for a single user"""
-    user_id: str
-    current_run_id: Optional[str] = None
 
 class User(UserMixin):
     def __init__(self, user_id):
@@ -196,14 +151,7 @@ class MyFlaskApp:
         self.worker_plan_url = (os.environ.get("PLANEXE_WORKER_PLAN_URL") or "http://worker_plan:8000").rstrip("/")
         logger.info(f"MyFlaskApp.__init__. worker_plan_url: {self.worker_plan_url}")
 
-        self.pipeline_module_available = _has_pipeline_module()
-        if not self.pipeline_module_available:
-            logger.warning("Pipeline module %s not found; pipeline-backed endpoints are disabled.", MODULE_PATH_PIPELINE)
-
         self._start_check()
-
-        self.jobs: Dict[str, JobState] = {}
-        self.users: Dict[str, UserState] = {}
 
         # Load prompt catalog and examples.
         self.prompt_catalog = PromptCatalog()
@@ -401,40 +349,6 @@ class MyFlaskApp:
         except Exception as exc:
             return None, f"Error fetching worker_plan llm-info: {exc}"
 
-    def _create_job_internal(self, run_id: str, run_id_dir: Path) -> Tuple[Dict[str, Any], int]:
-        """
-        Internal logic for creating a job.
-        Called by both the /jobs endpoint and other internal functions.
-        job_data is the full dictionary that would have come from request.json
-        """
-        if not run_id:
-            return {"error": "run_id is required"}, 400
-        if not self.pipeline_module_available:
-            return {"error": f"Pipeline module {MODULE_PATH_PIPELINE} is not available in this image. Please run worker_plan for execution."}, 503
-
-        if run_id in self.jobs:
-            return {"error": "run_id already exists"}, 409
-
-        if not run_id_dir.exists():
-            raise Exception(f"The run_id_dir directory is supposed to exist at this point. However no run_id_dir directory exists: {run_id_dir!r}")
-
-        environment = os.environ.copy()
-        environment[PipelineEnvironmentEnum.RUN_ID_DIR.value] = str(run_id_dir)
-        environment[PipelineEnvironmentEnum.LLM_MODEL.value] = SPECIAL_AUTO_ID
-        environment[PipelineEnvironmentEnum.SPEED_VS_DETAIL.value] = SpeedVsDetailEnum.ALL_DETAILS_BUT_SLOW.value
-
-        # Create job state
-        job = JobState(run_id=run_id, run_id_dir=run_id_dir, environment=environment)
-        self.jobs[run_id] = job
-
-        # Start the job in a background thread
-        threading.Thread(target=self._run_job, args=[job]).start()
-
-        return {
-            "run_id": run_id,
-            "status": "pending"
-        }, 202
-    
     def _setup_routes(self):
         @self.app.route('/')
         def index():
@@ -510,19 +424,6 @@ class MyFlaskApp:
             response = Response(generate(), mimetype='text/event-stream')
             response.headers['X-Accel-Buffering'] = 'no'  # Disable Nginx buffering
             return response
-
-        @self.app.route("/jobs", methods=["POST"])
-        @login_required
-        def create_job():
-            try:
-                data = request.json
-                run_id = generate_run_id(CONFIG.use_uuid_as_run_id)
-                run_id_dir = (self.planexe_run_dir / run_id).absolute()
-                response_data, status_code = self._create_job_internal(run_id, run_id_dir)
-                return jsonify(response_data), status_code            
-            except Exception as e:
-                logger.error(f"Error creating job: {e}")
-                return jsonify({"error": str(e)}), 500
 
         @self.app.route('/run', methods=['GET', 'POST'])
         @nocache
@@ -616,114 +517,6 @@ class MyFlaskApp:
                 self.db.session.add(event)
                 self.db.session.commit()
             return render_template('run_via_database.html', run_id=task_id)
-
-        @self.app.route('/run_separate_process')
-        @login_required
-        def run_separate_process():
-            if not self.pipeline_module_available:
-                logger.error("endpoint /run_separate_process. Pipeline module %s unavailable.", MODULE_PATH_PIPELINE)
-                return jsonify({"error": f"Pipeline module {MODULE_PATH_PIPELINE} is not available in this image."}), 503
-
-            prompt_param = request.args.get('prompt', '')
-            user_id_param = request.args.get('user_id', '')
-
-            # Ensure the string contain a-zA-Z0-9-_ so it's safe to use in filenames/database
-            if not re.match(r'^[a-zA-Z0-9\-_]{1,80}$', user_id_param):
-                logger.error(f"endpoint /run_separate_process. Invalid formatting for user_id. parameters: prompt={prompt_param}, user_id_param={user_id_param}")
-                return jsonify({"error": "Invalid user_id"}), 400
-
-            if user_id_param not in self.users:
-                logger.error(f"endpoint /run_separate_process. No such user_id. parameters: prompt={prompt_param}, user_id_param={user_id_param}")
-                return jsonify({"error": "Invalid user_id"}), 400
-
-            logger.info(f"endpoint /run_separate_process. Starting run with parameters: prompt={prompt_param}, user_id_param={user_id_param}")
-
-            current_user = self.users[user_id_param]
-            if current_user.current_run_id is not None:
-                logger.info(f"endpoint /run_separate_process. User {user_id_param} already has a current run_id. Stopping it first.")
-                self.jobs[current_user.current_run_id].stop_event.set()
-                current_user.current_run_id = None
-
-            start_time: datetime = datetime.now().astimezone()
-
-            run_id = generate_run_id(use_uuid=CONFIG.use_uuid_as_run_id, start_time=start_time)
-            run_id_dir = (self.planexe_run_dir / run_id).absolute()
-
-            logger.info(f"endpoint /run_separate_process. current working directory: {Path.cwd()}")
-            logger.info(f"endpoint /run_separate_process. run_id: {run_id}")
-            logger.info(f"endpoint /run_separate_process. run_id_dir: {run_id_dir!r}")
-
-            if run_id_dir.exists():
-                raise Exception(f"The run_id_dir is not supposed to exist at this point. However the run_id_dir already exists: {run_id_dir!r}")
-            run_id_dir.mkdir(parents=True, exist_ok=True)
-
-            # write the start time to the run_id_dir
-            start_time_file = StartTime.create(local_time=start_time)
-            start_time_file.save(str(run_id_dir / FilenameEnum.START_TIME.value))
-
-            # Create the initial plan file.
-            plan_file = PlanFile.create(vague_plan_description=prompt_param, start_time=start_time)
-            plan_file.save(str(run_id_dir / FilenameEnum.INITIAL_PLAN.value))
-
-            response_data, status_code = self._create_job_internal(run_id, run_id_dir)
-            if status_code != 202:
-                logger.error(f"Error creating job internally: {response_data}")
-                return jsonify({"error": "Failed to create job", "details": response_data}), 500
-
-            current_user.current_run_id = run_id
-
-            logger.info(f"endpoint /run_separate_process. render_template. run_id={run_id} user_id={user_id_param}")
-
-            return render_template('run_in_separate_process.html', user_id=user_id_param)
-
-        @self.app.route('/progress_separate_process')
-        @login_required
-        def get_progress_separate_process():
-            user_id = request.args.get('user_id', '')
-            logger.info(f"Progress endpoint received user_id: {user_id}")
-            if user_id not in self.users:
-                logger.error(f"Invalid User ID: {user_id}")
-                return jsonify({"error": "Invalid user_id"}), 400
-            
-            user_state = self.users[user_id]
-            if user_state.current_run_id is None:
-                logger.error(f"No current_run_id for user: {user_id}")
-                return jsonify({"error": "Invalid user_id"}), 400
-            run_id = user_state.current_run_id
-
-            job = self.jobs.get(run_id)
-            if not job:
-                logger.error(f"Job not found for run_id: {run_id}")
-                return jsonify({"error": "Job not found"}), 400
-            
-            def generate():
-                try:
-                    while True:
-                        # Send the current progress value
-                        is_running = job.status == JobStatus.running
-                        logger.info(f"Current job status: {job.status}, is_running: {is_running}")
-                        if is_running:
-                            progress_message = job.progress_message
-                        else:
-                            progress_message = f"{job.status.value}, {job.progress_message}"
-
-                        data = json.dumps({'progress_message': progress_message, 'progress_percentage': job.progress_percentage, 'status': job.status.value})
-                        yield f"data: {data}\n\n"
-                        time.sleep(1)
-                        if not is_running:
-                            logger.info(f"Progress endpoint received user_id: {user_id} is done")
-                            break
-                except GeneratorExit:
-                    # Client disconnected
-                    logger.info(f"Client disconnected for user_id: {user_id}")
-                    job.stop_event.set()
-                except Exception as e:
-                    logger.error(f"Error in progress stream for user_id {user_id}: {e}")
-                    job.stop_event.set()
-
-            response = Response(generate(), mimetype='text/event-stream')
-            response.headers['X-Accel-Buffering'] = 'no'  # Disable Nginx buffering
-            return response
 
         @self.app.route('/progress')
         def get_progress():
@@ -827,21 +620,6 @@ class MyFlaskApp:
             download_name = f"{task_id}.zip"
             return send_file(buffer, mimetype='application/zip', as_attachment=True, download_name=download_name)
 
-        @self.app.route('/demo_instant_run_in_separate_process')
-        @login_required
-        def demo_instant_run_in_separate_process():
-            # Assign a uuid to the user, so their data belongs to the right user
-            user_id = str(uuid.uuid4())
-            user_state = UserState(user_id=user_id)
-            self.users[user_id] = user_state
-
-            prompt_uuid = DEMO_INSTANT_RUN_PROMPT_UUID
-            prompt_item = self.prompt_catalog.find(prompt_uuid)
-            if prompt_item is None:
-                logger.error(f"Prompt item not found for uuid: {prompt_uuid} in demo_instant_run_in_separate_process")
-                return "Error: Demo prompt configuration missing.", 500
-            return render_template('demo_instant_run_in_separate_process.html', prompt=prompt_item.prompt, user_id=user_id)
-
         @self.app.route('/demo_instant_run_via_database_developer_method_get')
         def demo_instant_run_via_database_developer_method_get():
             user_id = 'USERIDPLACEHOLDER'
@@ -892,25 +670,6 @@ class MyFlaskApp:
                 return "Error: Demo prompt configuration missing.", 500
             return render_template('demo_instant_run_via_database_production_method_post.html', prompt=prompt_item.prompt, user_id=user_id, nonce=nonce)
 
-        @self.app.route('/demo_form_run_in_separate_process')
-        @login_required
-        def demo_form_run_in_separate_process():
-            # Assign a uuid to the user, so their data belongs to the right user
-            user_id = str(uuid.uuid4())
-            user_state = UserState(user_id=user_id)
-            self.users[user_id] = user_state
-
-            # The prompts to be shown on the page.
-            prompts = []
-            for prompt_uuid in DEMO_FORM_RUN_PROMPT_UUIDS:
-                prompt_item = self.prompt_catalog.find(prompt_uuid)
-                if prompt_item is None:
-                    logger.error(f"Prompt item not found for uuid: {prompt_uuid} in demo_form_run_in_separate_process")
-                    return "Error: Demo prompt configuration missing.", 500
-                prompts.append(prompt_item.prompt)
-
-            return render_template('demo_form_run_in_separate_process.html', user_id=user_id, prompts=prompts)
-
         @self.app.route('/demo_form_run_via_database_method_get')
         @login_required
         def demo_form_run_via_database_method_get():
@@ -944,143 +703,6 @@ class MyFlaskApp:
                 prompts.append(prompt_item.prompt)
 
             return render_template('demo_form_run_via_database_method_post.html', user_id=user_id, prompts=prompts, nonce=nonce)
-
-        @self.app.route('/demo_subprocess_run_simple')
-        @login_required
-        def demo_subprocess_run_simple():
-            topic = 'subprocess.run with simple command'
-            template = 'check_is_working.html'
-            try:
-                result = subprocess.run(
-                    ["/usr/bin/uname", "-a"],
-                    capture_output=True,
-                    text=True,
-                    check=True
-                )
-                output = result.stdout.strip()
-                return render_template(template, topic=topic, output=output, error=None)
-            except subprocess.CalledProcessError as e:
-                logger.error(f"demo_subprocess_run_simple. Subprocess failed with exit code {e.returncode}. stdout: {e.stdout!r}, stderr: {e.stderr!r}")
-                message = "subprocess.CalledProcessError, see log for details."
-                return render_template(template, topic=topic, output=None, error=message)
-            except Exception as e:
-                logger.error(f"demo_subprocess_run_simple. Unexpected error: {str(e)}")
-                message = "Exception, see log for details."
-                return render_template(template, topic=topic, output=None, error=message)
-
-    def _run_job(self, job: JobState):
-        """Run the actual job in a subprocess"""
-        
-        try:
-            if not self.pipeline_module_available:
-                job.status = JobStatus.failed
-                job.error = f"Pipeline module {MODULE_PATH_PIPELINE} is not available in this image."
-                logger.error("_run_job called without available pipeline module for run_id %s.", job.run_id)
-                return
-
-            run_id_dir = job.run_id_dir
-            if not run_id_dir.exists():
-                raise Exception(f"The run_id_dir directory is supposed to exist at this point. However the output directory does not exist: {run_id_dir!r}")
-
-            # Start the process
-            command = [str(self.path_to_python), "-m", MODULE_PATH_PIPELINE]
-            logger.info(f"_run_job. subprocess.Popen before command: {command!r}")
-            logger.info(f"_run_job. CWD for subprocess: {self.planexe_project_root!r}")
-            logger.info(f"_run_job. Environment keys for subprocess (sample): "
-                        f"RUN_ID_DIR={job.environment.get(PipelineEnvironmentEnum.RUN_ID_DIR.value)!r}")
-
-            job.process = subprocess.Popen(
-                command,
-                cwd=str(self.planexe_project_root),
-                env=job.environment,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True
-            )
-            logger.info(f"_run_job. subprocess.Popen after command: {command!r} with PID: {job.process.pid}")
-
-            job.status = JobStatus.running
-
-            # Monitor the process
-            while True:
-                if job.stop_event.is_set():
-                    logger.info(f"_run_job: Stop event set for run_id {job.run_id}. Terminating process.")
-                    job.process.terminate()
-                    try:
-                        # Wait a bit for graceful termination
-                        job.process.wait(timeout=5)
-                    except subprocess.TimeoutExpired:
-                        logger.warning(f"_run_job: Process {job.process.pid} did not terminate gracefully. Killing.")
-                        job.process.kill()
-                    job.status = JobStatus.cancelled
-                    break
-
-                return_code = job.process.poll()
-                if return_code is not None:
-                    stdout, stderr = job.process.communicate() # Get remaining output
-                    if stdout:
-                        logger.info(f"_run_job {job.run_id} STDOUT:\n{stdout}")
-                    if stderr:
-                        logger.error(f"_run_job {job.run_id} STDERR:\n{stderr}")
-
-                    if return_code == 0:
-                        job.status = JobStatus.completed
-                        logger.info(f"_run_job: Process for run_id {job.run_id} completed successfully.")
-                    else:
-                        job.status = JobStatus.failed
-                        job.error = f"Process exited with code {return_code}. Stderr: {stderr[:500]}" # Log part of stderr
-                        logger.error(f"_run_job: Process for run_id {job.run_id} failed with code {return_code}.")
-                    break
-
-                # Update progress (same logic as before)
-                files = []
-                try:
-                    if run_id_dir.exists() and run_id_dir.is_dir():
-                        files = [f.name for f in run_id_dir.iterdir()]
-                except OSError as e:
-                    logger.warning(f"_run_job: Could not list files in {run_id_dir}: {e}")
-
-                ignore_files = [
-                    ExtraFilenameEnum.EXPECTED_FILENAMES1_JSON.value,
-                    ExtraFilenameEnum.LOG_TXT.value
-                ]
-                files = [f for f in files if f not in ignore_files]
-                # logger.debug(f"Files in run_id_dir for {job.run_id}: {files}") # Debug, can be noisy
-                number_of_files = len(files)
-                # logger.debug(f"Number of files in run_id_dir for {job.run_id}: {number_of_files}") # Debug
-
-                # Determine the progress, by comparing the generated files with the expected_filenames1.json
-                expected_filenames_path = run_id_dir / ExtraFilenameEnum.EXPECTED_FILENAMES1_JSON.value
-                assign_progress_message = f"File count: {number_of_files}"
-                assign_progress_percentage = 0
-                if expected_filenames_path.exists():
-                    with open(expected_filenames_path, "r") as f:
-                        expected_filenames = json.load(f)
-                    set_files = set(files)
-                    set_expected_files = set(expected_filenames)
-                    intersection_files = set_files & set_expected_files
-                    assign_progress_message = f"{len(intersection_files)} of {len(set_expected_files)}"
-                    if len(set_expected_files) > 0:
-                        assign_progress_percentage = (len(intersection_files) * 100) // len(set_expected_files)
-
-                job.progress_message = assign_progress_message
-                job.progress_percentage = assign_progress_percentage
-
-                time.sleep(1)
-
-        except Exception as e:
-            logger.error(f"Error running job {job.run_id}: {e}", exc_info=True)
-            job.status = JobStatus.failed
-            job.error = str(e)
-        finally:
-            # End of the job. No matter what, clear the stop event, so that the user can start a new job.
-            job.stop_event.clear()
-            logger.info(f"_run_job: Finished processing job {job.run_id} with status {job.status}.")
-            if job.process and job.process.poll() is None: # Ensure process is cleaned up if loop exited abnormally
-                logger.warning(f"_run_job: Job {job.run_id} loop exited but process {job.process.pid} still running. Terminating.")
-                job.process.terminate()
-                job.process.wait() # Wait for termination
-
 
     def run_server(self, debug: bool = False, host: str = "0.0.0.0", port: int = 5000):
         env_debug = os.environ.get("PLANEXE_FRONTEND_MULTIUSER_DEBUG")
