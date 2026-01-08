@@ -111,10 +111,6 @@
 <p>PythonAnywhere doesn't allow running separate processes for longer than 5 minutes, so it may appear as if it's working for a 
   while and then crash for no reason, this is because of the 5 minute limit on PythonAnywhere.</p>
 <div class="nav-links legacy-links-no-longer-used">
-  <button onclick="stopAllJobs()">
-    Stop All Jobs running as separate processes
-    <div class="description">Stop all currently running jobs</div>
-  </button>
   <a href="/demo_instant_run_in_separate_process">
     Instant run in a separate process - End to end test - hardcoded input
     <div class="description">Wraps the Run page inside an &lt;iframe&gt;</div>
@@ -128,22 +124,4 @@
     <div class="description">Check that subprocess.run is working</div>
   </a>
 </div>
-{% endblock %}
-
-{% block tail %}
-  {{ super() }}
-<script>
-    function stopAllJobs() {
-        fetch('/jobs/stop_all', {
-            method: 'POST',
-        })
-        .then(response => response.json())
-        .then(data => {
-            alert(data.message || data.error);
-        })
-        .catch(error => {
-            alert('Error stopping jobs: ' + error);
-        });
-    }
-</script> 
 {% endblock %}

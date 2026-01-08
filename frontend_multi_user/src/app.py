@@ -524,19 +524,6 @@ class MyFlaskApp:
                 logger.error(f"Error creating job: {e}")
                 return jsonify({"error": str(e)}), 500
 
-        @self.app.route("/jobs/stop_all", methods=["POST"])
-        @login_required
-        def stop_all_jobs():
-            try:
-                running_jobs = [job for job in self.jobs.values() if job.status == JobStatus.running]
-                logger.info(f"Stopping {len(running_jobs)} running jobs")
-                for job in running_jobs:
-                    job.stop_event.set()
-                return jsonify({"message": f"Stopped {len(running_jobs)} jobs"}), 200
-            except Exception as e:
-                logger.error(f"Error stopping jobs: {e}", exc_info=True)
-                return jsonify({"error": str(e)}), 500
-
         @self.app.route('/run', methods=['GET', 'POST'])
         @nocache
         def run():
