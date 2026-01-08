@@ -400,7 +400,6 @@ def llm_info() -> LLMInfo:
 def llm_ping() -> StreamingResponse:
     """
     Stream ping results for each configured LLM model.
-    Mirrors the previous Flask UI behavior but runs inside worker_plan.
     """
 
     def event_stream():

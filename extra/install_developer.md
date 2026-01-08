@@ -41,38 +41,22 @@ You have multiple options.
 (venv) pip install '.[gradio-ui]'
 ```
 
-#### Option 3B - Install Flask UI
-
-```bash
-(venv) pip install '.[flask-ui]'
-```
-
 #### Option 3C - Install everything for non-developers
 
 ```bash
-(venv) pip install '.[gradio-ui,flask-ui]'
+(venv) pip install '.[gradio-ui]'
 ```
 
 #### Option 3D - Install everything for a developer
 
 ```bash
-(venv) pip install -e '.[gradio-ui,flask-ui]'
+(venv) pip install -e '.[gradio-ui]'
 ```
 
 ### Step 4 - Running PlanExe
 
-#### Option 4A - Using PlanExe's Gradio UI
-
 ```bash
 (venv) python -m worker_plan_internal.plan.app_text2plan
-```
-
-Follow any on-screen instructions or open the specified URL in your web browser.
-
-#### Option 4B - Using PlanExe's Flask UI
-
-```bash
-(venv) python -m worker_plan_internal.ui_flask.app
 ```
 
 Follow any on-screen instructions or open the specified URL in your web browser.
