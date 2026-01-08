@@ -46,7 +46,6 @@ RUN_DIR = "run"
 
 SHOW_DEMO_PLAN = False
 
-DEMO_INSTANT_RUN_PROMPT_UUID = "4dc34d55-0d0d-4e9d-92f4-23765f49dd29"
 DEMO_FORM_RUN_PROMPT_UUIDS = [
     "0ad5ea63-cf38-4d10-a3f3-d51baa609abd",
     "00e1c738-a663-476a-b950-62785922f6f0",
@@ -619,56 +618,6 @@ class MyFlaskApp:
             buffer.seek(0)
             download_name = f"{task_id}.zip"
             return send_file(buffer, mimetype='application/zip', as_attachment=True, download_name=download_name)
-
-        @self.app.route('/demo_instant_run_via_database_developer_method_get')
-        def demo_instant_run_via_database_developer_method_get():
-            user_id = 'USERIDPLACEHOLDER'
-            nonce = 'DEMO_' + str(uuid.uuid4())
-
-            prompt_uuid = DEMO_INSTANT_RUN_PROMPT_UUID
-            prompt_item = self.prompt_catalog.find(prompt_uuid)
-            if prompt_item is None:
-                logger.error(f"Prompt item not found for uuid: {prompt_uuid} in demo_instant_run_via_database_developer_method_get")
-                return "Error: Demo prompt configuration missing.", 500
-            return render_template('demo_instant_run_via_database_developer_method_get.html', prompt=prompt_item.prompt, user_id=user_id, nonce=nonce)
-
-        @self.app.route('/demo_instant_run_via_database_developer_method_post')
-        def demo_instant_run_via_database_developer_method_post():
-            user_id = 'USERIDPLACEHOLDER'
-            nonce = 'DEMO_' + str(uuid.uuid4())
-
-            prompt_uuid = DEMO_INSTANT_RUN_PROMPT_UUID
-            prompt_item = self.prompt_catalog.find(prompt_uuid)
-            if prompt_item is None:
-                logger.error(f"Prompt item not found for uuid: {prompt_uuid} in demo_instant_run_via_database_developer_method_post")
-                return "Error: Demo prompt configuration missing.", 500
-            return render_template('demo_instant_run_via_database_developer_method_post.html', prompt=prompt_item.prompt, user_id=user_id, nonce=nonce)
-
-        @self.app.route('/demo_instant_run_via_database_production_method_get')
-        @login_required
-        def demo_instant_run_via_database_production_method_get():
-            user_id = 'USERIDPLACEHOLDER'
-            nonce = 'DEMO_' + str(uuid.uuid4())
-
-            prompt_uuid = DEMO_INSTANT_RUN_PROMPT_UUID
-            prompt_item = self.prompt_catalog.find(prompt_uuid)
-            if prompt_item is None:
-                logger.error(f"Prompt item not found for uuid: {prompt_uuid} in demo_instant_run_via_database_production_method_get")
-                return "Error: Demo prompt configuration missing.", 500
-            return render_template('demo_instant_run_via_database_production_method_get.html', prompt=prompt_item.prompt, user_id=user_id, nonce=nonce)
-
-        @self.app.route('/demo_instant_run_via_database_production_method_post')
-        @login_required
-        def demo_instant_run_via_database_production_method_post():
-            user_id = 'USERIDPLACEHOLDER'
-            nonce = 'DEMO_' + str(uuid.uuid4())
-
-            prompt_uuid = DEMO_INSTANT_RUN_PROMPT_UUID
-            prompt_item = self.prompt_catalog.find(prompt_uuid)
-            if prompt_item is None:
-                logger.error(f"Prompt item not found for uuid: {prompt_uuid} in demo_instant_run_via_database_production_method_post")
-                return "Error: Demo prompt configuration missing.", 500
-            return render_template('demo_instant_run_via_database_production_method_post.html', prompt=prompt_item.prompt, user_id=user_id, nonce=nonce)
 
         @self.app.route('/demo_form_run_via_database_method_get')
         @login_required
