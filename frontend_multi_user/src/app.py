@@ -619,9 +619,9 @@ class MyFlaskApp:
             download_name = f"{task_id}.zip"
             return send_file(buffer, mimetype='application/zip', as_attachment=True, download_name=download_name)
 
-        @self.app.route('/demo_form_run_via_database_method_get')
+        @self.app.route('/demo_run')
         @login_required
-        def demo_form_run_via_database_method_get():
+        def demo_run():
             user_id = 'USERIDPLACEHOLDER'
             nonce = 'DEMO_' + str(uuid.uuid4())
 
@@ -630,28 +630,11 @@ class MyFlaskApp:
             for prompt_uuid in DEMO_FORM_RUN_PROMPT_UUIDS:
                 prompt_item = self.prompt_catalog.find(prompt_uuid)
                 if prompt_item is None:
-                    logger.error(f"Prompt item not found for uuid: {prompt_uuid} in demo_form_run_via_database_method_get")
+                    logger.error(f"Prompt item not found for uuid: {prompt_uuid} in demo_run")
                     return "Error: Demo prompt configuration missing.", 500
                 prompts.append(prompt_item.prompt)
 
-            return render_template('demo_form_run_via_database_method_get.html', user_id=user_id, prompts=prompts, nonce=nonce)
-
-        @self.app.route('/demo_form_run_via_database_method_post')
-        @login_required
-        def demo_form_run_via_database_method_post():
-            user_id = 'USERIDPLACEHOLDER'
-            nonce = 'DEMO_' + str(uuid.uuid4())
-
-            # The prompts to be shown on the page.
-            prompts = []
-            for prompt_uuid in DEMO_FORM_RUN_PROMPT_UUIDS:
-                prompt_item = self.prompt_catalog.find(prompt_uuid)
-                if prompt_item is None:
-                    logger.error(f"Prompt item not found for uuid: {prompt_uuid} in demo_form_run_via_database_method_post")
-                    return "Error: Demo prompt configuration missing.", 500
-                prompts.append(prompt_item.prompt)
-
-            return render_template('demo_form_run_via_database_method_post.html', user_id=user_id, prompts=prompts, nonce=nonce)
+            return render_template('demo_run.html', user_id=user_id, prompts=prompts, nonce=nonce)
 
     def run_server(self, debug: bool = False, host: str = "0.0.0.0", port: int = 5000):
         env_debug = os.environ.get("PLANEXE_FRONTEND_MULTIUSER_DEBUG")

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Demo form run via database. GET method.</title>
+    <title>Demo Run</title>
     <style>
         body {
             margin: 0;
@@ -94,6 +94,36 @@
             color: #333;
             cursor: pointer;
         }
+        .select-container {
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .select-container label {
+            font-size: 16px;
+            font-weight: 500;
+            color: #333;
+        }
+        .select-container select {
+            padding: 10px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 16px;
+            background-color: white;
+            cursor: pointer;
+            transition: border-color 0.2s ease;
+        }
+        .select-container select:focus {
+            outline: none;
+            border-color: #0066cc;
+        }
+        .method-info {
+            font-size: 13px;
+            color: #666;
+            margin-left: 10px;
+            font-style: italic;
+        }
         #submit-button {
             display: block;
             width: 100%;
@@ -137,7 +167,7 @@
 </head>
 <body>
     <div class="container">
-        <h1>Demo form run via database. GET method.</h1>
+        <h1>Demo Run</h1>
         <a href="/admin" style="display: inline-block; margin-bottom: 20px; color: #0066cc; text-decoration: none;">← Back to Admin</a>
         <div class="input-container">
             <div class="example-prompt-buttons">
@@ -153,13 +183,31 @@
                 <input type="checkbox" id="developer-checkbox" checked>
                 <label for="developer-checkbox">Developer mode when checked. When unchecked it's production mode.</label>
             </div>
-            <button id="submit-button">Submit via GET</button>
+            <div class="select-container">
+                <label for="method-select">Submit method:</label>
+                <select id="method-select">
+                    <option value="POST" selected>POST</option>
+                    <option value="GET">GET</option>
+                </select>
+                <span class="method-info" id="method-info">Recommended: payload not captured in logs</span>
+            </div>
+            <button id="submit-button">Submit</button>
         </div>
         <div class="iframe-container">
-            <iframe src="" title="Run Page"></iframe>
+            <iframe name="run-iframe" title="Run Page"></iframe>
         </div>
         <div class="userid-container">User ID: <span>{{ user_id }}</span></div>
     </div>
+
+    <!-- Hidden form used to POST to /run into the iframe -->
+    <form id="run-form" action="/run" method="POST" target="run-iframe" style="display: none">
+        <input type="hidden" name="prompt" id="form-prompt" value="">
+        <input type="hidden" name="user_id" value="{{ user_id }}">
+        <input type="hidden" name="nonce" value="{{ nonce }}">
+        <!-- Flags are submitted only when enabled (not disabled) -->
+        <input type="hidden" name="fast" id="form-fast" value="true">
+        <input type="hidden" name="developer" id="form-developer" value="true">
+    </form>
 
     <script>
         const prompts = JSON.parse('{{ prompts|tojson|safe }}');
@@ -179,6 +227,18 @@
             charCountLabel.textContent = `Characters: ${charCount} | Bytes: ${byteCount}`;
         }
 
+        // Function to update method info text
+        function updateMethodInfo() {
+            const methodSelect = document.getElementById('method-select');
+            const methodInfo = document.getElementById('method-info');
+            
+            if (methodSelect.value === 'POST') {
+                methodInfo.textContent = 'Recommended: payload not captured in logs';
+            } else {
+                methodInfo.textContent = 'Caution: prompt visible in URL and logs';
+            }
+        }
+
         // Set default prompt on page load
         window.onload = function() {
             document.getElementById('prompt').value = prompts[0];
@@ -188,6 +248,9 @@
             
             // Add event listener for real-time updates
             document.getElementById('prompt').addEventListener('input', updateCharCount);
+            
+            // Add event listener for method select change
+            document.getElementById('method-select').addEventListener('change', updateMethodInfo);
             
             // Dynamically create example buttons
             const buttonContainer = document.querySelector('.example-prompt-buttons');
@@ -204,25 +267,41 @@
         };
 
         document.getElementById('submit-button').addEventListener('click', function() {
-            const prompt = document.getElementById('prompt').value;
+            const promptValue = document.getElementById('prompt').value;
             const fastChecked = document.getElementById('fast-checkbox').checked;
             const developerChecked = document.getElementById('developer-checkbox').checked;
+            const methodSelect = document.getElementById('method-select');
             const iframeContainer = document.querySelector('.iframe-container');
             const inputContainer = document.querySelector('.input-container');
             const iframe = iframeContainer.querySelector('iframe');
-            
-            // Build the URL with conditional fast parameter
-            let url = `/run?prompt=${encodeURIComponent(prompt)}&user_id={{ user_id }}&nonce={{ nonce }}`;
-            if (fastChecked) {
-                url += '&fast';
+
+            if (methodSelect.value === 'GET') {
+                // GET method: build URL with query parameters
+                let url = `/run?prompt=${encodeURIComponent(promptValue)}&user_id={{ user_id }}&nonce={{ nonce }}`;
+                if (fastChecked) {
+                    url += '&fast';
+                }
+                if (developerChecked) {
+                    url += '&developer';
+                }
+                
+                // Update iframe src with the prompt
+                iframe.src = url;
+            } else {
+                // POST method: use hidden form
+                const form = document.getElementById('run-form');
+                document.getElementById('form-prompt').value = promptValue;
+
+                // Submit flags only when checked (disable when unchecked so they are not submitted)
+                const fastInput = document.getElementById('form-fast');
+                const developerInput = document.getElementById('form-developer');
+                fastInput.disabled = !fastChecked;
+                developerInput.disabled = !developerChecked;
+
+                // Submit the form to the iframe
+                form.submit();
             }
-            if (developerChecked) {
-                url += '&developer';
-            }
-            
-            // Update iframe src with the prompt
-            iframe.src = url;
-            
+
             // Show the iframe container and hide the input container
             iframeContainer.style.display = 'block';
             inputContainer.style.display = 'none';
