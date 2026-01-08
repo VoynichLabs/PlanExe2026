@@ -6,3 +6,4 @@ context = "."
 [deploy]
 restartPolicyType = "NEVER"
 restartPolicyMaxRetries = 3
+healthcheckInterval = 10
