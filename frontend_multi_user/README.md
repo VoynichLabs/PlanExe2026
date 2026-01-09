@@ -17,20 +17,24 @@ Flask-based multi-user UI for PlanExe. Runs in Docker, uses Postgres (defaults t
 - `PLANEXE_FRONTEND_MULTIUSER_DEBUG`: set `true` to enable Flask debug.
 - `PLANEXE_CONFIG_PATH`: defaults to `/app` so PlanExe picks up `.env` + `llm_config.json` that compose mounts.
 
-## Local devevelopment without Docker
-The container sets `PYTHONPATH=/app:/app/frontend_multi_user:/app/frontend_multi_user/src`, so `worker_plan_api` is importable without hacks. Locally you need to mirror that.
+## Run locally with a venv
+
+For a faster edit/run loop without Docker. Work from inside `frontend_multi_user` so its dependencies stay isolated:
 
 ```bash
 cd frontend_multi_user
-python -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
-# Option A (recommended): install the shared code once
-pip install --prefer-binary -e ../worker_plan
-
-# Option B: use PYTHONPATH if you don't want to install worker_plan locally
-export PYTHONPATH="$(pwd):$(pwd)/src:$(pwd)/../worker_plan"
-
-pip install --prefer-binary -e .
-PLANEXE_FRONTEND_MULTIUSER_DB_HOST=localhost PLANEXE_FRONTEND_MULTIUSER_DB_PORT=${PLANEXE_POSTGRES_PORT:-5432} python src/app.py
+pip install --upgrade pip
+pip install -e .
+export PYTHONPATH=$PWD/..:$PWD/../worker_plan:$PYTHONPATH
+export PLANEXE_FRONTEND_MULTIUSER_DB_HOST=localhost
+export PLANEXE_FRONTEND_MULTIUSER_DB_PORT=${PLANEXE_POSTGRES_PORT:-5432}
+export PLANEXE_FRONTEND_MULTIUSER_ADMIN_USERNAME=username
+export PLANEXE_FRONTEND_MULTIUSER_ADMIN_PASSWORD=password
+python src/app.py
 ```
-If you want pipeline-backed routes locally, also install the full `worker_plan` package in a separate environment or set `PLANEXE_WORKER_PLAN_URL` to a running worker service.
+
+Run `deactivate` when you are done with the venv.
+
+The `PYTHONPATH` makes `worker_plan_api` and `database_api` importable without installing the full `worker_plan` package (which has fragile dependencies in `worker_plan_internal`).
