@@ -4,7 +4,7 @@ Locate PlanExe's config files, like .env and llm_config.json. The .env file is o
 Finds config files by checking the following locations in order:
 1. The directory specified by the PLANEXE_CONFIG_PATH environment variable. It must be an absolute path.
 2. The current working directory (CWD).
-3. The PlanExe project root directory (assumed to be two levels above this file's location).
+3. The PlanExe project root directory (four levels above this file's location).
 
 Usage: without any PLANEXE_CONFIG_PATH environment variable.
 PROMPT> python -m worker_plan_internal.utils.planexe_config
@@ -145,7 +145,9 @@ class PlanExeConfig:
             return cwd_file_path
 
         # Step 3: Check if file exists in PlanExe root directory
-        root_file_path = Path(__file__).parent.parent.parent / filename
+        # This file is at: worker_plan/worker_plan_internal/utils/planexe_config.py
+        # So we need 4 .parent calls to reach the PlanExe root.
+        root_file_path = Path(__file__).parent.parent.parent.parent / filename
         if root_file_path.is_file():
             logger.debug(f"Found {filename!r} at root_file_path: {root_file_path!r}")
             return root_file_path
