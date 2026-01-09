@@ -1,7 +1,9 @@
 # Worker Plan API
 
-Code shared between `worker_plan_internal`, `worker_plan_database`, `frontend_multi_user`, `frontend_single_user`.
+Lightweight shared code used by `worker_plan_internal`, `worker_plan_database`, `frontend_multi_user`, and `frontend_single_user`.
 
-## Best practice
+## Why keep this lightweight?
 
-Minimize dependencies on 3rd party packages. Otherwise all the places the `worker_plan_api` is used, will have to include new dependencies. Some of the packages are already incompatible with each other, adding more is likely to make it worse.
+Each service that imports `worker_plan_api` has its own set of dependencies. Some of these are already incompatible with each other (e.g., `worker_plan_internal` vs `frontend_multi_user`). Adding dependencies here forces every consumer to pull them in, increasing the risk of conflicts.
+
+**Rule:** Avoid 3rd party dependencies in `worker_plan_api`. If you need external packages, put that code in the service that needs it, not here.
