@@ -29,7 +29,6 @@ pip install --upgrade pip
 pip install -e ../worker_plan
 pip install -r requirements.txt
 export PYTHONPATH=$PWD/..:$PYTHONPATH
-export PLANEXE_WORKER_ID=local
 python -m worker_plan_database.app
 ```
 

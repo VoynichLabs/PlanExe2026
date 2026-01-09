@@ -19,6 +19,15 @@ import zipfile
 import requests
 from sqlalchemy import inspect, text
 
+# Load .env file early, before any imports that require environment variables (e.g., machai.py).
+# This allows configuration via .env file instead of shell exports.
+# Search in worker_plan_database/ first, then fall back to the project root.
+from dotenv import load_dotenv
+_module_dir = Path(__file__).parent
+_dotenv_loaded = load_dotenv(_module_dir / ".env")
+if not _dotenv_loaded:
+    load_dotenv(_module_dir.parent / ".env")
+
 WORKER_ID = os.environ.get("PLANEXE_WORKER_ID") or str(uuid.uuid4())
 
 # Attempt to configure Luigi VERY EARLY to prevent its default logging setup.
