@@ -10,22 +10,38 @@ You need several open terminals to do development on this project.
 git clone https://github.com/neoneye/PlanExe.git
 ```
 
-### Step 2 - `open_dir_server`
+### Step 2 - Prepare `.env` file
+
+Create a `.env` file from the `.env.developer-example` file.
+
+Update `OPENROUTER_API_KEY` with your open router api key.
+
+### Step 3 - `open_dir_server`
 
 In a new terminal: 
 Follow the [`open_dir_server`](../open_dir_server/README.md) instructions.
 
-### Step 3 - `worker_plan`
+### Step 4 - `worker_plan`
 
 In a new terminal: 
 Follow the [`worker_plan`](../worker_plan/README.md) instructions.
 
-### Step 4 - `frontend_single_user`
+### Step 5 - `frontend_single_user`
 
 In a new terminal: 
 Follow the [`frontend_single_user`](../frontend_single_user/README.md) instructions.
 
-### Step 5 - Tests
+### Step 6 - `worker_plan_database`
+
+In a new terminal: 
+Follow the [`worker_plan_database`](../worker_plan_database/README.md) instructions.
+
+### Step 7 - `frontend_multi_user`
+
+In a new terminal: 
+Follow the [`frontend_multi_user`](../frontend_multi_user/README.md) instructions.
+
+### Step 8 - Tests
 
 In a new terminal: 
 Run the tests to ensure that the project works correctly.
