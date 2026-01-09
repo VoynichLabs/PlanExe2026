@@ -32,5 +32,13 @@
 			"name": "PlanExe",
 			"path": "."
 		}
-	]
+	],
+	"settings": {
+		"files.exclude": {
+			"**/__pycache__": true,
+			"**/.venv": true,
+			"**/.vscode": true,
+			"**/*.egg-info": true
+		}
+	}
 }
