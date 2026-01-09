@@ -23,7 +23,7 @@ For a faster edit/run loop without Docker. Work from inside `worker_plan_databas
 
 ```bash
 cd worker_plan_database
-python3 -m venv .venv
+python3.13 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
 pip install -e ../worker_plan
@@ -35,4 +35,4 @@ python -m worker_plan_database.app
 
 Run `deactivate` when you are done with the venv.
 
-The `PYTHONPATH` addition allows imports of `database_api` and `worker_plan_database` modules. The `pyrightconfig.json` configures the same paths for editor/IDE support.
+The `PYTHONPATH` addition allows imports of `database_api` and `worker_plan_database` modules. The `pyrightconfig.json` and `.vscode/settings.json` configure the same paths for editor/IDE support. In Cursor/VS Code, select the interpreter from `.venv/bin/python` via **Cmd+Shift+P** → **"Python: Select Interpreter"**.
