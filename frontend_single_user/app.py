@@ -3,6 +3,7 @@ Start the UI in single user mode.
 PROMPT> python frontend_single_user/app.py
 """
 from dataclasses import dataclass
+from dotenv import load_dotenv
 from math import ceil
 from pathlib import Path
 from typing import Optional
@@ -15,6 +16,9 @@ import sys
 import tempfile
 import threading
 import time
+
+# Load environment variables from .env file (if it exists)
+load_dotenv()
 from worker_plan_api.llm_info import LLMInfo, OllamaStatus
 from worker_plan_api.generate_run_id import RUN_ID_PREFIX
 from worker_plan_api.speedvsdetail import SpeedVsDetailEnum

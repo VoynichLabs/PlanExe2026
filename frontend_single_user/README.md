@@ -13,9 +13,15 @@ source .venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 export PYTHONPATH=$PWD/../worker_plan:$PYTHONPATH
-export PLANEXE_OPEN_DIR_SERVER_URL=http://localhost:5100
-export PLANEXE_WORKER_PLAN_URL=http://localhost:8000
 python app.py
+```
+
+The app loads environment variables from a `.env` file (if present). Create one with:
+
+```bash
+# .env
+PLANEXE_WORKER_PLAN_URL=http://localhost:8000
+PLANEXE_OPEN_DIR_SERVER_URL=http://localhost:5100
 ```
 
 Then open http://localhost:7860 (or your `PLANEXE_GRADIO_SERVER_PORT`). Run `deactivate` when you are done with the venv.
