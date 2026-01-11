@@ -5,11 +5,11 @@ logic. Talks to `worker_plan` for execution and uses shared `database_api`
 models. Keep interfaces stable across services.
 
 ## Guidelines
-- Preserve the `worker_plan` API contract used by the UI (run start/status,
-  file listing/zip download, stop, and `/llm-info`).
-- Keep Postgres wiring and env defaults stable:
-  `PLANEXE_FRONTEND_MULTIUSER_DB_*` with fallbacks to `PLANEXE_POSTGRES_*`,
-  and `SQLALCHEMY_DATABASE_URI` override.
+- Preserve the `worker_plan` API contract defined in `worker_plan/app.py`;
+  update the UI calls if routes or response shapes change.
+- Keep Postgres wiring and env defaults stable (see root `AGENTS.md` for keys);
+  prefer `SQLALCHEMY_DATABASE_URI`, otherwise fall back to
+  `PLANEXE_FRONTEND_MULTIUSER_DB_*` and `PLANEXE_POSTGRES_*`.
 - Maintain required admin auth (`PLANEXE_FRONTEND_MULTIUSER_ADMIN_USERNAME`
   / `PLANEXE_FRONTEND_MULTIUSER_ADMIN_PASSWORD`) and Flask login flow.
 - Continue using `database_api.planexe_db_singleton.db`; do not create new
@@ -25,10 +25,5 @@ models. Keep interfaces stable across services.
   `frontend_single_user`, `open_dir_server`.
 
 ## Testing
-- Local (repo root): `PYTHONPATH=$PWD/worker_plan python frontend_multi_user/src/app.py`
-- Smoke checks:
-```bash
-PORT=${PLANEXE_FRONTEND_MULTIUSER_PORT:-5000}
-curl http://localhost:${PORT}/healthcheck
-curl -I http://localhost:${PORT}/login
-```
+- No automated tests currently. If you change UI or DB flow, add a unit test
+  close to the logic when feasible and run `python test.py` from repo root.

@@ -19,8 +19,8 @@ consumers.
 - Forbidden imports: `worker_plan*`, `frontend_*`, `worker_plan_database`,
   `open_dir_server` (keep this package service-agnostic).
 - Use UTC timestamps for defaults (`datetime.now(UTC)`), matching existing models.
-- Foreign keys: this package currently avoids `ForeignKey` constraints. Do not
-  add them unless explicitly instructed.
+- Foreign keys: current models do not define `ForeignKey` constraints. Confirm
+  with the owner before adding any.
 - Migrations: there is no Alembic pipeline here. Schema changes are applied via
   `db.create_all()` at service startup plus explicit ALTER helpers in
   `frontend_multi_user/src/app.py` and `worker_plan_database/app.py`. Update
@@ -36,24 +36,7 @@ extra_notes = db.Column(db.String(256), nullable=False)
 ```
 
 ## Testing
-- Smoke-check model imports and table creation with an in-memory SQLite DB
-  (run from a venv that has `flask-sqlalchemy` + `sqlalchemy-utils`, e.g.
-  `frontend_multi_user`):
-```bash
-python - <<'PY'
-from flask import Flask
-from database_api.planexe_db_singleton import db
-import database_api.model_event  # noqa: F401
-import database_api.model_nonce  # noqa: F401
-import database_api.model_taskitem  # noqa: F401
-import database_api.model_worker  # noqa: F401
-
-app = Flask(__name__)
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-db.init_app(app)
-with app.app_context():
-    db.create_all()
-print("ok")
-PY
-```
+- No package-level tests currently. If you change models or schema helpers,
+  add a unit test under `database_api/tests` that exercises model import and
+  `db.create_all()` with SQLite. Run tests in a venv that includes
+  `flask-sqlalchemy` (see `frontend_multi_user/README.md`).

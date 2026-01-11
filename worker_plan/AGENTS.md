@@ -18,17 +18,12 @@ consumers.
   `llama_index`, `fastapi`, `httpx`, `numpy`, `pandas`, or `torch` there.
 - Keep planning logic in `worker_plan_internal` (pipeline stages:
   prompt parsing -> LLM planning -> file/report output).
+- Other services may import `worker_plan_api` for types/helpers; they must not
+  import `worker_plan_internal`.
 - If new environment variables or endpoints are added, update
   `worker_plan/README.md` and any Railway docs.
 
 ## Testing
-- Local (repo root): `PYTHONPATH=$PWD/worker_plan python -m worker_plan.app`
-- CLI smoke checks (replace `<MODEL_ID>` with a value from `/llm-info`):
-```bash
-PORT=${PLANEXE_WORKER_PORT:-8000}
-curl http://localhost:${PORT}/healthcheck
-curl http://localhost:${PORT}/llm-info
-curl -X POST http://localhost:${PORT}/runs \\
-  -H 'Content-Type: application/json' \\
-  -d '{"submit_or_retry":"submit","plan_prompt":"Hello","llm_model":"<MODEL_ID>","speed_vs_detail":"all_details_but_slow"}'
-```
+- Prefer unit tests over manual server checks. Run `python test.py` from repo
+  root; worker tests live under `worker_plan/worker_plan_internal/**/tests` and
+  `worker_plan/worker_plan_api/tests`.

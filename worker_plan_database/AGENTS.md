@@ -10,7 +10,7 @@ PlanExe pipeline, and updates task state/progress.
   `.env` loading, logging setup, Flask app config, then `db.init_app(app)`.
 - Maintain the DB connection logic:
   - Prefer `SQLALCHEMY_DATABASE_URI` when set.
-  - Otherwise build from `PLANEXE_POSTGRES_HOST|PORT|DB|USER|PASSWORD`.
+  - Otherwise build from `PLANEXE_POSTGRES_*` (see root `AGENTS.md` for keys).
 - Keep worker identity and required env checks intact (`PLANEXE_WORKER_ID`,
   `PLANEXE_IFRAME_GENERATOR_CONFIRMATION_*`).
 - When changing schema usage, add columns in a backward-compatible way and
@@ -18,5 +18,5 @@ PlanExe pipeline, and updates task state/progress.
 - Forbidden imports: `worker_plan.app`, `frontend_*`, `open_dir_server`.
 
 ## Testing
-- Local (repo root): `PYTHONPATH=$PWD/worker_plan python -m worker_plan_database.app`
-  with a running Postgres and required env vars.
+- No automated tests currently. If you change worker behavior, add a unit test
+  close to the logic when feasible and run `python test.py` from repo root.

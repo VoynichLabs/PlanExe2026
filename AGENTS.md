@@ -1,32 +1,24 @@
 # PlanExe agent instructions
 
 Scope: repo-level guardrails for PlanExe services and shared packages.
-Always check the package-level AGENTS listed below for file-specific rules.
+Always check the package-level `AGENTS.md` for file-specific rules
+(use `rg --files -g 'AGENTS.md'` if you are unsure).
 
-## Local agent files
-- `database_api/AGENTS.md`
-- `worker_plan/AGENTS.md`
-- `worker_plan_database/AGENTS.md`
-- `frontend_single_user/AGENTS.md`
-- `frontend_multi_user/AGENTS.md`
-- `open_dir_server/AGENTS.md`
-
-## Repo map (high-level)
-- `worker_plan`
-- `frontend_single_user`
-- `frontend_multi_user`
-- `worker_plan_database`
-- `database_api`
-- `open_dir_server`
-- `database_postgres`
-Keep this list in sync when top-level directories are added/removed.
+## Repo architecture map
+- `database_api`: shared SQLAlchemy models for DB-backed services.
+- `worker_plan/worker_plan_api`: shared API types/helpers (must stay lightweight).
+- `worker_plan`: FastAPI service that runs the pipeline.
+- `frontend_single_user`: Gradio UI (local mode).
+- `frontend_multi_user`: Flask UI (hosted mode) + Postgres.
+- `open_dir_server`: local host opener (security critical).
+- `worker_plan_database`: DB-backed worker that polls tasks.
 
 ## Shared contracts
 - Keep `worker_plan` HTTP endpoints and response shapes backward compatible.
 - Preserve shared SQLAlchemy models in `database_api` (nullable defaults for new columns).
-- Run directory naming:
-  - Single-user default: `PlanExe_YYYYMMDD_HHMMSS` (regex `^PlanExe_\\d+_\\d+$`).
-  - Multi-user or forced UUID: `run_id` is a UUID (used to avoid collisions).
+- Run directory naming defaults live in `worker_plan/worker_plan_api/generate_run_id.py`.
+  Current defaults: single-user uses timestamped IDs; multi-user can use UUIDs.
+  Verify in code before changing run-id formats.
 - Keep prompt catalog UUIDs stable when used as defaults; they live in
   `worker_plan/worker_plan_api/prompt/data/*.jsonl`.
 
@@ -36,19 +28,19 @@ Keep this list in sync when top-level directories are added/removed.
   unless explicitly instructed.
 - Shared packages (`database_api`, `worker_plan_api`) must not import service apps
   (`frontend_*`, `worker_plan_database`, `open_dir_server`, `worker_plan.app`).
+- If a service needs shared logic, move it into a shared package rather than
+  importing across service boundaries.
 
-## Common env keys
-- `PLANEXE_CONFIG_PATH`, `PLANEXE_RUN_DIR`, `PLANEXE_HOST_RUN_DIR`
-- `PLANEXE_WORKER_PLAN_URL`, `PLANEXE_WORKER_PLAN_TIMEOUT`
-- `PLANEXE_POSTGRES_HOST|PORT|DB|USER|PASSWORD`, `SQLALCHEMY_DATABASE_URI`
-- `PLANEXE_FRONTEND_MULTIUSER_DB_*`, `PLANEXE_FRONTEND_MULTIUSER_ADMIN_*`
-- `PLANEXE_OPEN_DIR_SERVER_URL`, `PLANEXE_PASSWORD`, `OPENROUTER_API_KEY`
+## Environment variables
+- Canonical env keys live in `.env.docker-example`, `.env.developer-example`,
+  and `worker_plan/worker_plan_api/planexe_dotenv.py`. Read those before adding
+  or renaming env vars.
 
 ## Cross-service conventions
 - `.env` and `llm_config.json` are expected in the repo root for Docker setups.
 - Use `PLANEXE_*` env vars; prefer existing defaults when adding new ones.
 - Do not assume ports; read `docker-compose.yml` or the service env defaults
-  (`PLANEXE_*_PORT`) before running curl checks.
+  (`PLANEXE_*_PORT`) before any manual verification.
 
 ## Docker notes
 - `PLANEXE_POSTGRES_PORT` changes the host port mapping only; containers still
@@ -66,12 +58,25 @@ Keep this list in sync when top-level directories are added/removed.
 - When changing local dev startup steps or the test command, update
   `extra/install_developer.md`.
 
-## Testing
-- Repo tests: `python test.py` (117 tests).
-- Service-specific checks live in each package `AGENTS.md`.
+## Testing strategy
+- Prefer unit tests over manual curl/server checks.
+- Run `python test.py` from repo root for existing coverage.
+- If you change logic without tests, add a unit test close to the code.
+- Do not start services or run curl checks unless explicitly requested.
 
 ## Coding standards
 - Type hints: add to all public function signatures.
 - Async/sync: FastAPI code can be `async`; Flask routes must stay sync.
 - Error handling: do not use bare `except:`; log stack traces.
 - Logging: use `logging` (avoid `print()` in service code).
+- Formatting/linting: no repo-wide formatter is configured; follow existing
+  file style and do not add new lint tools unless requested.
+
+## Python version
+- Canonical version is defined in each package `pyproject.toml`.
+
+## Dependencies
+- `worker_plan` and `frontend_multi_user`: add deps in their `pyproject.toml`.
+- `frontend_single_user` and `worker_plan_database`: add deps in `requirements.txt`.
+- Do not `pip install` ad-hoc without recording the dependency in the
+  package manifest.
