@@ -15,7 +15,7 @@ cd PlanExe
 ```
 
 ## 3. Configure secrets
-Copy `.env.example` to `.env`.
+Copy `.env.docker-example` to `.env`.
 
 Add your OpenRouter key:
 ```bash

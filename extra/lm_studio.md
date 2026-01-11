@@ -6,7 +6,7 @@ PlanExe processes more text than regular chat. You will need expensive hardware 
 
 ## Quickstart (Docker)
 1) Install LM Studio on your host and download a small model inside LM Studio (e.g., `Qwen2.5-7B-Instruct-1M`, ~4.5 GB).  
-2) Copy `.env.example` to `.env` (even if you leave keys empty for LM Studio) and use the `lmstudio-...` entry in `llm_config.json`, setting `base_url` to `http://host.docker.internal:1234` (Docker Desktop) or your Linux bridge IP.  
+2) Copy `.env.docker-example` to `.env` (even if you leave keys empty for LM Studio) and use the `lmstudio-...` entry in `llm_config.json`, setting `base_url` to `http://host.docker.internal:1234` (Docker Desktop) or your Linux bridge IP.  
 3) Start PlanExe: `docker compose up worker_plan frontend_single_user`. Open http://localhost:7860, submit a prompt, and watch `docker compose logs -f worker_plan` for progress.
 
 ### Host-only (no Docker) — for advanced users

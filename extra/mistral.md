@@ -21,7 +21,7 @@ cd PlanExe
 "mistralai==1.5.2",
 ```
    Without this step, the Docker image will not have the `MistralAI` class.
-3) Copy `.env.example` to `.env` and add your key:
+3) Copy `.env.docker-example` to `.env` and add your key:
 ```
 MISTRAL_API_KEY='INSERT-YOUR-SECRET-KEY-HERE'
 ```

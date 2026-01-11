@@ -18,7 +18,7 @@ Quickstart (run from repo root)
 - UI: single user -> http://localhost:7860; multi user -> http://localhost:5001 after the stack is up.
 - Logs: `docker compose logs -f worker_plan` or `... frontend_single_user`.
 - One-off inside a container: `docker compose run --rm worker_plan python -m worker_plan_internal.fiction.fiction_writer` (use `exec` if already running).
-- Ensure `.env` and `llm_config.json` exist; copy `.env.example` to `.env` if you need a starter.
+- Ensure `.env` and `llm_config.json` exist; copy `.env.docker-example` to `.env` if you need a starter.
 
 Why compose (escaping dependency hell)
 --------------------------------------
@@ -97,7 +97,7 @@ Service: `worker_plan_database` (DB-backed worker)
 Usage notes
 -----------
 - Ports: host `8000->worker_plan`, `7860->frontend_single_user`, `${PLANEXE_FRONTEND_MULTIUSER_PORT:-5001}->frontend_multi_user`, `PLANEXE_POSTGRES_PORT (default 5432)->database_postgres`; change mappings in `docker-compose.yml` if needed.
-- `.env` must exist before `docker compose up`; it is both loaded and mounted read-only. Same for `llm_config.json`. If missing, start from `.env.example`.
+- `.env` must exist before `docker compose up`; it is both loaded and mounted read-only. Same for `llm_config.json`. If missing, start from `.env.docker-example`.
 - Host opener: set `PLANEXE_OPEN_DIR_SERVER_URL` so the frontend can reach your host opener service (see `extra/docker.md` for OS-specific URLs and optional `extra_hosts` on Linux).
 - To relocate outputs, set `PLANEXE_HOST_RUN_DIR` (or edit the bind mount) to another host path.
 - Database: connect on `localhost:${PLANEXE_POSTGRES_PORT:-5432}` with `planexe/planexe` by default; data persists via the `database_postgres_data` volume.

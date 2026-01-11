@@ -16,7 +16,7 @@ I haven't been able to find a `free` model on OpenRouter that works well with Pl
 git clone https://github.com/neoneye/PlanExe.git
 cd PlanExe
 ```
-3) Copy `.env.example` to `.env`, then set your API key and pick a default OpenRouter profile so the worker uses the cloud model by default:
+3) Copy `.env.docker-example` to `.env`, then set your API key and pick a default OpenRouter profile so the worker uses the cloud model by default:
 ```
 OPENROUTER_API_KEY='sk-or-v1-...'
 DEFAULT_LLM='openrouter-paid-gemini-2.0-flash-001'   # or openrouter-paid-openai-gpt-4o-mini
@@ -34,7 +34,7 @@ docker compose up worker_plan frontend_single_user
 
 Visit [OpenRouter](https://openrouter.ai/), create an account, purchase 5 USD in credits (plenty for making a several plans), and generate an API key.
 
-Copy `.env.example` to a new file called `.env` (loaded by Docker at startup).
+Copy `.env.docker-example` to a new file called `.env` (loaded by Docker at startup).
 
 Open the `.env` file in a text editor and insert your OpenRouter API key. Like this:
 

@@ -6,7 +6,7 @@ PlanExe processes more text than regular chat. You will need expensive hardware 
 
 ## Quickstart (Docker)
 1) Install Ollama on your host and pull a small model: `ollama run llama3.1` (downloads ~4.9 GB and proves the host service works).  
-2) Copy `.env.example` to `.env` (even if you leave keys empty for Ollama) and pick the Docker entry in `llm_config.json` (snippet below) so `base_url` points to `http://host.docker.internal:11434` (Docker Desktop) or your Linux bridge IP.  
+2) Copy `.env.docker-example` to `.env` (even if you leave keys empty for Ollama) and pick the Docker entry in `llm_config.json` (snippet below) so `base_url` points to `http://host.docker.internal:11434` (Docker Desktop) or your Linux bridge IP.  
 3) Start PlanExe: `docker compose up worker_plan frontend_single_user`. Open http://localhost:7860, submit a prompt, and watch `docker compose logs -f worker_plan` for progress.
 
 ### Host-only (no Docker) — for advanced users
