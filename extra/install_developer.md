@@ -31,17 +31,22 @@ Follow the [`worker_plan`](../worker_plan/README.md) instructions.
 In a new terminal: 
 Follow the [`frontend_single_user`](../frontend_single_user/README.md) instructions.
 
-### Step 6 - `worker_plan_database`
+### Step 6 - `database_postgres`
+
+In a new terminal: 
+Follow the [`database_postgres`](../database_postgres/README.md) instructions.
+
+### Step 7 - `worker_plan_database`
 
 In a new terminal: 
 Follow the [`worker_plan_database`](../worker_plan_database/README.md) instructions.
 
-### Step 7 - `frontend_multi_user`
+### Step 8 - `frontend_multi_user`
 
 In a new terminal: 
 Follow the [`frontend_multi_user`](../frontend_multi_user/README.md) instructions.
 
-### Step 8 - Tests
+### Step 9 - Tests
 
 In a new terminal: 
 Run the tests to ensure that the project works correctly.
