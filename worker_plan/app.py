@@ -13,6 +13,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Literal, Optional
 
+from worker_plan_api.planexe_dotenv import PlanExeDotEnv
+
+PlanExeDotEnv.load().update_os_environ()
+
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
@@ -38,7 +42,8 @@ logging.basicConfig(
 )
 
 MODULE_PATH_PIPELINE = "worker_plan_internal.plan.run_plan_pipeline"
-DEFAULT_APP_ROOT = Path(__file__).parent.resolve()
+# Default to repo root so runs land in PlanExe/run when env vars aren't set.
+DEFAULT_APP_ROOT = Path(__file__).parent.parent.resolve()
 APP_ROOT = Path(os.environ.get("PLANEXE_CONFIG_PATH", DEFAULT_APP_ROOT)).resolve()
 RUN_BASE_PATH = Path(os.environ.get("PLANEXE_RUN_DIR", APP_ROOT / "run")).resolve()
 HOST_RUN_DIR_BASE = os.environ.get("PLANEXE_HOST_RUN_DIR")
@@ -494,11 +499,6 @@ def start_background_tasks() -> None:
 
 if __name__ == "__main__":
     import uvicorn
-    from worker_plan_api.planexe_dotenv import PlanExeDotEnv
-
-    # Load .env file if available and update os.environ before reading config
-    dotenv = PlanExeDotEnv.load()
-    dotenv.update_os_environ()
 
     host = os.environ.get("PLANEXE_WORKER_HOST", "0.0.0.0")
     port = int(os.environ.get("PLANEXE_WORKER_PORT", "8000"))
