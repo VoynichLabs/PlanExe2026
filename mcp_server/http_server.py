@@ -12,8 +12,8 @@ import sys
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import FastAPI, HTTPException, Header, Depends
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, HTTPException, Header, Depends, Request
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -116,17 +116,124 @@ def extract_text_content(text_contents: list) -> list[dict[str, Any]]:
             result.append({"text": str(item)})
     return result
 
-@app.post("/mcp", response_model=MCPToolCallResponse)
-async def mcp_endpoint(
-    request: MCPToolCallRequest,
+@app.get("/mcp")
+async def mcp_get_endpoint(
+    request: Request,
     _: bool = Depends(verify_api_key)
 ):
     """
-    Main MCP endpoint for tool calls.
+    GET endpoint for MCP (SSE or info).
+    
+    LM Studio may try to GET /mcp for SSE connection or to discover the endpoint.
+    """
+    logger.info(f"Received GET /mcp - Accept: {request.headers.get('Accept')}, Headers: {dict(request.headers)}")
+    
+    # Check if client wants SSE
+    accept_header = request.headers.get("Accept", "")
+    if "text/event-stream" in accept_header:
+        logger.info("Client requested SSE stream")
+        # Return SSE stream
+        async def generate_sse():
+            yield "data: {\"type\": \"connected\", \"message\": \"MCP Server Ready\"}\n\n"
+            # Keep connection alive with periodic keepalive
+            while True:
+                await asyncio.sleep(30)
+                yield ": keepalive\n\n"
+        
+        return StreamingResponse(
+            generate_sse(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",  # Disable buffering for nginx
+            }
+        )
+    
+    # Return endpoint info
+    return {
+        "protocol": "MCP HTTP",
+        "version": "1.0",
+        "endpoints": {
+            "tools": "/mcp/tools",
+            "call": "/mcp/tools/call",
+            "post": "/mcp"
+        },
+        "note": "Use POST /mcp with {\"tool\": \"tool_name\", \"arguments\": {...}} for tool calls"
+    }
+
+@app.post("/mcp")
+async def mcp_post_endpoint(
+    request: Request,
+    _: bool = Depends(verify_api_key)
+):
+    """
+    Main MCP endpoint for tool calls (POST).
     
     Compatible with MCP clients that expect a single endpoint.
     """
-    return await call_tool_internal(request.tool, request.arguments)
+    try:
+        # Read raw body for logging
+        raw_body = await request.body()
+        logger.info(f"Received POST /mcp request - Content-Type: {request.headers.get('Content-Type')}, Body length: {len(raw_body)}")
+        
+        if not raw_body:
+            raise HTTPException(status_code=400, detail="Request body is empty")
+        
+        try:
+            body = json.loads(raw_body)
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse JSON body: {e}, raw body: {raw_body[:200]}")
+            raise HTTPException(status_code=400, detail=f"Invalid JSON: {e}")
+        
+        logger.info(f"Parsed MCP request body: {json.dumps(body, indent=2)}")
+        
+        # Try to parse as MCPToolCallRequest
+        try:
+            mcp_request = MCPToolCallRequest(**body)
+            logger.info(f"Calling tool: {mcp_request.tool} with arguments: {mcp_request.arguments}")
+            return await call_tool_internal(mcp_request.tool, mcp_request.arguments)
+        except Exception as e:
+            logger.warning(f"Failed to parse as MCPToolCallRequest: {e}, body: {body}")
+            
+            # Try alternative formats that LM Studio might use
+            # Check for common MCP over HTTP formats
+            if "method" in body and "params" in body:
+                # JSON-RPC style
+                method = body.get("method", "")
+                params = body.get("params", {})
+                logger.info(f"Detected JSON-RPC format: method={method}, params={params}")
+                # Map JSON-RPC methods to our tools
+                if method.startswith("tools/"):
+                    tool_name = method.replace("tools/", "planexe.")
+                    return await call_tool_internal(tool_name, params or {})
+                elif method == "tools/list":
+                    tools = await list_tools_internal()
+                    return JSONResponse(content={"jsonrpc": "2.0", "result": {"tools": tools}, "id": body.get("id")})
+            
+            # If still not parseable, return error with helpful message
+            logger.error(f"Unknown request format: {body}")
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "error": "Invalid request format",
+                    "expected": {
+                        "tool": "string",
+                        "arguments": "object"
+                    },
+                    "alternative_formats": [
+                        {"tool": "string", "arguments": "object"},
+                        {"method": "string", "params": "object"}  # JSON-RPC style
+                    ],
+                    "received": body
+                }
+            )
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in mcp_post_endpoint: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/mcp/tools/call", response_model=MCPToolCallResponse)
 async def call_tool(
@@ -193,12 +300,9 @@ async def call_tool_internal(tool_name: str, arguments: dict[str, Any]) -> MCPTo
             }
         )
 
-@app.get("/mcp/tools")
-async def list_tools(_: bool = Depends(verify_api_key)):
-    """
-    List all available MCP tools.
-    """
-    tools = [
+async def list_tools_internal() -> list[dict[str, str]]:
+    """Internal tool list generator."""
+    return [
         {
             "name": "planexe.session.create",
             "description": "Creates a new session and output namespace"
@@ -236,7 +340,13 @@ async def list_tools(_: bool = Depends(verify_api_key)):
             "description": "Provides incremental events for a session since a cursor"
         },
     ]
-    return {"tools": tools}
+
+@app.get("/mcp/tools")
+async def list_tools(_: bool = Depends(verify_api_key)):
+    """
+    List all available MCP tools.
+    """
+    return {"tools": await list_tools_internal()}
 
 @app.get("/healthcheck")
 def healthcheck():
