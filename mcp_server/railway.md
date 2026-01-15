@@ -9,7 +9,7 @@ Set these in your Railway project:
 ```
 PLANEXE_MCP_API_KEY="your-secret-api-key-here"
 SQLALCHEMY_DATABASE_URI="postgresql://user:password@host:5432/dbname"
-PLANEXE_RUN_DIR="/app/run"
+PLANEXE_WORKER_PLAN_URL="http://your-worker-plan-service:8000"
 ```
 
 Or, if not using `SQLALCHEMY_DATABASE_URI`, configure Postgres connection separately:
@@ -20,7 +20,7 @@ PLANEXE_POSTGRES_PORT="5432"
 PLANEXE_POSTGRES_DB="planexe"
 PLANEXE_POSTGRES_USER="planexe"
 PLANEXE_POSTGRES_PASSWORD="your-password"
-PLANEXE_RUN_DIR="/app/run"
+PLANEXE_WORKER_PLAN_URL="http://your-worker-plan-service:8000"
 ```
 
 ## Optional Environment Variables
@@ -28,14 +28,16 @@ PLANEXE_RUN_DIR="/app/run"
 ```
 PLANEXE_MCP_HTTP_HOST="0.0.0.0"  # Default
 PLANEXE_MCP_HTTP_PORT="8001"      # Default (Railway will override with PORT env var)
+PLANEXE_WORKER_PLAN_URL="http://your-worker-plan-service:8000"  # URL of worker_plan service
 ```
 
 ## Railway-Specific Notes
 
 - Railway automatically provides a `PORT` environment variable. The server will use it if set, otherwise defaults to `8001`.
 - Set `PLANEXE_MCP_API_KEY` to enable API key authentication. Clients must provide this key in the `X-API-Key` header.
-- The server exposes an HTTP endpoint at `/mcp/tools/call` for tool invocations.
+- The server exposes an HTTP endpoint at `/mcp` (or `/mcp/tools/call`) for tool invocations.
 - Use Railway's Postgres addon or connect to an external Postgres database via `SQLALCHEMY_DATABASE_URI`.
+- Set `PLANEXE_WORKER_PLAN_URL` to point to your `worker_plan` service. Artifacts are fetched from `worker_plan` via HTTP instead of using a shared volume mount.
 
 ## Client Configuration
 

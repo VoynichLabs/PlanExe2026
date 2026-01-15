@@ -13,10 +13,13 @@ import logging
 import os
 import sys
 import uuid
+import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Optional
 from urllib.parse import quote_plus
+from io import BytesIO
+import httpx
 
 # Load .env file early
 from dotenv import load_dotenv
@@ -78,8 +81,11 @@ db.init_app(app)
 # MCP Server setup
 mcp_server = Server("planexe-mcp-server")
 
-# Base directory for run artifacts
+# Base directory for run artifacts (not used directly, fetched via worker_plan HTTP API)
 BASE_DIR_RUN = Path(os.environ.get("PLANEXE_RUN_DIR", Path(__file__).parent.parent / "run")).resolve()
+
+# Worker plan HTTP API URL
+WORKER_PLAN_URL = os.environ.get("PLANEXE_WORKER_PLAN_URL", "http://worker_plan:8000")
 
 # Pydantic models for request/response validation
 class SessionCreateRequest(BaseModel):
@@ -137,12 +143,11 @@ def find_task_by_session_id(session_id: str) -> Optional[TaskItem]:
             return tasks[0]
         return None
 
-def get_run_dir_for_session(session_id: str) -> Path:
-    """Get the run directory path for a session."""
-    # In worker_plan_database, run_id_dir = BASE_DIR_RUN / task_id
+def get_task_id_for_session(session_id: str) -> Optional[str]:
+    """Get the task_id (run_id) for a session."""
     task = find_task_by_session_id(session_id)
     if task:
-        return BASE_DIR_RUN / str(task.id)
+        return str(task.id)
     # Fallback: try parsing session_id format
     if "__" in session_id:
         # Extract UUID portion from pxe_YYYY_MM_DD__{uuid}
@@ -150,10 +155,59 @@ def get_run_dir_for_session(session_id: str) -> Path:
         # Try to find task by UUID
         try:
             task_id = uuid.UUID(uuid_part)
-            return BASE_DIR_RUN / str(task_id)
+            return str(task_id)
         except ValueError:
             pass
-    return BASE_DIR_RUN / session_id
+    return None
+
+async def fetch_artifact_from_worker_plan(run_id: str, file_path: str) -> Optional[bytes]:
+    """Fetch an artifact file from worker_plan via HTTP."""
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            # For report.html, use the dedicated report endpoint (most efficient)
+            if file_path == "report.html" or file_path.endswith("/report.html"):
+                report_response = await client.get(f"{WORKER_PLAN_URL}/runs/{run_id}/report")
+                if report_response.status_code == 200:
+                    return report_response.content
+                logger.warning(f"Worker plan returned {report_response.status_code} for report: {run_id}")
+                return None
+            
+            # For other files, fetch the zip and extract the file
+            # This is less efficient but works without a file serving endpoint
+            zip_response = await client.get(f"{WORKER_PLAN_URL}/runs/{run_id}/zip")
+            if zip_response.status_code != 200:
+                logger.warning(f"Worker plan returned {zip_response.status_code} for zip: {run_id}")
+                return None
+            
+            # Extract the file from the zip in memory
+            zip_bytes = zip_response.content
+            with zipfile.ZipFile(BytesIO(zip_bytes), 'r') as zip_file:
+                try:
+                    # Normalize path (remove leading slash if present)
+                    file_path_normalized = file_path.lstrip('/')
+                    file_data = zip_file.read(file_path_normalized)
+                    return file_data
+                except KeyError:
+                    logger.warning(f"File {file_path} not found in zip for run {run_id}")
+                    return None
+            
+    except Exception as e:
+        logger.error(f"Error fetching artifact from worker_plan: {e}", exc_info=True)
+        return None
+
+async def fetch_file_list_from_worker_plan(run_id: str) -> Optional[list[str]]:
+    """Fetch the list of files from worker_plan via HTTP."""
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(f"{WORKER_PLAN_URL}/runs/{run_id}/files")
+            if response.status_code == 200:
+                data = response.json()
+                return data.get("files", [])
+            logger.warning(f"Worker plan returned {response.status_code} for files list: {run_id}")
+            return None
+    except Exception as e:
+        logger.error(f"Error fetching file list from worker_plan: {e}", exc_info=True)
+        return None
 
 def compute_sha256(content: str | bytes) -> str:
     """Compute SHA256 hash of content."""
@@ -426,20 +480,21 @@ async def handle_session_status(arguments: dict[str, Any]) -> list[TextContent]:
         run_id = f"run_{str(task.id).replace('-', '_')}"
         state = get_task_state_mapping(task.state)
         
-        # Collect artifacts from run directory
-        run_dir = get_run_dir_for_session(session_id)
+        # Collect artifacts from worker_plan
+        run_id = get_task_id_for_session(session_id)
         latest_artifacts = []
-        if run_dir.exists():
-            for file_path in run_dir.iterdir():
-                if file_path.is_file() and file_path.name != "log.txt":
-                    artifact_uri = f"planexe://sessions/{session_id}/out/{file_path.name}"
-                    stat = file_path.stat()
-                    latest_artifacts.append({
-                        "path": file_path.name,
-                        "artifact_uri": artifact_uri,
-                        "kind": "intermediate",  # Could be improved with metadata
-                        "updated_at": datetime.fromtimestamp(stat.st_mtime, UTC).isoformat() + "Z",
-                    })
+        if run_id:
+            files_list = await fetch_file_list_from_worker_plan(run_id)
+            if files_list:
+                for file_name in files_list[:10]:  # Limit to 10 most recent
+                    if file_name != "log.txt":
+                        artifact_uri = f"planexe://sessions/{session_id}/out/{file_name}"
+                        latest_artifacts.append({
+                            "path": file_name,
+                            "artifact_uri": artifact_uri,
+                            "kind": "intermediate",
+                            "updated_at": datetime.now(UTC).isoformat() + "Z",  # Approximate
+                        })
         
         response = {
             "session_id": session_id,
@@ -530,45 +585,67 @@ async def handle_artifact_list(arguments: dict[str, Any]) -> list[TextContent]:
     req = ArtifactListRequest(**arguments)
     session_id = req.session_id
     
-    run_dir = get_run_dir_for_session(session_id)
+    run_id = get_task_id_for_session(session_id)
+    if not run_id:
+        return [TextContent(
+            type="text",
+            text=json.dumps({"error": {"code": "SESSION_NOT_FOUND", "message": f"Session not found: {session_id}"}})
+        )]
+    
     entries = []
     
-    if run_dir.exists():
-        list_path = run_dir / req.path if req.path else run_dir
-        if list_path.exists() and list_path.is_dir():
-            for item in list_path.iterdir():
-                if item.is_file():
-                    artifact_uri = f"planexe://sessions/{session_id}/out/{item.relative_to(run_dir)}"
-                    stat = item.stat()
-                    content_hash = ""
-                    content_type = "application/octet-stream"
-                    
-                    if req.include_metadata:
-                        try:
-                            content = item.read_bytes()
-                            content_hash = compute_sha256(content)
-                            # Guess content type from extension
-                            if item.suffix == ".md":
-                                content_type = "text/markdown"
-                            elif item.suffix == ".html":
-                                content_type = "text/html"
-                            elif item.suffix == ".json":
-                                content_type = "application/json"
-                            elif item.suffix == ".txt":
-                                content_type = "text/plain"
-                        except Exception as e:
-                            logger.warning(f"Error reading file {item}: {e}")
-                    
-                    entries.append({
-                        "type": "file",
-                        "path": str(item.relative_to(run_dir)),
-                        "artifact_uri": artifact_uri,
-                        "size": stat.st_size,
-                        "updated_at": datetime.fromtimestamp(stat.st_mtime, UTC).isoformat() + "Z",
-                        "content_type": content_type,
-                        "kind": "intermediate",
-                        "sha256": content_hash if req.include_metadata else "",
-                    })
+    # Fetch file list from worker_plan
+    files_list = await fetch_file_list_from_worker_plan(run_id)
+    if files_list is None:
+        # Return empty list if run doesn't exist yet
+        response = {"entries": []}
+        return [TextContent(type="text", text=json.dumps(response))]
+    
+    # Filter by path if specified
+    if req.path:
+        files_list = [f for f in files_list if f.startswith(req.path)]
+    
+    for file_name in files_list:
+        # Skip log.txt as per spec
+        if file_name == "log.txt":
+            continue
+        
+        artifact_uri = f"planexe://sessions/{session_id}/out/{file_name}"
+        
+        # Guess content type from extension
+        content_type = "application/octet-stream"
+        if file_name.endswith(".md"):
+            content_type = "text/markdown"
+        elif file_name.endswith(".html"):
+            content_type = "text/html"
+        elif file_name.endswith(".json"):
+            content_type = "application/json"
+        elif file_name.endswith(".txt"):
+            content_type = "text/plain"
+        
+        # For metadata, we'd need to fetch the file, but that's expensive
+        # For now, return basic info without size/hash if metadata not required
+        entry = {
+            "type": "file",
+            "path": file_name,
+            "artifact_uri": artifact_uri,
+            "content_type": content_type,
+            "kind": "intermediate",
+        }
+        
+        if req.include_metadata:
+            # Fetch file to compute hash (expensive, but required by spec)
+            content_bytes = await fetch_artifact_from_worker_plan(run_id, file_name)
+            if content_bytes:
+                entry["size"] = len(content_bytes)
+                entry["sha256"] = compute_sha256(content_bytes)
+                entry["updated_at"] = datetime.now(UTC).isoformat() + "Z"  # Approximate
+            else:
+                entry["size"] = 0
+                entry["sha256"] = ""
+                entry["updated_at"] = datetime.now(UTC).isoformat() + "Z"
+        
+        entries.append(entry)
     
     response = {"entries": entries}
     return [TextContent(type="text", text=json.dumps(response))]
@@ -595,26 +672,29 @@ async def handle_artifact_read(arguments: dict[str, Any]) -> list[TextContent]:
     session_id = parts[0]
     artifact_path = parts[1]
     
-    run_dir = get_run_dir_for_session(session_id)
-    file_path = run_dir / artifact_path
-    
-    # Security: ensure path is within run_dir
-    try:
-        file_path.resolve().relative_to(run_dir.resolve())
-    except ValueError:
+    # Security: ensure path doesn't contain path traversal
+    if ".." in artifact_path or "/" in artifact_path and artifact_path.startswith("/"):
         return [TextContent(
             type="text",
             text=json.dumps({"error": {"code": "PERMISSION_DENIED", "message": "Path traversal detected"}})
         )]
     
-    if not file_path.exists() or not file_path.is_file():
+    run_id = get_task_id_for_session(session_id)
+    if not run_id:
+        return [TextContent(
+            type="text",
+            text=json.dumps({"error": {"code": "SESSION_NOT_FOUND", "message": f"Session not found: {session_id}"}})
+        )]
+    
+    # Fetch artifact from worker_plan
+    content_bytes = await fetch_artifact_from_worker_plan(run_id, artifact_path)
+    if content_bytes is None:
         return [TextContent(
             type="text",
             text=json.dumps({"error": {"code": "INVALID_ARTIFACT_URI", "message": f"Artifact not found: {artifact_uri}"}})
         )]
     
     try:
-        content_bytes = file_path.read_bytes()
         content_hash = compute_sha256(content_bytes)
         
         # Apply range if specified
@@ -627,11 +707,11 @@ async def handle_artifact_read(arguments: dict[str, Any]) -> list[TextContent]:
         try:
             content = content_bytes.decode('utf-8')
             content_type = "text/plain"
-            if file_path.suffix == ".md":
+            if artifact_path.endswith(".md"):
                 content_type = "text/markdown"
-            elif file_path.suffix == ".html":
+            elif artifact_path.endswith(".html"):
                 content_type = "text/html"
-            elif file_path.suffix == ".json":
+            elif artifact_path.endswith(".json"):
                 content_type = "application/json"
         except UnicodeDecodeError:
             # Binary file, return base64 or indicate binary
@@ -645,7 +725,7 @@ async def handle_artifact_read(arguments: dict[str, Any]) -> list[TextContent]:
             "content": content,
         }
     except Exception as e:
-        logger.error(f"Error reading artifact {artifact_uri}: {e}", exc_info=True)
+        logger.error(f"Error processing artifact {artifact_uri}: {e}", exc_info=True)
         return [TextContent(
             type="text",
             text=json.dumps({"error": {"code": "INTERNAL_ERROR", "message": str(e)}})
@@ -691,46 +771,38 @@ async def handle_artifact_write(arguments: dict[str, Any]) -> list[TextContent]:
                 text=json.dumps({"error": {"code": "RUNNING_READONLY", "message": "Cannot write artifacts while run is active. Stop the run first."}})
             )]
         
-        run_dir = get_run_dir_for_session(session_id)
-        file_path = run_dir / artifact_path
+        run_id = get_task_id_for_session(session_id)
+        if not run_id:
+            return [TextContent(
+                type="text",
+                text=json.dumps({"error": {"code": "SESSION_NOT_FOUND", "message": f"Session not found: {session_id}"}})
+            )]
         
-        # Security check
-        try:
-            file_path.resolve().relative_to(run_dir.resolve())
-        except ValueError:
+        # Security check: ensure path doesn't contain path traversal
+        if ".." in artifact_path or "/" in artifact_path and artifact_path.startswith("/"):
             return [TextContent(
                 type="text",
                 text=json.dumps({"error": {"code": "PERMISSION_DENIED", "message": "Path traversal detected"}})
             )]
         
-        # Optimistic locking check
+        # Optimistic locking check - fetch current file first
         if req.lock and req.lock.get("expected_sha256"):
-            if file_path.exists():
-                current_hash = compute_sha256(file_path.read_bytes())
+            current_bytes = await fetch_artifact_from_worker_plan(run_id, artifact_path)
+            if current_bytes:
+                current_hash = compute_sha256(current_bytes)
                 if current_hash != req.lock["expected_sha256"]:
                     return [TextContent(
                         type="text",
                         text=json.dumps({"error": {"code": "CONFLICT", "message": "SHA256 mismatch. Artifact was modified."}})
                     )]
         
-        # Write file
-        try:
-            file_path.parent.mkdir(parents=True, exist_ok=True)
-            file_path.write_text(req.content, encoding='utf-8')
-            new_hash = compute_sha256(req.content.encode('utf-8'))
-            stat = file_path.stat()
-            
-            response = {
-                "updated": True,
-                "sha256": new_hash,
-                "updated_at": datetime.fromtimestamp(stat.st_mtime, UTC).isoformat() + "Z",
-            }
-        except Exception as e:
-            logger.error(f"Error writing artifact {artifact_uri}: {e}", exc_info=True)
-            return [TextContent(
-                type="text",
-                text=json.dumps({"error": {"code": "INTERNAL_ERROR", "message": str(e)}})
-            )]
+        # Write file - for now, this is not supported via worker_plan HTTP API
+        # We'd need to add a write endpoint to worker_plan, or use a different approach
+        # For now, return an error indicating write is not yet supported via HTTP
+        return [TextContent(
+            type="text",
+            text=json.dumps({"error": {"code": "NOT_IMPLEMENTED", "message": "Artifact write not yet supported via HTTP. Use database-backed approach or file system mount."}})
+        )]
     
     return [TextContent(type="text", text=json.dumps(response))]
 

@@ -101,7 +101,7 @@ The MCP server uses the same database configuration as other PlanExe services:
 - `PLANEXE_POSTGRES_DB`: Database name (default: `planexe`)
 - `PLANEXE_POSTGRES_USER`: Database user (default: `planexe`)
 - `PLANEXE_POSTGRES_PASSWORD`: Database password (default: `planexe`)
-- `PLANEXE_RUN_DIR`: Directory for run artifacts (default: `./run`)
+- `PLANEXE_WORKER_PLAN_URL`: URL of the worker_plan HTTP service (default: `http://worker_plan:8000`)
 
 ## MCP Tools
 
@@ -123,9 +123,9 @@ The MCP server maps MCP concepts to PlanExe's database models:
 
 - **Session** → `TaskItem` (each session corresponds to a TaskItem)
 - **Run** → Execution of a TaskItem by `worker_plan_database`
-- **Artifacts** → Files in the run directory (`PLANEXE_RUN_DIR/{task_id}/`)
+- **Artifacts** → Files fetched from `worker_plan` via HTTP API
 
-The server reads task state and progress from the database, and manages artifacts in the shared run directory that `worker_plan_database` uses.
+The server reads task state and progress from the database, and fetches artifacts from `worker_plan` via HTTP instead of accessing the run directory directly. This allows the MCP server to work without mounting the run directory, making it compatible with Railway and other cloud platforms that don't support shared volumes across services.
 
 ## Connecting via stdio (Local Development)
 
@@ -281,7 +281,12 @@ See `railway.md` for Railway-specific deployment instructions. The server automa
 
 ## Notes
 
-- The MCP server communicates with `worker_plan_database` indirectly via the database. It doesn't make HTTP calls.
+- The MCP server communicates with `worker_plan_database` indirectly via the database for session/task management.
+- Artifacts are fetched from `worker_plan` via HTTP instead of accessing the run directory directly. This avoids needing a shared volume mount, making it compatible with Railway and other cloud platforms.
+- For artifacts:
+  - `report.html` is fetched efficiently via the dedicated `/runs/{run_id}/report` endpoint
+  - Other files are fetched by downloading the run zip and extracting the file (less efficient but works without additional endpoints)
+- Artifact writes are not yet supported via HTTP (would require a write endpoint in `worker_plan`).
 - Artifact writes are rejected while a run is active (strict policy per spec).
 - Session IDs use the format `pxe_{YYYY_MM_DD}__{short_uuid}` for compatibility.
 - **Security**: Always set `PLANEXE_MCP_API_KEY` in production deployments to prevent unauthorized access.
