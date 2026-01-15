@@ -20,6 +20,8 @@ from typing import Any, Optional
 from urllib.parse import quote_plus
 from io import BytesIO
 import httpx
+from sqlalchemy import cast
+from sqlalchemy.dialects.postgresql import JSONB
 
 # Load .env file early
 from dotenv import load_dotenv
@@ -136,9 +138,15 @@ def find_task_by_session_id(session_id: str) -> Optional[TaskItem]:
     """Find TaskItem by session_id stored in parameters."""
     with app.app_context():
         # Search for task with matching _mcp_session_id in parameters
-        tasks = db.session.query(TaskItem).filter(
-            TaskItem.parameters.contains({"_mcp_session_id": session_id})
-        ).all()
+        query = db.session.query(TaskItem)
+        if db.engine.dialect.name == "postgresql":
+            tasks = query.filter(
+                cast(TaskItem.parameters, JSONB).contains({"_mcp_session_id": session_id})
+            ).all()
+        else:
+            tasks = query.filter(
+                TaskItem.parameters.contains({"_mcp_session_id": session_id})
+            ).all()
         if tasks:
             return tasks[0]
         return None
@@ -403,9 +411,9 @@ async def handle_session_create(arguments: dict[str, Any]) -> list[TextContent]:
         output_dir_uri = f"planexe://sessions/{session_id}/out"
         
         # Store session_id mapping in task parameters for later lookup
-        if task.parameters is None:
-            task.parameters = {}
-        task.parameters["_mcp_session_id"] = session_id
+        parameters = dict(task.parameters or {})
+        parameters["_mcp_session_id"] = session_id
+        task.parameters = parameters
         db.session.commit()
         
         response = {
@@ -496,6 +504,10 @@ async def handle_session_status(arguments: dict[str, Any]) -> list[TextContent]:
                             "updated_at": datetime.now(UTC).isoformat() + "Z",  # Approximate
                         })
         
+        created_at = task.timestamp_created
+        if created_at and created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=UTC)
+
         response = {
             "session_id": session_id,
             "run_id": run_id,
@@ -509,8 +521,8 @@ async def handle_session_status(arguments: dict[str, Any]) -> list[TextContent]:
                 },
             },
             "timing": {
-                "started_at": task.timestamp_created.isoformat() + "Z" if task.timestamp_created else None,
-                "elapsed_sec": (datetime.now(UTC) - task.timestamp_created).total_seconds() if task.timestamp_created else 0,
+                "started_at": created_at.isoformat().replace("+00:00", "Z") if created_at else None,
+                "elapsed_sec": (datetime.now(UTC) - created_at).total_seconds() if created_at else 0,
             },
             "latest_artifacts": latest_artifacts[:10],  # Limit to 10 most recent
             "warnings": [],
