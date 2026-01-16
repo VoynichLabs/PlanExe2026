@@ -97,6 +97,8 @@ BASE_DIR_RUN = Path(os.environ.get("PLANEXE_RUN_DIR", Path(__file__).parent.pare
 # Worker plan HTTP API URL
 WORKER_PLAN_URL = os.environ.get("PLANEXE_WORKER_PLAN_URL", "http://worker_plan:8000")
 
+REPORT_FILENAME = "030-report.html"
+
 SPEED_VS_DETAIL_DEFAULT = "ping_llm"
 SPEED_VS_DETAIL_VALUES = (
     "ping_llm",
@@ -141,6 +143,10 @@ class ArtifactListRequest(BaseModel):
 
 class ArtifactReadRequest(BaseModel):
     artifact_uri: str
+    range: Optional[dict[str, int]] = None
+
+class ReportReadRequest(BaseModel):
+    session_id: str
     range: Optional[dict[str, int]] = None
 
 class ArtifactWriteRequest(BaseModel):
@@ -192,16 +198,85 @@ def get_task_id_for_session(session_id: str) -> Optional[str]:
             pass
     return None
 
+def get_task_by_id(task_id: str) -> Optional[TaskItem]:
+    """Fetch a TaskItem by its UUID string."""
+    def _query() -> Optional[TaskItem]:
+        try:
+            task_uuid = uuid.UUID(task_id)
+        except ValueError:
+            return None
+        return db.session.get(TaskItem, task_uuid)
+
+    if has_app_context():
+        return _query()
+    with app.app_context():
+        return _query()
+
+def list_files_from_zip_bytes(zip_bytes: bytes) -> list[str]:
+    """List file entries from an in-memory zip archive."""
+    try:
+        with zipfile.ZipFile(BytesIO(zip_bytes), 'r') as zip_file:
+            files = [name for name in zip_file.namelist() if not name.endswith("/")]
+            return sorted(files)
+    except Exception as exc:
+        logger.warning("Unable to list files from zip snapshot: %s", exc)
+        return []
+
+def extract_file_from_zip_bytes(zip_bytes: bytes, file_path: str) -> Optional[bytes]:
+    """Extract a file from an in-memory zip archive."""
+    try:
+        with zipfile.ZipFile(BytesIO(zip_bytes), 'r') as zip_file:
+            file_path_normalized = file_path.lstrip('/')
+            try:
+                return zip_file.read(file_path_normalized)
+            except KeyError:
+                return None
+    except Exception as exc:
+        logger.warning("Unable to read %s from zip snapshot: %s", file_path, exc)
+        return None
+
+def fetch_report_from_db(task_id: str) -> Optional[bytes]:
+    """Fetch the report HTML stored in the TaskItem."""
+    task = get_task_by_id(task_id)
+    if task and task.generated_report_html is not None:
+        return task.generated_report_html.encode("utf-8")
+    return None
+
+def fetch_file_from_zip_snapshot(task_id: str, file_path: str) -> Optional[bytes]:
+    """Fetch a file from the TaskItem zip snapshot."""
+    task = get_task_by_id(task_id)
+    if task and task.run_zip_snapshot is not None:
+        return extract_file_from_zip_bytes(task.run_zip_snapshot, file_path)
+    return None
+
+def list_files_from_zip_snapshot(task_id: str) -> Optional[list[str]]:
+    """List files from the TaskItem zip snapshot."""
+    task = get_task_by_id(task_id)
+    if task and task.run_zip_snapshot is not None:
+        return list_files_from_zip_bytes(task.run_zip_snapshot)
+    return None
+
 async def fetch_artifact_from_worker_plan(run_id: str, file_path: str) -> Optional[bytes]:
     """Fetch an artifact file from worker_plan via HTTP."""
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
             # For report.html, use the dedicated report endpoint (most efficient)
-            if file_path == "report.html" or file_path.endswith("/report.html"):
+            if (
+                file_path == "report.html"
+                or file_path.endswith("/report.html")
+                or file_path == REPORT_FILENAME
+                or file_path.endswith(f"/{REPORT_FILENAME}")
+            ):
                 report_response = await client.get(f"{WORKER_PLAN_URL}/runs/{run_id}/report")
                 if report_response.status_code == 200:
                     return report_response.content
                 logger.warning(f"Worker plan returned {report_response.status_code} for report: {run_id}")
+                report_from_db = fetch_report_from_db(run_id)
+                if report_from_db is not None:
+                    return report_from_db
+                report_from_zip = fetch_file_from_zip_snapshot(run_id, REPORT_FILENAME)
+                if report_from_zip is not None:
+                    return report_from_zip
                 return None
             
             # For other files, fetch the zip and extract the file
@@ -209,19 +284,17 @@ async def fetch_artifact_from_worker_plan(run_id: str, file_path: str) -> Option
             zip_response = await client.get(f"{WORKER_PLAN_URL}/runs/{run_id}/zip")
             if zip_response.status_code != 200:
                 logger.warning(f"Worker plan returned {zip_response.status_code} for zip: {run_id}")
-                return None
-            
-            # Extract the file from the zip in memory
-            zip_bytes = zip_response.content
-            with zipfile.ZipFile(BytesIO(zip_bytes), 'r') as zip_file:
-                try:
-                    # Normalize path (remove leading slash if present)
-                    file_path_normalized = file_path.lstrip('/')
-                    file_data = zip_file.read(file_path_normalized)
+            else:
+                # Extract the file from the zip in memory
+                zip_bytes = zip_response.content
+                file_data = extract_file_from_zip_bytes(zip_bytes, file_path)
+                if file_data is not None:
                     return file_data
-                except KeyError:
-                    logger.warning(f"File {file_path} not found in zip for run {run_id}")
-                    return None
+            
+            snapshot_file = fetch_file_from_zip_snapshot(run_id, file_path)
+            if snapshot_file is not None:
+                return snapshot_file
+            return None
             
     except Exception as e:
         logger.error(f"Error fetching artifact from worker_plan: {e}", exc_info=True)
@@ -236,6 +309,9 @@ async def fetch_file_list_from_worker_plan(run_id: str) -> Optional[list[str]]:
                 data = response.json()
                 return data.get("files", [])
             logger.warning(f"Worker plan returned {response.status_code} for files list: {run_id}")
+            fallback_files = list_files_from_zip_snapshot(run_id)
+            if fallback_files is not None:
+                return fallback_files
             return None
     except Exception as e:
         logger.error(f"Error fetching file list from worker_plan: {e}", exc_info=True)
@@ -268,6 +344,9 @@ def resolve_speed_vs_detail(config: Optional[dict[str, Any]]) -> str:
     if value in SPEED_VS_DETAIL_VALUES:
         return value
     return SPEED_VS_DETAIL_DEFAULT
+
+def build_report_artifact_uri(session_id: str) -> str:
+    return f"planexe://sessions/{session_id}/out/{REPORT_FILENAME}"
 
 # MCP Tool implementations
 @mcp_server.list_tools()
@@ -378,6 +457,18 @@ async def handle_list_tools() -> list[Tool]:
             },
         ),
         Tool(
+            name="planexe.report.read",
+            description="Reads the generated report (FilenameEnum.REPORT)",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "session_id": {"type": "string"},
+                    "range": {"type": "object"},
+                },
+                "required": ["session_id"],
+            },
+        ),
+        Tool(
             name="planexe.artifact.write",
             description="Writes an artifact (enables Stop → Edit → Resume)",
             inputSchema={
@@ -423,6 +514,8 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
             return await handle_artifact_list(arguments)
         elif name == "planexe.artifact.read":
             return await handle_artifact_read(arguments)
+        elif name == "planexe.report.read":
+            return await handle_report_read(arguments)
         elif name == "planexe.artifact.write":
             return await handle_artifact_write(arguments)
         elif name == "planexe.session.events":
@@ -819,6 +912,12 @@ async def handle_artifact_read(arguments: dict[str, Any]) -> list[TextContent]:
         )]
     
     return [TextContent(type="text", text=json.dumps(response))]
+
+async def handle_report_read(arguments: dict[str, Any]) -> list[TextContent]:
+    """Handle planexe.report.read"""
+    req = ReportReadRequest(**arguments)
+    artifact_uri = build_report_artifact_uri(req.session_id)
+    return await handle_artifact_read({"artifact_uri": artifact_uri, "range": req.range})
 
 async def handle_artifact_write(arguments: dict[str, Any]) -> list[TextContent]:
     """Handle planexe.artifact.write"""

@@ -46,6 +46,7 @@ from mcp_server.app import (
     handle_session_resume,
     handle_artifact_list,
     handle_artifact_read,
+    handle_report_read,
     handle_artifact_write,
     handle_session_events,
 )
@@ -314,6 +315,13 @@ async def artifact_read(
     return await handle_artifact_read({"artifact_uri": artifact_uri, "range": range})
 
 
+async def report_read(
+    session_id: str,
+    range: dict[str, int] | None = None,
+) -> list[TextContent]:
+    return await handle_report_read({"session_id": session_id, "range": range})
+
+
 async def artifact_write(
     artifact_uri: str,
     content: str,
@@ -366,6 +374,10 @@ def _register_tools(server: FastMCP) -> None:
         name="planexe.artifact.read",
         description="Reads an artifact",
     )(artifact_read)
+    server.tool(
+        name="planexe.report.read",
+        description="Reads the generated report (FilenameEnum.REPORT)",
+    )(report_read)
     server.tool(
         name="planexe.artifact.write",
         description="Writes an artifact (enables Stop → Edit → Resume)",
