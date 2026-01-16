@@ -90,6 +90,7 @@ from worker_plan_internal.format_json_for_use_in_query import format_json_for_us
 from worker_plan_internal.report.report_generator import ReportGenerator
 from worker_plan_internal.luigi_util.obtain_output_files import ObtainOutputFiles
 from worker_plan_internal.plan.pipeline_environment import PipelineEnvironment
+from worker_plan_internal.plan.ping_llm import run_ping_llm_report
 
 logger = logging.getLogger(__name__)
 DEFAULT_LLM_MODEL = "ollama-llama3.1"
@@ -4074,11 +4075,22 @@ if __name__ == '__main__':
 
     # logger.info("Environment variables Luigi:\n" + get_env_as_string() + "\n\n\n")
 
+    llm_models = ExecutePipeline.resolve_llm_models(pipeline_environment.llm_model)
+
+    if speedvsdetail == SpeedVsDetailEnum.PING_LLM:
+        try:
+            run_ping_llm_report(
+                run_id_dir=run_id_dir,
+                llm_models=LLMModelFromName.from_names(llm_models),
+            )
+        except Exception as e:
+            logger.error("PING_LLM failed: %s", e, exc_info=True)
+            sys.exit(1)
+        sys.exit(0)
+
     if True:
         track_activity = TrackActivity(jsonl_file_path=run_id_dir / ExtraFilenameEnum.TRACK_ACTIVITY_JSONL.value, write_to_logger=False)
         get_dispatcher().add_event_handler(track_activity)
-
-    llm_models = ExecutePipeline.resolve_llm_models(pipeline_environment.llm_model)
 
     if True:
         execute_pipeline = ExecutePipeline(run_id_dir=run_id_dir, speedvsdetail=speedvsdetail, llm_models=llm_models)

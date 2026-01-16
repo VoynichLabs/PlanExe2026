@@ -97,6 +97,18 @@ BASE_DIR_RUN = Path(os.environ.get("PLANEXE_RUN_DIR", Path(__file__).parent.pare
 # Worker plan HTTP API URL
 WORKER_PLAN_URL = os.environ.get("PLANEXE_WORKER_PLAN_URL", "http://worker_plan:8000")
 
+SPEED_VS_DETAIL_DEFAULT = "ping_llm"
+SPEED_VS_DETAIL_VALUES = (
+    "ping_llm",
+    "fast_but_skip_details",
+    "all_details_but_slow",
+)
+SPEED_VS_DETAIL_ALIASES = {
+    "fast": "fast_but_skip_details",
+    "all": "all_details_but_slow",
+    "ping": "ping_llm",
+}
+
 # Pydantic models for request/response validation
 class SessionCreateRequest(BaseModel):
     idea: str
@@ -245,6 +257,18 @@ def get_task_state_mapping(task_state: TaskState) -> str:
     }
     return mapping.get(task_state, "stopped")
 
+def resolve_speed_vs_detail(config: Optional[dict[str, Any]]) -> str:
+    value: Optional[str] = None
+    if isinstance(config, dict):
+        raw_value = config.get("speed_vs_detail") or config.get("speed")
+        if isinstance(raw_value, str):
+            value = raw_value.strip().lower()
+    if value in SPEED_VS_DETAIL_ALIASES:
+        return SPEED_VS_DETAIL_ALIASES[value]
+    if value in SPEED_VS_DETAIL_VALUES:
+        return value
+    return SPEED_VS_DETAIL_DEFAULT
+
 # MCP Tool implementations
 @mcp_server.list_tools()
 async def handle_list_tools() -> list[Tool]:
@@ -257,7 +281,21 @@ async def handle_list_tools() -> list[Tool]:
                 "type": "object",
                 "properties": {
                     "idea": {"type": "string", "description": "The idea/prompt for the plan"},
-                    "config": {"type": "object", "description": "Optional configuration"},
+                    "config": {
+                        "type": "object",
+                        "description": "Optional configuration",
+                        "properties": {
+                            "speed_vs_detail": {
+                                "type": "string",
+                                "enum": list(SPEED_VS_DETAIL_VALUES),
+                                "description": (
+                                    "Defaults to ping_llm. Aliases: fast -> fast_but_skip_details, "
+                                    "all -> all_details_but_slow."
+                                ),
+                            }
+                        },
+                        "additionalProperties": True,
+                    },
                     "metadata": {"type": "object", "description": "Optional metadata including user_id"},
                 },
                 "required": ["idea"],
@@ -406,12 +444,15 @@ async def handle_session_create(arguments: dict[str, Any]) -> list[TextContent]:
     req = SessionCreateRequest(**arguments)
     
     with app.app_context():
+        parameters = dict(req.config or {})
+        parameters["speed_vs_detail"] = resolve_speed_vs_detail(parameters)
+
         # Create a new TaskItem (which represents a session in our model)
         task = TaskItem(
             prompt=req.idea,
             state=TaskState.pending,
             user_id=req.metadata.get("user_id", "mcp_user") if req.metadata else "mcp_user",
-            parameters=req.config or {},
+            parameters=parameters,
         )
         db.session.add(task)
         db.session.commit()

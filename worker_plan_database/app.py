@@ -124,14 +124,16 @@ try:
     from worker_plan_api.plan_file import PlanFile
     from worker_plan_internal.plan.filenames import FilenameEnum
     from worker_plan_api.planexe_dotenv import PlanExeDotEnv
-    from worker_plan_internal.llm_util.llm_executor import PipelineStopRequested
+    from worker_plan_internal.llm_util.llm_executor import LLMModelFromName, PipelineStopRequested
     from worker_plan_internal.llm_util.track_activity import TrackActivity
     from worker_plan_internal.plan.filenames import ExtraFilenameEnum
+    from worker_plan_internal.plan.ping_llm import run_ping_llm_report
     logger.debug("Importing required modules... PlanExe-server.")
     from database_api.planexe_db_singleton import db
     from database_api.model_taskitem import TaskItem, TaskState
     from database_api.model_event import EventType, EventItem
     from database_api.model_worker import WorkerItem
+    from worker_plan_database.speedvsdetail import resolve_speedvsdetail
     from worker_plan_database.machai import MachAI
     from flask import Flask
     logger.debug("All modules imported successfully.")
@@ -386,15 +388,22 @@ def execute_pipeline_for_job(task_id: str, user_id: str, run_id_dir: Path, speed
 
     llm_models = ExecutePipeline.resolve_llm_models(None)
     pipeline_instance = ServerExecutePipeline(task_id=task_id, run_id_dir=run_id_dir, speedvsdetail=speedvsdetail, llm_models=llm_models)
-    pipeline_instance.setup()
-    logger.info(f"ExecutePipeline instance: {pipeline_instance!r}")
+    if speedvsdetail == SpeedVsDetailEnum.PING_LLM:
+        logger.info("PING_LLM mode requested; running a single LLM ping.")
+        run_ping_llm_report(
+            run_id_dir=run_id_dir,
+            llm_models=LLMModelFromName.from_names(llm_models),
+        )
+    else:
+        pipeline_instance.setup()
+        logger.info(f"ExecutePipeline instance: {pipeline_instance!r}")
 
-    # LLM/reasoning models often fail, due to censorship, invalid json, timeouts.
-    # Thus I track whenever a LLM/reasoning model is used, by appended the payload+backtrace to the "track_activity" file.
-    # so the developer can troubleshoot problems with the LLM/reasoning model.
-    track_activity.jsonl_file_path = run_id_dir / ExtraFilenameEnum.TRACK_ACTIVITY_JSONL.value
-    
-    pipeline_instance.run()
+        # LLM/reasoning models often fail, due to censorship, invalid json, timeouts.
+        # Thus I track whenever a LLM/reasoning model is used, by appended the payload+backtrace to the "track_activity" file.
+        # so the developer can troubleshoot problems with the LLM/reasoning model.
+        track_activity.jsonl_file_path = run_id_dir / ExtraFilenameEnum.TRACK_ACTIVITY_JSONL.value
+        
+        pipeline_instance.run()
 
     end_time = time.time()
     duration_in_seconds = end_time - start_time
@@ -507,10 +516,11 @@ def process_pending_tasks() -> bool:
     """
     task_id: Optional[str] = None
     prompt: Optional[str] = None
-    fast: bool = True
+    parameters = None
     use_machai_developer_endpoint: bool = False
     user_id: Optional[str] = None
     timestamp_created: Optional[datetime] = None
+    speedvsdetail: SpeedVsDetailEnum = SpeedVsDetailEnum.ALL_DETAILS_BUT_SLOW
 
     with app.app_context():
         try:
@@ -539,7 +549,8 @@ def process_pending_tasks() -> bool:
                 # Extract all necessary data from task_to_claim BEFORE it's modified and transaction is committed
                 task_id = str(task_to_claim.id)
                 prompt = str(task_to_claim.prompt)
-                fast = bool(task_to_claim.has_parameter_key('fast'))
+                parameters = task_to_claim.parameters if isinstance(task_to_claim.parameters, dict) else None
+                speedvsdetail = resolve_speedvsdetail(parameters)
                 use_machai_developer_endpoint = bool(task_to_claim.has_parameter_key('developer'))
                 user_id = str(task_to_claim.user_id)
                 timestamp_created = task_to_claim.timestamp_created
@@ -584,12 +595,6 @@ def process_pending_tasks() -> bool:
     # write the task prompt to the run_id_dir
     plan_file = PlanFile.create(vague_plan_description=prompt, start_time=start_time)
     plan_file.save(str(run_id_dir / FilenameEnum.INITIAL_PLAN.value))
-
-    # Determine the speedvsdetail level
-    if fast:
-        speedvsdetail = SpeedVsDetailEnum.FAST_BUT_SKIP_DETAILS
-    else:
-        speedvsdetail = SpeedVsDetailEnum.ALL_DETAILS_BUT_SLOW
 
     with app.app_context():
         event_context = {

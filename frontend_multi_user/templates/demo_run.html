@@ -175,9 +175,13 @@
             </div>
             <textarea id="prompt"></textarea>
             <div class="char-count-label" id="char-count">Characters: 0 | Bytes: 0</div>
-            <div class="checkbox-container">
-                <input type="checkbox" id="fast-checkbox" checked>
-                <label for="fast-checkbox">Fast, but fewer details</label>
+            <div class="select-container">
+                <label for="speed-vs-detail-select">Speed vs detail:</label>
+                <select id="speed-vs-detail-select">
+                    <option value="fast_but_skip_details" selected>Fast, but fewer details</option>
+                    <option value="all_details_but_slow">All details, but slow</option>
+                    <option value="ping_llm">Ping LLM (single request)</option>
+                </select>
             </div>
             <div class="checkbox-container">
                 <input type="checkbox" id="developer-checkbox" checked>
@@ -204,8 +208,8 @@
         <input type="hidden" name="prompt" id="form-prompt" value="">
         <input type="hidden" name="user_id" value="{{ user_id }}">
         <input type="hidden" name="nonce" value="{{ nonce }}">
-        <!-- Flags are submitted only when enabled (not disabled) -->
-        <input type="hidden" name="fast" id="form-fast" value="true">
+        <!-- Values are submitted only when enabled (not disabled) -->
+        <input type="hidden" name="speed_vs_detail" id="form-speed-vs-detail" value="fast_but_skip_details">
         <input type="hidden" name="developer" id="form-developer" value="true">
     </form>
 
@@ -268,7 +272,7 @@
 
         document.getElementById('submit-button').addEventListener('click', function() {
             const promptValue = document.getElementById('prompt').value;
-            const fastChecked = document.getElementById('fast-checkbox').checked;
+            const speedVsDetailValue = document.getElementById('speed-vs-detail-select').value;
             const developerChecked = document.getElementById('developer-checkbox').checked;
             const methodSelect = document.getElementById('method-select');
             const iframeContainer = document.querySelector('.iframe-container');
@@ -277,10 +281,7 @@
 
             if (methodSelect.value === 'GET') {
                 // GET method: build URL with query parameters
-                let url = `/run?prompt=${encodeURIComponent(promptValue)}&user_id={{ user_id }}&nonce={{ nonce }}`;
-                if (fastChecked) {
-                    url += '&fast';
-                }
+                let url = `/run?prompt=${encodeURIComponent(promptValue)}&user_id={{ user_id }}&nonce={{ nonce }}&speed_vs_detail=${encodeURIComponent(speedVsDetailValue)}`;
                 if (developerChecked) {
                     url += '&developer';
                 }
@@ -293,10 +294,9 @@
                 document.getElementById('form-prompt').value = promptValue;
 
                 // Submit flags only when checked (disable when unchecked so they are not submitted)
-                const fastInput = document.getElementById('form-fast');
                 const developerInput = document.getElementById('form-developer');
-                fastInput.disabled = !fastChecked;
                 developerInput.disabled = !developerChecked;
+                document.getElementById('form-speed-vs-detail').value = speedVsDetailValue;
 
                 // Submit the form to the iframe
                 form.submit();
