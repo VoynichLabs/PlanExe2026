@@ -72,7 +72,7 @@ After starting with Docker, configure your MCP client (e.g., LM Studio) to conne
 }
 ```
 
-Set `PLANEXE_MCP_API_KEY` to the same value you use in the `X-API-Key` or `API_KEY` header.
+Set `PLANEXE_MCP_API_KEY` to the same value you use in `Authorization: Bearer <key>`, `X-API-Key`, or `?api_key=`.
 
 ### Available HTTP Endpoints
 
@@ -86,10 +86,14 @@ Set `PLANEXE_MCP_API_KEY` to the same value you use in the `X-API-Key` or `API_K
 
 ### HTTP Server Configuration
 
-- `PLANEXE_MCP_API_KEY`: **Required for production**. API key for authentication. Clients must provide this in the `X-API-Key` header.
-- `PLANEXE_MCP_HTTP_HOST`: HTTP server host (default: `0.0.0.0`)
+- `PLANEXE_MCP_API_KEY`: **Required for production**. API key for authentication. Clients can provide `Authorization: Bearer <key>`, `X-API-Key`, or `?api_key=`.
+- `PLANEXE_MCP_HTTP_HOST`: HTTP server host (default: `127.0.0.1`). Use `0.0.0.0` to bind all interfaces (containers/cloud).
 - `PLANEXE_MCP_HTTP_PORT`: HTTP server port (default: `8001`). Railway will override with `PORT` env var.
 - `PORT`: Railway-provided port (takes precedence over `PLANEXE_MCP_HTTP_PORT`)
+- `PLANEXE_MCP_CORS_ORIGINS`: Comma-separated list of allowed origins (default: `http://localhost,http://127.0.0.1`).
+- `PLANEXE_MCP_MAX_BODY_BYTES`: Max request size for `POST /mcp/tools/call` (default: `1048576`).
+- `PLANEXE_MCP_RATE_LIMIT`: Max requests per window for `POST /mcp/tools/call` (default: `60`).
+- `PLANEXE_MCP_RATE_WINDOW_SECONDS`: Rate limit window in seconds (default: `60`).
 
 ### Database Configuration
 

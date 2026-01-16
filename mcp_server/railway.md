@@ -26,15 +26,19 @@ PLANEXE_WORKER_PLAN_URL="http://your-worker-plan-service:8000"
 ## Optional Environment Variables
 
 ```
-PLANEXE_MCP_HTTP_HOST="0.0.0.0"  # Default
+PLANEXE_MCP_HTTP_HOST="0.0.0.0"  # Use to bind all interfaces (default is 127.0.0.1)
 PLANEXE_MCP_HTTP_PORT="8001"      # Default (Railway will override with PORT env var)
 PLANEXE_WORKER_PLAN_URL="http://your-worker-plan-service:8000"  # URL of worker_plan service
+PLANEXE_MCP_CORS_ORIGINS="https://your-frontend.example.com"
+PLANEXE_MCP_MAX_BODY_BYTES="1048576"
+PLANEXE_MCP_RATE_LIMIT="60"
+PLANEXE_MCP_RATE_WINDOW_SECONDS="60"
 ```
 
 ## Railway-Specific Notes
 
 - Railway automatically provides a `PORT` environment variable. The server will use it if set, otherwise defaults to `8001`.
-- Set `PLANEXE_MCP_API_KEY` to enable API key authentication. Clients must provide this key in the `X-API-Key` header.
+- Set `PLANEXE_MCP_API_KEY` to enable API key authentication. Clients can send it via `Authorization: Bearer`, `X-API-Key`, or `?api_key=`.
 - The server exposes an HTTP endpoint at `/mcp` (or `/mcp/tools/call`) for tool invocations.
 - Use Railway's Postgres addon or connect to an external Postgres database via `SQLALCHEMY_DATABASE_URI`.
 - Set `PLANEXE_WORKER_PLAN_URL` to point to your `worker_plan` service. Artifacts are fetched from `worker_plan` via HTTP instead of using a shared volume mount.
