@@ -566,7 +566,7 @@ async def download_report(session_id: str, filename: str) -> Response:
     content_bytes = await fetch_artifact_from_worker_plan(str(task.id), REPORT_FILENAME)
     if content_bytes is None:
         raise HTTPException(status_code=404, detail="Report not found")
-    headers = {"Content-Disposition": f'attachment; filename="{REPORT_FILENAME}"'}
+    headers = {"Content-Disposition": f'inline; filename="{REPORT_FILENAME}"'}
     return Response(content=content_bytes, media_type=REPORT_CONTENT_TYPE, headers=headers)
 
 
