@@ -100,6 +100,7 @@ WORKER_PLAN_URL = os.environ.get("PLANEXE_WORKER_PLAN_URL", "http://worker_plan:
 REPORT_FILENAME = "030-report.html"
 REPORT_READ_DEFAULT_BYTES = 200_000
 REPORT_READ_MAX_BYTES = 1_000_000
+REPORT_CONTENT_TYPE = "text/html; charset=utf-8"
 
 SPEED_VS_DETAIL_DEFAULT = "ping_llm"
 SPEED_VS_DETAIL_VALUES = (
@@ -213,6 +214,20 @@ def get_task_by_id(task_id: str) -> Optional[TaskItem]:
         return _query()
     with app.app_context():
         return _query()
+
+def resolve_task_for_session(session_id: str) -> Optional[TaskItem]:
+    """Resolve a TaskItem from a session_id, with UUID fallback."""
+    task = find_task_by_session_id(session_id)
+    if task is not None:
+        return task
+    if "__" not in session_id:
+        return None
+    uuid_part = session_id.split("__", 1)[1]
+    try:
+        uuid.UUID(uuid_part)
+    except ValueError:
+        return None
+    return get_task_by_id(uuid_part)
 
 def list_files_from_zip_bytes(zip_bytes: bytes) -> list[str]:
     """List file entries from an in-memory zip archive."""
@@ -350,6 +365,15 @@ def resolve_speed_vs_detail(config: Optional[dict[str, Any]]) -> str:
 def build_report_artifact_uri(session_id: str) -> str:
     return f"planexe://sessions/{session_id}/out/{REPORT_FILENAME}"
 
+def build_report_download_path(session_id: str) -> str:
+    return f"/download/{session_id}/{REPORT_FILENAME}"
+
+def build_report_download_url(session_id: str) -> Optional[str]:
+    base_url = os.environ.get("PLANEXE_MCP_PUBLIC_BASE_URL")
+    if not base_url:
+        return None
+    return f"{base_url.rstrip('/')}{build_report_download_path(session_id)}"
+
 # MCP Tool implementations
 @mcp_server.list_tools()
 async def handle_list_tools() -> list[Tool]:
@@ -460,15 +484,26 @@ async def handle_list_tools() -> list[Tool]:
         ),
         Tool(
             name="planexe.report.read",
-            description="Reads the generated report (FilenameEnum.REPORT), chunked by default",
+            description="Returns download metadata for the generated report (optional chunked fallback via range)",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "session_id": {"type": "string"},
                     "range": {
                         "type": "object",
-                        "description": "Optional byte range. Defaults to first 200k bytes, max 1MB.",
+                        "description": "Optional byte range for chunked fallback. Defaults to first 200k bytes, max 1MB.",
                     },
+                },
+                "required": ["session_id"],
+            },
+        ),
+        Tool(
+            name="planexe.get.result",
+            description="Returns download metadata for the generated report",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "session_id": {"type": "string"},
                 },
                 "required": ["session_id"],
             },
@@ -520,6 +555,8 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
         elif name == "planexe.artifact.read":
             return await handle_artifact_read(arguments)
         elif name == "planexe.report.read":
+            return await handle_report_read(arguments)
+        elif name == "planexe.get.result":
             return await handle_report_read(arguments)
         elif name == "planexe.artifact.write":
             return await handle_artifact_write(arguments)
@@ -919,49 +956,77 @@ async def handle_artifact_read(arguments: dict[str, Any]) -> list[TextContent]:
     return [TextContent(type="text", text=json.dumps(response))]
 
 async def handle_report_read(arguments: dict[str, Any]) -> list[TextContent]:
-    """Handle planexe.report.read"""
+    """Handle planexe.report.read / planexe.get.result."""
     req = ReportReadRequest(**arguments)
     session_id = req.session_id
-    run_id = get_task_id_for_session(session_id)
-    if not run_id:
+    task = resolve_task_for_session(session_id)
+    if task is None:
         return [TextContent(
             type="text",
             text=json.dumps({"error": {"code": "SESSION_NOT_FOUND", "message": f"Session not found: {session_id}"}})
         )]
 
+    if task.state in (TaskState.pending, TaskState.processing) or task.state is None:
+        return [TextContent(type="text", text=json.dumps({"state": "running"}))]
+    if task.state == TaskState.failed:
+        message = task.progress_message or "Plan generation failed."
+        return [TextContent(
+            type="text",
+            text=json.dumps({"state": "failed", "error": {"code": "generation_failed", "message": message}})
+        )]
+
+    run_id = str(task.id)
     content_bytes = await fetch_artifact_from_worker_plan(run_id, REPORT_FILENAME)
     if content_bytes is None:
         artifact_uri = build_report_artifact_uri(session_id)
         return [TextContent(
             type="text",
-            text=json.dumps({"error": {"code": "INVALID_ARTIFACT_URI", "message": f"Artifact not found: {artifact_uri}"}})
+            text=json.dumps(
+                {
+                    "state": "failed",
+                    "error": {
+                        "code": "artifact_not_found",
+                        "message": f"Artifact not found: {artifact_uri}",
+                    },
+                }
+            )
         )]
 
     total_size = len(content_bytes)
     content_hash = compute_sha256(content_bytes)
-
-    range_request = req.range or {"start": 0, "length": REPORT_READ_DEFAULT_BYTES}
-    start = max(int(range_request.get("start", 0)), 0)
-    length = int(range_request.get("length", total_size))
-    if length < 0:
-        length = 0
-    if length > REPORT_READ_MAX_BYTES:
-        length = REPORT_READ_MAX_BYTES
-    end = min(start + length, total_size)
-    sliced_bytes = content_bytes[start:end]
-
-    truncated = end < total_size
     response = {
+        "state": "ready",
         "artifact_uri": build_report_artifact_uri(session_id),
-        "content_type": "text/html",
+        "content_type": REPORT_CONTENT_TYPE,
         "sha256": content_hash,
-        "content": sliced_bytes.decode("utf-8", errors="replace"),
-        "total_size": total_size,
-        "range": {"start": start, "length": len(sliced_bytes)},
-        "truncated": truncated,
+        "download_path": build_report_download_path(session_id),
+        "download_size": total_size,
     }
-    if truncated:
-        response["next_range"] = {"start": end, "length": min(length, total_size - end)}
+    download_url = build_report_download_url(session_id)
+    if download_url:
+        response["download_url"] = download_url
+
+    if req.range is not None:
+        range_request = req.range or {"start": 0, "length": REPORT_READ_DEFAULT_BYTES}
+        start = max(int(range_request.get("start", 0)), 0)
+        length_value = range_request.get("length")
+        if length_value is None:
+            length_value = REPORT_READ_DEFAULT_BYTES
+        length = int(length_value)
+        if length < 0:
+            length = 0
+        if length > REPORT_READ_MAX_BYTES:
+            length = REPORT_READ_MAX_BYTES
+        end = min(start + length, total_size)
+        sliced_bytes = content_bytes[start:end]
+
+        truncated = end < total_size
+        response["content"] = sliced_bytes.decode("utf-8", errors="replace")
+        response["total_size"] = total_size
+        response["range"] = {"start": start, "length": len(sliced_bytes)}
+        response["truncated"] = truncated
+        if truncated:
+            response["next_range"] = {"start": end, "length": min(length, total_size - end)}
 
     return [TextContent(type="text", text=json.dumps(response))]
 

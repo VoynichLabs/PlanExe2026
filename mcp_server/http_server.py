@@ -39,6 +39,9 @@ if not _dotenv_loaded:
 
 # Import MCP tool handlers from app.py
 from mcp_server.app import (
+    REPORT_CONTENT_TYPE,
+    REPORT_FILENAME,
+    fetch_artifact_from_worker_plan,
     handle_session_create,
     handle_session_start,
     handle_session_status,
@@ -49,6 +52,7 @@ from mcp_server.app import (
     handle_report_read,
     handle_artifact_write,
     handle_session_events,
+    resolve_task_for_session,
 )
 
 # API key validation
@@ -321,6 +325,11 @@ async def report_read(
 ) -> list[TextContent]:
     return await handle_report_read({"session_id": session_id, "range": range})
 
+async def get_result(
+    session_id: str,
+) -> list[TextContent]:
+    return await handle_report_read({"session_id": session_id})
+
 
 async def artifact_write(
     artifact_uri: str,
@@ -376,8 +385,12 @@ def _register_tools(server: FastMCP) -> None:
     )(artifact_read)
     server.tool(
         name="planexe.report.read",
-        description="Reads the generated report (FilenameEnum.REPORT), chunked by default",
+        description="Returns download metadata for the generated report (optional chunked fallback via range)",
     )(report_read)
+    server.tool(
+        name="planexe.get.result",
+        description="Returns download metadata for the generated report",
+    )(get_result)
     server.tool(
         name="planexe.artifact.write",
         description="Writes an artifact (enables Stop → Edit → Resume)",
@@ -447,7 +460,7 @@ async def enforce_api_key(
     request: Request,
     call_next: Callable[[Request], Awaitable[Response]],
 ) -> Response:
-    if request.url.path.startswith("/mcp"):
+    if request.url.path.startswith("/mcp") or request.url.path.startswith("/download"):
         error_response = _validate_api_key(request)
         if error_response:
             return error_response
@@ -520,6 +533,20 @@ async def list_tools(fastmcp_server: FastMCP = Depends(_get_fastmcp)) -> dict[st
         sanitized.append(tool_entry)
     return {"tools": sanitized}
 
+@app.get("/download/{session_id}/{filename}")
+async def download_report(session_id: str, filename: str) -> Response:
+    """Download the generated report HTML for a session."""
+    if filename != REPORT_FILENAME:
+        raise HTTPException(status_code=404, detail="Report not found")
+    task = resolve_task_for_session(session_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    content_bytes = await fetch_artifact_from_worker_plan(str(task.id), REPORT_FILENAME)
+    if content_bytes is None:
+        raise HTTPException(status_code=404, detail="Report not found")
+    headers = {"Content-Disposition": f'attachment; filename="{REPORT_FILENAME}"'}
+    return Response(content=content_bytes, media_type=REPORT_CONTENT_TYPE, headers=headers)
+
 
 @app.get("/healthcheck")
 def healthcheck() -> dict[str, Any]:
@@ -541,7 +568,8 @@ def root() -> dict[str, Any]:
             "mcp": "/mcp",
             "tools": "/mcp/tools",
             "call": "/mcp/tools/call",
-            "health": "/healthcheck"
+            "health": "/healthcheck",
+            "download": f"/download/{{session_id}}/{REPORT_FILENAME}",
         },
         "documentation": "See /docs for OpenAPI documentation",
         "authentication": "Authorization: Bearer <key>, X-API-Key, or ?api_key= (set PLANEXE_MCP_API_KEY)"

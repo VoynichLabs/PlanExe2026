@@ -89,6 +89,7 @@ Set `PLANEXE_MCP_API_KEY` to the same value you use in `Authorization: Bearer <k
 - `PLANEXE_MCP_API_KEY`: **Required for production**. API key for authentication. Clients can provide `Authorization: Bearer <key>`, `X-API-Key`, or `?api_key=`.
 - `PLANEXE_MCP_HTTP_HOST`: HTTP server host (default: `127.0.0.1`). Use `0.0.0.0` to bind all interfaces (containers/cloud).
 - `PLANEXE_MCP_HTTP_PORT`: HTTP server port (default: `8001`). Railway will override with `PORT` env var.
+- `PLANEXE_MCP_PUBLIC_BASE_URL`: Public base URL for report download links (default unset; clients can use the connected base URL).
 - `PORT`: Railway-provided port (takes precedence over `PLANEXE_MCP_HTTP_PORT`)
 - `PLANEXE_MCP_CORS_ORIGINS`: Comma-separated list of allowed origins (default: `http://localhost,http://127.0.0.1`).
 - `PLANEXE_MCP_MAX_BODY_BYTES`: Max request size for `POST /mcp/tools/call` (default: `1048576`).
@@ -118,9 +119,14 @@ See `extra/mcp-spec1.md` for full specification. Available tools:
 - `planexe.session.resume` - Resume execution
 - `planexe.artifact.list` - List artifacts
 - `planexe.artifact.read` - Read an artifact
-- `planexe.report.read` - Read the generated report (FilenameEnum.REPORT), chunked by default
+- `planexe.report.read` - Get report download metadata (optional chunked fallback via range)
+- `planexe.get.result` - Get report download metadata
 - `planexe.artifact.write` - Write/edit an artifact
 - `planexe.session.events` - Get incremental events
+
+Download flow: call `planexe.get.result` (or `planexe.report.read`) to obtain the
+`download_path`/`download_url`, then fetch the report via
+`GET /download/{session_id}/030-report.html` (API key required if configured).
 
 ## Architecture
 

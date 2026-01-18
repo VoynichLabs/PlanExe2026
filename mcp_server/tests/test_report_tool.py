@@ -3,8 +3,10 @@ import json
 import unittest
 import zipfile
 from io import BytesIO
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
+from database_api.model_taskitem import TaskState
 from mcp_server.app import (
     REPORT_FILENAME,
     REPORT_READ_DEFAULT_BYTES,
@@ -25,6 +27,7 @@ class TestReportTool(unittest.TestCase):
     def test_report_tool_listed(self):
         tools = asyncio.run(handle_list_tools())
         tool_names = {tool.name for tool in tools}
+        self.assertIn("planexe.get.result", tool_names)
         self.assertIn("planexe.report.read", tool_names)
 
     def test_zip_helpers(self):
@@ -41,14 +44,35 @@ class TestReportTool(unittest.TestCase):
         report_bytes = extract_file_from_zip_bytes(zip_bytes, REPORT_FILENAME)
         self.assertEqual(report_bytes, b"<html>ok</html>")
 
-    def test_report_read_defaults_to_chunk(self):
+    def test_report_read_defaults_to_metadata(self):
+        session_id = "pxe_2025_01_01__abcd1234"
         content_bytes = b"a" * (REPORT_READ_DEFAULT_BYTES + 10)
-        with patch("mcp_server.app.get_task_id_for_session", return_value="task-id"):
+        task = SimpleNamespace(id="task-id", state=TaskState.completed, progress_message=None)
+        with patch("mcp_server.app.resolve_task_for_session", return_value=task):
             with patch(
                 "mcp_server.app.fetch_artifact_from_worker_plan",
                 new=AsyncMock(return_value=content_bytes),
             ):
-                result = asyncio.run(handle_report_read({"session_id": "pxe_2025_01_01__abcd1234"}))
+                result = asyncio.run(handle_report_read({"session_id": session_id}))
+
+        payload = json.loads(result[0].text)
+        self.assertEqual(payload["state"], "ready")
+        self.assertEqual(payload["download_size"], len(content_bytes))
+        self.assertEqual(payload["content_type"], "text/html; charset=utf-8")
+        self.assertEqual(payload["download_path"], f"/download/{session_id}/{REPORT_FILENAME}")
+        self.assertNotIn("content", payload)
+
+    def test_report_read_chunked_range(self):
+        content_bytes = b"a" * (REPORT_READ_DEFAULT_BYTES + 10)
+        task = SimpleNamespace(id="task-id", state=TaskState.completed, progress_message=None)
+        with patch("mcp_server.app.resolve_task_for_session", return_value=task):
+            with patch(
+                "mcp_server.app.fetch_artifact_from_worker_plan",
+                new=AsyncMock(return_value=content_bytes),
+            ):
+                result = asyncio.run(
+                    handle_report_read({"session_id": "pxe_2025_01_01__abcd1234", "range": {}})
+                )
 
         payload = json.loads(result[0].text)
         self.assertEqual(payload["range"]["start"], 0)

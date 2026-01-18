@@ -101,7 +101,7 @@ Service: `mcp_server` (MCP interface)
 - Purpose: Model Context Protocol (MCP) server that provides a standardized interface for AI agents and developer tools to interact with PlanExe. Communicates with `worker_plan_database` via the shared Postgres database.
 - Build: `mcp_server/Dockerfile` (ships shared `database_api` models and the MCP server implementation).
 - Depends on: `database_postgres` health.
-- Env defaults: derives `SQLALCHEMY_DATABASE_URI` from `PLANEXE_POSTGRES_HOST|PORT|DB|USER|PASSWORD` (fallbacks to `database_postgres` + `planexe/planexe` on 5432); `PLANEXE_CONFIG_PATH=/app`, `PLANEXE_RUN_DIR=/app/run`.
+- Env defaults: derives `SQLALCHEMY_DATABASE_URI` from `PLANEXE_POSTGRES_HOST|PORT|DB|USER|PASSWORD` (fallbacks to `database_postgres` + `planexe/planexe` on 5432); `PLANEXE_CONFIG_PATH=/app`, `PLANEXE_RUN_DIR=/app/run`; `PLANEXE_MCP_PUBLIC_BASE_URL=http://localhost:8001` for report download URLs.
 - Volumes: `run/` (rw for artifact access).
 - Entrypoint: `python -m mcp_server.app` (runs the MCP server over stdio).
 - Communication: the server communicates over stdio (standard input/output) following the MCP protocol. Configure your MCP client to connect to this container. The container runs with `stdin_open: true` and `tty: true` to enable stdio communication.
