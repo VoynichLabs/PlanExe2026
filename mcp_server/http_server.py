@@ -49,10 +49,7 @@ from mcp_server.app import (
     handle_session_status,
     handle_session_stop,
     handle_session_resume,
-    handle_artifact_list,
-    handle_artifact_read,
     handle_report_read,
-    handle_artifact_write,
     handle_session_events,
     resolve_task_for_session,
 )
@@ -386,23 +383,6 @@ async def session_resume(
     )
 
 
-async def artifact_list(
-    session_id: str,
-    path: str = "",
-    include_metadata: bool = True,
-) -> list[TextContent]:
-    return await handle_artifact_list(
-        {"session_id": session_id, "path": path, "include_metadata": include_metadata}
-    )
-
-
-async def artifact_read(
-    artifact_uri: str,
-    range: dict[str, int] | None = None,
-) -> list[TextContent]:
-    return await handle_artifact_read({"artifact_uri": artifact_uri, "range": range})
-
-
 async def report_read(
     session_id: str,
     range: dict[str, int] | None = None,
@@ -413,22 +393,6 @@ async def get_result(
     session_id: str,
 ) -> Annotated[CallToolResult, ReportResultOutput]:
     return await handle_report_read({"session_id": session_id})
-
-
-async def artifact_write(
-    artifact_uri: str,
-    content: str,
-    edit_reason: str | None = None,
-    lock: dict[str, str] | None = None,
-) -> list[TextContent]:
-    return await handle_artifact_write(
-        {
-            "artifact_uri": artifact_uri,
-            "content": content,
-            "edit_reason": edit_reason,
-            "lock": lock,
-        }
-    )
 
 
 async def session_events(
@@ -460,14 +424,6 @@ def _register_tools(server: FastMCP) -> None:
         description="Resumes execution, reusing cached Luigi outputs",
     )(session_resume)
     server.tool(
-        name="planexe.artifact.list",
-        description="Lists artifacts under output namespace",
-    )(artifact_list)
-    server.tool(
-        name="planexe.artifact.read",
-        description="Reads an artifact",
-    )(artifact_read)
-    server.tool(
         name="planexe.report.read",
         description="Returns download metadata for the generated report (optional chunked fallback via range)",
     )(report_read)
@@ -475,10 +431,6 @@ def _register_tools(server: FastMCP) -> None:
         name="planexe.get.result",
         description="Returns download metadata for the generated report",
     )(get_result)
-    server.tool(
-        name="planexe.artifact.write",
-        description="Writes an artifact (enables Stop → Edit → Resume)",
-    )(artifact_write)
     server.tool(
         name="planexe.session.events",
         description="Provides incremental events for a session since a cursor",

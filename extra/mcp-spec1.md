@@ -290,97 +290,6 @@ Required semantics
 
 ⸻
 
-6.6 planexe.artifact.list
-
-Lists artifacts under output namespace (supports UI “what files exist?”).
-
-Request
-
-{
-  "session_id": "pxe_...",
-  "path": "",
-  "include_metadata": true
-}
-
-Response
-
-{
-  "entries": [
-    {
-      "type": "file",
-      "path": "plan.md",
-      "artifact_uri": "planexe://sessions/pxe_.../out/plan.md",
-      "size": 48192,
-      "updated_at": "2026-01-14T12:43:11Z",
-      "content_type": "text/markdown",
-      "kind": "plan",
-      "sha256": "..."
-    }
-  ]
-}
-
-Constraints
-	•	path must be relative and sandboxed to session root.
-	•	Must never expose arbitrary server filesystem paths.
-
-⸻
-
-6.7 planexe.artifact.read
-
-Reads an artifact (used for display and for agent post-processing).
-
-Request
-
-{
-  "artifact_uri": "planexe://sessions/pxe_.../out/plan.md",
-  "range": {
-    "start": 0,
-    "length": 200000
-  }
-}
-
-Response
-
-{
-  "artifact_uri": "planexe://sessions/pxe_.../out/plan.md",
-  "content_type": "text/markdown",
-  "sha256": "...",
-  "content": "..."
-}
-
-
-⸻
-
-6.8 planexe.artifact.write
-
-Writes an artifact (enables “Stop → Edit → Resume”).
-
-Request
-
-{
-  "artifact_uri": "planexe://sessions/pxe_.../out/plan.md",
-  "content": "string",
-  "edit_reason": "user_patch",
-  "lock": {
-    "expected_sha256": "previous_sha256"
-  }
-}
-
-Response
-
-{
-  "updated": true,
-  "sha256": "new_sha256",
-  "updated_at": "2026-01-14T12:52:00Z"
-}
-
-Required semantics
-	•	Must support optimistic locking:
-	•	if expected_sha256 mismatch → CONFLICT
-	•	Writing must emit an event: artifact_updated
-
-⸻
-
 7. Event Streaming (v1 Strongly Recommended)
 
 7.1 planexe.session.events
@@ -469,51 +378,12 @@ Recommended phases:
 
 ⸻
 
-9. Incrementality & Invalidation Semantics
-
-9.1 Baseline behavior
-
-Luigi determines up-to-date tasks by output presence. In MCP:
-	•	artifact writes by users must be treated as potential invalidations.
-
-9.2 Artifact hashing
-
-The server MUST compute and store sha256 for each artifact.
-
-9.3 Required invalidation behavior
-
-When artifact.write modifies an artifact:
-	•	server MUST emit artifact_updated
-	•	server SHOULD mark dependent tasks stale on next resume
-	•	dependence mapping may be:
-	•	explicit (preferred) via metadata files, or
-	•	implicit (coarse) invalidation of all tasks downstream of a phase boundary
-
-Minimum acceptable v1 approach:
-	•	if user edits any “key artifact” (e.g. plan.md), server invalidates the validation phase.
-
-⸻
-
 10. Concurrency & Locking
 
 10.1 Single active run per session
 
 In v1, sessions MUST enforce:
 	•	at most one run in running state.
-
-10.2 Artifact writes during execution
-
-Two allowed policies:
-	•	Strict (recommended): reject writes while run is running (RUNNING_READONLY)
-	•	Loose: allow writes but mark run inconsistent; enforce resume required
-
-Recommended v1:
-	•	Reject artifact writes while run is running
-	•	UI flow stays: Stop → Edit → Resume
-
-10.3 Optimistic locking
-
-artifact.write must support expected_sha256 to prevent lost updates.
 
 ⸻
 
@@ -570,14 +440,12 @@ At minimum:
 
 13.1 Responsiveness
 	•	session.status must return within < 250ms under normal load.
-	•	artifact.list must return within < 500ms for up to 5,000 artifacts.
 
 13.2 Event throughput
 	•	session.events should support 1–5 events/sec typical
 	•	must tolerate log bursts without breaking clients (batching allowed)
 
 13.3 Large artifacts
-	•	artifact.read SHOULD support range reads
 	•	server SHOULD impose max read size per call (e.g., 2–10MB)
 
 ⸻
@@ -603,17 +471,6 @@ Use:
 	•	session.status.phase
 	•	or progress_updated events
 
-Output directory viewer
-
-Use:
-	•	artifact.list every 1–2s (or subscribe to artifact events)
-
-Stop/Edit/Resume
-	1.	session.stop
-	2.	artifact.read
-	3.	artifact.write
-	4.	session.resume
-
 ⸻
 
 16. Compatibility & Versioning
@@ -632,7 +489,6 @@ Clients must ignore unknown fields and unknown event types.
 
 17.1 Contract tests (required)
 	•	Start/stop/resume loops
-	•	Artifact read/write + sha256 locking
 	•	Invalid transition errors
 	•	Event cursor monotonicity
 
@@ -663,11 +519,6 @@ planexe.session.status({ "session_id": "pxe_..." })
 Stop
 
 planexe.session.stop({ "session_id": "pxe_...", "run_id": "run_0001", "mode": "graceful" })
-
-Edit
-
-planexe.artifact.read({ "artifact_uri": "planexe://.../plan.md" })
-planexe.artifact.write({ "artifact_uri": "planexe://.../plan.md", "content": "...", "lock": {"expected_sha256":"..."} })
 
 Resume
 

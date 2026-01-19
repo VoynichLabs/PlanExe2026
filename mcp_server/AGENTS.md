@@ -14,13 +14,9 @@ for AI agents and developer tools to interact with PlanExe. Communicates with
   - Otherwise build from `PLANEXE_POSTGRES_*` (see root `AGENTS.md` for keys).
 - MCP tools must follow the specification in `extra/mcp-spec1.md`:
   - Session management maps to `TaskItem` records (each session = one TaskItem).
-  - Artifacts are files in `PLANEXE_RUN_DIR/{task_id}/` directory.
   - Events are queried from `EventItem` database records.
 - Keep session ID format consistent: `pxe_{YYYY_MM_DD}__{short_uuid}` stored
   in `TaskItem.parameters._mcp_session_id` for lookup.
-- Artifact URI format: `planexe://sessions/{session_id}/out/{path}`.
-- Security: always validate artifact paths to prevent directory traversal;
-  reject artifact writes while a run is active (strict policy per spec).
 - Forbidden imports: `worker_plan.app`, `worker_plan_internal`, `frontend_*`,
   `open_dir_server`.
 

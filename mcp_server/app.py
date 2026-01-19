@@ -139,24 +139,9 @@ class SessionResumeRequest(BaseModel):
     resume_policy: str = "luigi_up_to_date"
     invalidate: Optional[dict[str, Any]] = None
 
-class ArtifactListRequest(BaseModel):
-    session_id: str
-    path: str = ""
-    include_metadata: bool = True
-
-class ArtifactReadRequest(BaseModel):
-    artifact_uri: str
-    range: Optional[dict[str, int]] = None
-
 class ReportReadRequest(BaseModel):
     session_id: str
     range: Optional[dict[str, int]] = None
-
-class ArtifactWriteRequest(BaseModel):
-    artifact_uri: str
-    content: str
-    edit_reason: Optional[str] = None
-    lock: Optional[dict[str, str]] = None
 
 class SessionEventsRequest(BaseModel):
     session_id: str
@@ -609,31 +594,6 @@ async def handle_list_tools() -> list[Tool]:
             },
         ),
         Tool(
-            name="planexe.artifact.list",
-            description="Lists artifacts under output namespace",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string"},
-                    "path": {"type": "string", "default": ""},
-                    "include_metadata": {"type": "boolean", "default": True},
-                },
-                "required": ["session_id"],
-            },
-        ),
-        Tool(
-            name="planexe.artifact.read",
-            description="Reads an artifact",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "artifact_uri": {"type": "string"},
-                    "range": {"type": "object"},
-                },
-                "required": ["artifact_uri"],
-            },
-        ),
-        Tool(
             name="planexe.report.read",
             description="Returns download metadata for the generated report (optional chunked fallback via range)",
             inputSchema={
@@ -658,20 +618,6 @@ async def handle_list_tools() -> list[Tool]:
                     "session_id": {"type": "string"},
                 },
                 "required": ["session_id"],
-            },
-        ),
-        Tool(
-            name="planexe.artifact.write",
-            description="Writes an artifact (enables Stop → Edit → Resume)",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "artifact_uri": {"type": "string"},
-                    "content": {"type": "string"},
-                    "edit_reason": {"type": "string"},
-                    "lock": {"type": "object"},
-                },
-                "required": ["artifact_uri", "content"],
             },
         ),
         Tool(
@@ -702,16 +648,10 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
             return await handle_session_stop(arguments)
         elif name == "planexe.session.resume":
             return await handle_session_resume(arguments)
-        elif name == "planexe.artifact.list":
-            return await handle_artifact_list(arguments)
-        elif name == "planexe.artifact.read":
-            return await handle_artifact_read(arguments)
         elif name == "planexe.report.read":
             return await handle_report_read(arguments)
         elif name == "planexe.get.result":
             return await handle_report_read(arguments)
-        elif name == "planexe.artifact.write":
-            return await handle_artifact_write(arguments)
         elif name == "planexe.session.events":
             return await handle_session_events(arguments)
         else:
@@ -969,159 +909,6 @@ async def handle_session_resume(arguments: dict[str, Any]) -> list[TextContent]:
     
     return [TextContent(type="text", text=json.dumps(response))]
 
-async def handle_artifact_list(arguments: dict[str, Any]) -> list[TextContent]:
-    """Handle planexe.artifact.list"""
-    req = ArtifactListRequest(**arguments)
-    session_id = req.session_id
-    
-    run_id = get_task_id_for_session(session_id)
-    if not run_id:
-        return [TextContent(
-            type="text",
-            text=json.dumps({"error": {"code": "SESSION_NOT_FOUND", "message": f"Session not found: {session_id}"}})
-        )]
-    
-    entries = []
-    
-    # Fetch file list from worker_plan
-    files_list = await fetch_file_list_from_worker_plan(run_id)
-    if files_list is None:
-        # Return empty list if run doesn't exist yet
-        response = {"entries": []}
-        return [TextContent(type="text", text=json.dumps(response))]
-    
-    # Filter by path if specified
-    if req.path:
-        files_list = [f for f in files_list if f.startswith(req.path)]
-    
-    for file_name in files_list:
-        # Skip log.txt as per spec
-        if file_name == "log.txt":
-            continue
-        
-        artifact_uri = f"planexe://sessions/{session_id}/out/{file_name}"
-        
-        # Guess content type from extension
-        content_type = "application/octet-stream"
-        if file_name.endswith(".md"):
-            content_type = "text/markdown"
-        elif file_name.endswith(".html"):
-            content_type = "text/html"
-        elif file_name.endswith(".json"):
-            content_type = "application/json"
-        elif file_name.endswith(".txt"):
-            content_type = "text/plain"
-        
-        # For metadata, we'd need to fetch the file, but that's expensive
-        # For now, return basic info without size/hash if metadata not required
-        entry = {
-            "type": "file",
-            "path": file_name,
-            "artifact_uri": artifact_uri,
-            "content_type": content_type,
-            "kind": "intermediate",
-        }
-        
-        if req.include_metadata:
-            # Fetch file to compute hash (expensive, but required by spec)
-            content_bytes = await fetch_artifact_from_worker_plan(run_id, file_name)
-            if content_bytes:
-                entry["size"] = len(content_bytes)
-                entry["sha256"] = compute_sha256(content_bytes)
-                entry["updated_at"] = datetime.now(UTC).isoformat() + "Z"  # Approximate
-            else:
-                entry["size"] = 0
-                entry["sha256"] = ""
-                entry["updated_at"] = datetime.now(UTC).isoformat() + "Z"
-        
-        entries.append(entry)
-    
-    response = {"entries": entries}
-    return [TextContent(type="text", text=json.dumps(response))]
-
-async def handle_artifact_read(arguments: dict[str, Any]) -> list[TextContent]:
-    """Handle planexe.artifact.read"""
-    req = ArtifactReadRequest(**arguments)
-    artifact_uri = req.artifact_uri
-    
-    # Parse artifact_uri: planexe://sessions/{session_id}/out/{path}
-    if not artifact_uri.startswith("planexe://sessions/"):
-        return [TextContent(
-            type="text",
-            text=json.dumps({"error": {"code": "INVALID_ARTIFACT_URI", "message": f"Invalid artifact URI format: {artifact_uri}"}})
-        )]
-    
-    parts = artifact_uri.replace("planexe://sessions/", "").split("/out/", 1)
-    if len(parts) != 2:
-        return [TextContent(
-            type="text",
-            text=json.dumps({"error": {"code": "INVALID_ARTIFACT_URI", "message": f"Invalid artifact URI format: {artifact_uri}"}})
-        )]
-    
-    session_id = parts[0]
-    artifact_path = parts[1]
-    
-    # Security: ensure path doesn't contain path traversal
-    if ".." in artifact_path or "/" in artifact_path and artifact_path.startswith("/"):
-        return [TextContent(
-            type="text",
-            text=json.dumps({"error": {"code": "PERMISSION_DENIED", "message": "Path traversal detected"}})
-        )]
-    
-    run_id = get_task_id_for_session(session_id)
-    if not run_id:
-        return [TextContent(
-            type="text",
-            text=json.dumps({"error": {"code": "SESSION_NOT_FOUND", "message": f"Session not found: {session_id}"}})
-        )]
-    
-    # Fetch artifact from worker_plan
-    content_bytes = await fetch_artifact_from_worker_plan(run_id, artifact_path)
-    if content_bytes is None:
-        return [TextContent(
-            type="text",
-            text=json.dumps({"error": {"code": "INVALID_ARTIFACT_URI", "message": f"Artifact not found: {artifact_uri}"}})
-        )]
-    
-    try:
-        content_hash = compute_sha256(content_bytes)
-        
-        # Apply range if specified
-        if req.range:
-            start = req.range.get("start", 0)
-            length = req.range.get("length", len(content_bytes))
-            content_bytes = content_bytes[start:start+length]
-        
-        # Decode as text (try UTF-8, fallback to errors='replace')
-        try:
-            content = content_bytes.decode('utf-8')
-            content_type = "text/plain"
-            if artifact_path.endswith(".md"):
-                content_type = "text/markdown"
-            elif artifact_path.endswith(".html"):
-                content_type = "text/html"
-            elif artifact_path.endswith(".json"):
-                content_type = "application/json"
-        except UnicodeDecodeError:
-            # Binary file, return base64 or indicate binary
-            content = f"[Binary file, {len(content_bytes)} bytes]"
-            content_type = "application/octet-stream"
-        
-        response = {
-            "artifact_uri": artifact_uri,
-            "content_type": content_type,
-            "sha256": content_hash,
-            "content": content,
-        }
-    except Exception as e:
-        logger.error(f"Error processing artifact {artifact_uri}: {e}", exc_info=True)
-        return [TextContent(
-            type="text",
-            text=json.dumps({"error": {"code": "INTERNAL_ERROR", "message": str(e)}})
-        )]
-    
-    return [TextContent(type="text", text=json.dumps(response))]
-
 async def handle_report_read(arguments: dict[str, Any]) -> CallToolResult:
     """Handle planexe.report.read / planexe.get.result."""
     req = ReportReadRequest(**arguments)
@@ -1214,79 +1001,6 @@ async def handle_report_read(arguments: dict[str, Any]) -> CallToolResult:
         structuredContent=response,
         isError=False,
     )
-
-async def handle_artifact_write(arguments: dict[str, Any]) -> list[TextContent]:
-    """Handle planexe.artifact.write"""
-    req = ArtifactWriteRequest(**arguments)
-    artifact_uri = req.artifact_uri
-    
-    # Parse artifact_uri
-    if not artifact_uri.startswith("planexe://sessions/"):
-        return [TextContent(
-            type="text",
-            text=json.dumps({"error": {"code": "INVALID_ARTIFACT_URI", "message": f"Invalid artifact URI format: {artifact_uri}"}})
-        )]
-    
-    parts = artifact_uri.replace("planexe://sessions/", "").split("/out/", 1)
-    if len(parts) != 2:
-        return [TextContent(
-            type="text",
-            text=json.dumps({"error": {"code": "INVALID_ARTIFACT_URI", "message": f"Invalid artifact URI format: {artifact_uri}"}})
-        )]
-    
-    session_id = parts[0]
-    artifact_path = parts[1]
-    
-    with app.app_context():
-        # Check if session exists and is not running
-        task = find_task_by_session_id(session_id)
-        if task is None:
-            return [TextContent(
-                type="text",
-                text=json.dumps({"error": {"code": "SESSION_NOT_FOUND", "message": f"Session not found: {session_id}"}})
-            )]
-        
-        # Check if run is active (strict policy: reject writes while running)
-        if task.state == TaskState.processing:
-            return [TextContent(
-                type="text",
-                text=json.dumps({"error": {"code": "RUNNING_READONLY", "message": "Cannot write artifacts while run is active. Stop the run first."}})
-            )]
-        
-        run_id = get_task_id_for_session(session_id)
-        if not run_id:
-            return [TextContent(
-                type="text",
-                text=json.dumps({"error": {"code": "SESSION_NOT_FOUND", "message": f"Session not found: {session_id}"}})
-            )]
-        
-        # Security check: ensure path doesn't contain path traversal
-        if ".." in artifact_path or "/" in artifact_path and artifact_path.startswith("/"):
-            return [TextContent(
-                type="text",
-                text=json.dumps({"error": {"code": "PERMISSION_DENIED", "message": "Path traversal detected"}})
-            )]
-        
-        # Optimistic locking check - fetch current file first
-        if req.lock and req.lock.get("expected_sha256"):
-            current_bytes = await fetch_artifact_from_worker_plan(run_id, artifact_path)
-            if current_bytes:
-                current_hash = compute_sha256(current_bytes)
-                if current_hash != req.lock["expected_sha256"]:
-                    return [TextContent(
-                        type="text",
-                        text=json.dumps({"error": {"code": "CONFLICT", "message": "SHA256 mismatch. Artifact was modified."}})
-                    )]
-        
-        # Write file - for now, this is not supported via worker_plan HTTP API
-        # We'd need to add a write endpoint to worker_plan, or use a different approach
-        # For now, return an error indicating write is not yet supported via HTTP
-        return [TextContent(
-            type="text",
-            text=json.dumps({"error": {"code": "NOT_IMPLEMENTED", "message": "Artifact write not yet supported via HTTP. Use database-backed approach or file system mount."}})
-        )]
-    
-    return [TextContent(type="text", text=json.dumps(response))]
 
 async def handle_session_events(arguments: dict[str, Any]) -> list[TextContent]:
     """Handle planexe.session.events"""
