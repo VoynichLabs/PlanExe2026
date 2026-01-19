@@ -552,21 +552,6 @@ async def handle_list_tools() -> list[Tool]:
             },
         ),
         Tool(
-            name="planexe.report.read",
-            description="Returns download metadata for the generated report (optional chunked fallback via range)",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string"},
-                    "range": {
-                        "type": "object",
-                        "description": "Optional byte range for chunked fallback. Defaults to first 200k bytes, max 1MB.",
-                    },
-                },
-                "required": ["session_id"],
-            },
-        ),
-        Tool(
             name="planexe.get.result",
             description="Returns download metadata for the generated report",
             outputSchema=REPORT_RESULT_OUTPUT_SCHEMA,
@@ -590,8 +575,6 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
             return await handle_session_status(arguments)
         elif name == "planexe.session.stop":
             return await handle_session_stop(arguments)
-        elif name == "planexe.report.read":
-            return await handle_report_read(arguments)
         elif name == "planexe.get.result":
             return await handle_report_read(arguments)
         else:
@@ -774,7 +757,7 @@ async def handle_session_stop(arguments: dict[str, Any]) -> list[TextContent]:
     return [TextContent(type="text", text=json.dumps(response))]
 
 async def handle_report_read(arguments: dict[str, Any]) -> CallToolResult:
-    """Handle planexe.report.read / planexe.get.result."""
+    """Handle planexe.get.result."""
     req = ReportReadRequest(**arguments)
     session_id = req.session_id
     task = resolve_task_for_session(session_id)

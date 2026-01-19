@@ -356,12 +356,6 @@ async def session_stop(
     return await handle_session_stop({"session_id": session_id, "run_id": run_id, "mode": mode})
 
 
-async def report_read(
-    session_id: str,
-    range: dict[str, int] | None = None,
-) -> Annotated[CallToolResult, ReportResultOutput]:
-    return await handle_report_read({"session_id": session_id, "range": range})
-
 async def get_result(
     session_id: str,
 ) -> Annotated[CallToolResult, ReportResultOutput]:
@@ -381,10 +375,6 @@ def _register_tools(server: FastMCP) -> None:
         name="planexe.session.stop",
         description="Stops the active run",
     )(session_stop)
-    server.tool(
-        name="planexe.report.read",
-        description="Returns download metadata for the generated report (optional chunked fallback via range)",
-    )(report_read)
     server.tool(
         name="planexe.get.result",
         description="Returns download metadata for the generated report",
