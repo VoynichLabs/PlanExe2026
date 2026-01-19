@@ -78,7 +78,6 @@ Key properties
 	•	path: path relative to session output root
 	•	size, updated_at
 	•	content_type: text/markdown, text/html, application/json, etc.
-	•	kind: semantic label (plan, audit_report, log, state, intermediate)
 	•	sha256: content hash for optimistic locking and invalidation
 
 Event
@@ -173,7 +172,6 @@ Response
 
 {
   "session_id": "pxe_...",
-  "run_id": "run_0001",
   "state": "running",
   "phase": "generating_plan",
   "progress": {
@@ -190,8 +188,6 @@ Response
   "latest_artifacts": [
     {
       "path": "plan.md",
-      "artifact_uri": "planexe://sessions/pxe_.../out/plan.md",
-      "kind": "plan",
       "updated_at": "2026-01-14T12:43:11Z"
     }
   ],
@@ -388,19 +384,7 @@ planexe.session.stop({ "session_id": "pxe_...", "run_id": "run_0001", "mode": "g
 
 ⸻
 
-Appendix B — Recommended Artifact Kinds
-
-kind	examples
-plan	plan.md, plan.json
-audit_report	validation_report.html
-log	run.log
-state	luigi_state.json
-intermediate	prompt expansions, extracted assumptions
-
-
-⸻
-
-Appendix C — Optional v1.1 Extensions
+Appendix B — Optional v1.1 Extensions
 
 If you want richer Luigi integration later:
 	•	planexe.task.graph (nodes + edges + states)

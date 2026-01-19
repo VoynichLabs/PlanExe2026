@@ -372,7 +372,6 @@ SESSION_STATUS_OUTPUT_SCHEMA = {
             "type": "object",
             "properties": {
                 "session_id": {"type": "string"},
-                "run_id": {"type": ["string", "null"]},
                 "state": {
                     "type": "string",
                     "enum": ["stopped", "running", "completed", "failed", "stopping"],
@@ -416,18 +415,15 @@ SESSION_STATUS_OUTPUT_SCHEMA = {
                         "type": "object",
                         "properties": {
                             "path": {"type": "string"},
-                            "artifact_uri": {"type": "string"},
-                            "kind": {"type": "string"},
                             "updated_at": {"type": "string"},
                         },
-                        "required": ["path", "artifact_uri", "kind", "updated_at"],
+                        "required": ["path", "updated_at"],
                     },
                 },
                 "warnings": {"type": "array", "items": {"type": "string"}},
             },
             "required": [
                 "session_id",
-                "run_id",
                 "state",
                 "phase",
                 "progress",
@@ -675,7 +671,6 @@ async def handle_session_status(arguments: dict[str, Any]) -> CallToolResult:
         else:
             phase = "finalizing"
         
-        run_id = f"run_{str(task.id).replace('-', '_')}"
         state = get_task_state_mapping(task.state)
         if task.state == TaskState.processing and task.stop_requested:
             state = "stopping"
@@ -688,11 +683,8 @@ async def handle_session_status(arguments: dict[str, Any]) -> CallToolResult:
             if files_list:
                 for file_name in files_list[:10]:  # Limit to 10 most recent
                     if file_name != "log.txt":
-                        artifact_uri = f"planexe://sessions/{session_id}/out/{file_name}"
                         latest_artifacts.append({
                             "path": file_name,
-                            "artifact_uri": artifact_uri,
-                            "kind": "intermediate",
                             "updated_at": datetime.now(UTC).isoformat() + "Z",  # Approximate
                         })
         
@@ -702,7 +694,6 @@ async def handle_session_status(arguments: dict[str, Any]) -> CallToolResult:
 
         response = {
             "session_id": session_id,
-            "run_id": run_id,
             "state": state,
             "phase": phase,
             "progress": {

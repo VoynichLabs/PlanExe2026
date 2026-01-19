@@ -225,14 +225,11 @@ class SessionStatusTiming(BaseModel):
 
 class SessionStatusArtifact(BaseModel):
     path: str
-    artifact_uri: str
-    kind: str
     updated_at: str
 
 
 class SessionStatusOutput(BaseModel):
     session_id: str | None = None
-    run_id: str | None = None
     state: Literal["stopped", "running", "completed", "failed", "stopping"] | None = None
     phase: (
         Literal["initializing", "generating_plan", "validating", "exporting", "finalizing"] | None
