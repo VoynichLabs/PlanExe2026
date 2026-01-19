@@ -58,7 +58,8 @@ class TestReportTool(unittest.TestCase):
         self.assertEqual(payload["state"], "ready")
         self.assertEqual(payload["download_size"], len(content_bytes))
         self.assertEqual(payload["content_type"], "text/html; charset=utf-8")
-        self.assertEqual(payload["download_path"], f"/download/{session_id}/{REPORT_FILENAME}")
+        self.assertNotIn("artifact_uri", payload)
+        self.assertNotIn("download_path", payload)
         self.assertNotIn("content", payload)
 
     def test_report_read_chunked_range(self):

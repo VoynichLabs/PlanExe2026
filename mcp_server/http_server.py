@@ -248,10 +248,8 @@ class ReportRange(BaseModel):
 
 class ReportResultOutput(BaseModel):
     state: Literal["running", "failed", "ready"] | None = None
-    artifact_uri: str | None = None
     content_type: str | None = None
     sha256: str | None = None
-    download_path: str | None = None
     download_size: int | None = None
     download_url: str | None = None
     content: str | None = None

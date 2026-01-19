@@ -445,10 +445,8 @@ REPORT_READY_OUTPUT_SCHEMA = {
     "type": "object",
     "properties": {
         "state": {"const": "ready"},
-        "artifact_uri": {"type": "string"},
         "content_type": {"type": "string"},
         "sha256": {"type": "string"},
-        "download_path": {"type": "string"},
         "download_size": {"type": "integer"},
         "download_url": {"type": "string"},
         "content": {"type": "string"},
@@ -459,10 +457,8 @@ REPORT_READY_OUTPUT_SCHEMA = {
     },
     "required": [
         "state",
-        "artifact_uri",
         "content_type",
         "sha256",
-        "download_path",
         "download_size",
     ],
 }
@@ -796,10 +792,8 @@ async def handle_report_read(arguments: dict[str, Any]) -> CallToolResult:
     content_hash = compute_sha256(content_bytes)
     response = {
         "state": "ready",
-        "artifact_uri": build_report_artifact_uri(session_id),
         "content_type": REPORT_CONTENT_TYPE,
         "sha256": content_hash,
-        "download_path": build_report_download_path(session_id),
         "download_size": total_size,
     }
     download_url = build_report_download_url(session_id)
