@@ -708,7 +708,7 @@ async def handle_task_status(arguments: dict[str, Any]) -> CallToolResult:
         isError=False,
     )
 
-async def handle_task_stop(arguments: dict[str, Any]) -> list[TextContent]:
+async def handle_task_stop(arguments: dict[str, Any]) -> CallToolResult:
     """Handle planexe_stop"""
     req = TaskStopRequest(**arguments)
     task_id = req.task_id
@@ -716,10 +716,17 @@ async def handle_task_stop(arguments: dict[str, Any]) -> list[TextContent]:
     with app.app_context():
         task = find_task_by_task_id(task_id)
         if task is None:
-            return [TextContent(
-                type="text",
-                text=json.dumps({"error": {"code": "TASK_NOT_FOUND", "message": f"Task not found: {task_id}"}})
-            )]
+            response = {
+                "error": {
+                    "code": "TASK_NOT_FOUND",
+                    "message": f"Task not found: {task_id}",
+                }
+            }
+            return CallToolResult(
+                content=[TextContent(type="text", text=json.dumps(response))],
+                structuredContent=response,
+                isError=False,
+            )
         
         if task.state in (TaskState.pending, TaskState.processing):
             task.stop_requested = True
@@ -732,7 +739,11 @@ async def handle_task_stop(arguments: dict[str, Any]) -> list[TextContent]:
             "state": "stopped",
         }
     
-    return [TextContent(type="text", text=json.dumps(response))]
+    return CallToolResult(
+        content=[TextContent(type="text", text=json.dumps(response))],
+        structuredContent=response,
+        isError=False,
+    )
 
 async def handle_report_read(arguments: dict[str, Any]) -> CallToolResult:
     """Handle planexe_result."""

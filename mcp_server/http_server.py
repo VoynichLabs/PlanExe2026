@@ -345,7 +345,7 @@ async def task_status(task_id: str) -> Annotated[CallToolResult, TaskStatusOutpu
 async def task_stop(
     task_id: str,
     mode: str = "graceful",
-) -> list[TextContent]:
+) -> CallToolResult:
     return await handle_task_stop({"task_id": task_id, "mode": mode})
 
 
