@@ -521,7 +521,7 @@ async def handle_list_tools() -> list[Tool]:
             },
         ),
         Tool(
-            name="planexe.session.status",
+            name="planexe_status",
             description="Returns run status and progress",
             outputSchema=SESSION_STATUS_OUTPUT_SCHEMA,
             inputSchema={
@@ -564,7 +564,7 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
     try:
         if name == "planexe.session.create":
             return await handle_session_create(arguments)
-        elif name == "planexe.session.status":
+        elif name == "planexe_status":
             return await handle_session_status(arguments)
         elif name == "planexe.session.stop":
             return await handle_session_stop(arguments)
@@ -637,7 +637,7 @@ async def handle_session_create(arguments: dict[str, Any]) -> CallToolResult:
     )
 
 async def handle_session_status(arguments: dict[str, Any]) -> CallToolResult:
-    """Handle planexe.session.status"""
+    """Handle planexe_status"""
     req = SessionStatusRequest(**arguments)
     session_id = req.session_id
     

@@ -363,7 +363,7 @@ def _register_tools(server: FastMCP) -> None:
         description="Creates a new session and output namespace",
     )(session_create)
     server.tool(
-        name="planexe.session.status",
+        name="planexe_status",
         description="Returns run status and progress",
     )(session_status)
     server.tool(

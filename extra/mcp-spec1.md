@@ -158,7 +158,7 @@ Behavior
 
 ⸻
 
-6.2 planexe.session.status
+6.2 planexe_status
 
 Returns run status and progress. Used for progress bars and UI states.
 
@@ -308,7 +308,7 @@ At minimum:
 13. Performance Requirements
 
 13.1 Responsiveness
-	•	session.status must return within < 250ms under normal load.
+	•	planexe_status must return within < 250ms under normal load.
 
 13.2 Large artifacts
 	•	server SHOULD impose max read size per call (e.g., 2–10MB)
@@ -332,8 +332,8 @@ To match your UI behavior:
 Progress bars
 
 Use:
-	•	session.status.progress.overall
-	•	session.status.phase
+	•	planexe_status.progress.overall
+	•	planexe_status.phase
 	•	or progress_updated events
 
 ⸻
@@ -375,7 +375,7 @@ planexe.session.create({ "idea": "...", "config": {...} })
 
 Start run
 
-planexe.session.status({ "session_id": "pxe_..." })
+planexe_status({ "session_id": "pxe_..." })
 
 Stop
 
