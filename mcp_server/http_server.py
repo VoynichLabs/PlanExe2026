@@ -12,7 +12,7 @@ import sys
 from collections import defaultdict, deque
 from contextlib import asynccontextmanager, suppress
 from time import monotonic
-from typing import Any, Awaitable, Callable, Optional, Sequence
+from typing import Annotated, Any, Awaitable, Callable, Literal, Optional, Sequence
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -204,6 +204,74 @@ class MCPToolCallResponse(BaseModel):
     error: Optional[dict[str, Any]] = None
 
 
+class ErrorDetail(BaseModel):
+    code: str
+    message: str
+
+
+class SessionCreateOutput(BaseModel):
+    session_id: str
+    output_dir_uri: str
+    created_at: str
+
+
+class SessionStatusProgressTask(BaseModel):
+    name: str
+    pct: float
+
+
+class SessionStatusProgress(BaseModel):
+    overall: float
+    current_task: SessionStatusProgressTask
+
+
+class SessionStatusTiming(BaseModel):
+    started_at: str | None
+    elapsed_sec: float
+
+
+class SessionStatusArtifact(BaseModel):
+    path: str
+    artifact_uri: str
+    kind: str
+    updated_at: str
+
+
+class SessionStatusOutput(BaseModel):
+    session_id: str | None = None
+    run_id: str | None = None
+    state: Literal["stopped", "running", "completed", "failed", "stopping"] | None = None
+    phase: (
+        Literal["initializing", "generating_plan", "validating", "exporting", "finalizing"] | None
+    ) = None
+    progress: SessionStatusProgress | None = None
+    timing: SessionStatusTiming | None = None
+    latest_artifacts: list[SessionStatusArtifact] | None = None
+    warnings: list[str] | None = None
+    error: ErrorDetail | None = None
+
+
+class ReportRange(BaseModel):
+    start: int
+    length: int
+
+
+class ReportResultOutput(BaseModel):
+    state: Literal["running", "failed", "ready"] | None = None
+    artifact_uri: str | None = None
+    content_type: str | None = None
+    sha256: str | None = None
+    download_path: str | None = None
+    download_size: int | None = None
+    download_url: str | None = None
+    content: str | None = None
+    total_size: int | None = None
+    range: ReportRange | None = None
+    truncated: bool | None = None
+    next_range: ReportRange | None = None
+    error: ErrorDetail | None = None
+
+
 def extract_text_content(text_contents: Sequence[Any]) -> list[dict[str, Any]]:
     """Extract text content from MCP TextContent objects."""
     result = []
@@ -278,7 +346,7 @@ async def session_create(
     idea: str,
     config: dict[str, Any] | None = None,
     metadata: dict[str, Any] | None = None,
-) -> CallToolResult:
+) -> Annotated[CallToolResult, SessionCreateOutput]:
     return await handle_session_create({"idea": idea, "config": config, "metadata": metadata})
 
 
@@ -290,7 +358,7 @@ async def session_start(
     return await handle_session_start({"session_id": session_id, "target": target, "inputs": inputs})
 
 
-async def session_status(session_id: str) -> CallToolResult:
+async def session_status(session_id: str) -> Annotated[CallToolResult, SessionStatusOutput]:
     return await handle_session_status({"session_id": session_id})
 
 
@@ -338,12 +406,12 @@ async def artifact_read(
 async def report_read(
     session_id: str,
     range: dict[str, int] | None = None,
-) -> CallToolResult:
+) -> Annotated[CallToolResult, ReportResultOutput]:
     return await handle_report_read({"session_id": session_id, "range": range})
 
 async def get_result(
     session_id: str,
-) -> CallToolResult:
+) -> Annotated[CallToolResult, ReportResultOutput]:
     return await handle_report_read({"session_id": session_id})
 
 

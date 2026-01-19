@@ -374,6 +374,155 @@ def build_report_download_url(session_id: str) -> Optional[str]:
         return None
     return f"{base_url.rstrip('/')}{build_report_download_path(session_id)}"
 
+# Output schemas for MCP tools.
+ERROR_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "code": {"type": "string"},
+        "message": {"type": "string"},
+    },
+    "required": ["code", "message"],
+}
+SESSION_CREATE_OUTPUT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "session_id": {"type": "string"},
+        "output_dir_uri": {"type": "string"},
+        "created_at": {"type": "string"},
+    },
+    "required": ["session_id", "output_dir_uri", "created_at"],
+}
+SESSION_STATUS_OUTPUT_SCHEMA = {
+    "oneOf": [
+        {
+            "type": "object",
+            "properties": {"error": ERROR_SCHEMA},
+            "required": ["error"],
+        },
+        {
+            "type": "object",
+            "properties": {
+                "session_id": {"type": "string"},
+                "run_id": {"type": ["string", "null"]},
+                "state": {
+                    "type": "string",
+                    "enum": ["stopped", "running", "completed", "failed", "stopping"],
+                },
+                "phase": {
+                    "type": "string",
+                    "enum": [
+                        "initializing",
+                        "generating_plan",
+                        "validating",
+                        "exporting",
+                        "finalizing",
+                    ],
+                },
+                "progress": {
+                    "type": "object",
+                    "properties": {
+                        "overall": {"type": "number"},
+                        "current_task": {
+                            "type": "object",
+                            "properties": {
+                                "name": {"type": "string"},
+                                "pct": {"type": "number"},
+                            },
+                            "required": ["name", "pct"],
+                        },
+                    },
+                    "required": ["overall", "current_task"],
+                },
+                "timing": {
+                    "type": "object",
+                    "properties": {
+                        "started_at": {"type": ["string", "null"]},
+                        "elapsed_sec": {"type": "number"},
+                    },
+                    "required": ["started_at", "elapsed_sec"],
+                },
+                "latest_artifacts": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "path": {"type": "string"},
+                            "artifact_uri": {"type": "string"},
+                            "kind": {"type": "string"},
+                            "updated_at": {"type": "string"},
+                        },
+                        "required": ["path", "artifact_uri", "kind", "updated_at"],
+                    },
+                },
+                "warnings": {"type": "array", "items": {"type": "string"}},
+            },
+            "required": [
+                "session_id",
+                "run_id",
+                "state",
+                "phase",
+                "progress",
+                "timing",
+                "latest_artifacts",
+                "warnings",
+            ],
+        },
+    ]
+}
+REPORT_RANGE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "start": {"type": "integer", "minimum": 0},
+        "length": {"type": "integer", "minimum": 0},
+    },
+    "required": ["start", "length"],
+}
+REPORT_READY_OUTPUT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "state": {"const": "ready"},
+        "artifact_uri": {"type": "string"},
+        "content_type": {"type": "string"},
+        "sha256": {"type": "string"},
+        "download_path": {"type": "string"},
+        "download_size": {"type": "integer"},
+        "download_url": {"type": "string"},
+        "content": {"type": "string"},
+        "total_size": {"type": "integer"},
+        "range": REPORT_RANGE_SCHEMA,
+        "truncated": {"type": "boolean"},
+        "next_range": REPORT_RANGE_SCHEMA,
+    },
+    "required": [
+        "state",
+        "artifact_uri",
+        "content_type",
+        "sha256",
+        "download_path",
+        "download_size",
+    ],
+}
+REPORT_RESULT_OUTPUT_SCHEMA = {
+    "oneOf": [
+        {
+            "type": "object",
+            "properties": {"error": ERROR_SCHEMA},
+            "required": ["error"],
+        },
+        {
+            "type": "object",
+            "properties": {"state": {"const": "running"}},
+            "required": ["state"],
+        },
+        {
+            "type": "object",
+            "properties": {"state": {"const": "failed"}, "error": ERROR_SCHEMA},
+            "required": ["state", "error"],
+        },
+        REPORT_READY_OUTPUT_SCHEMA,
+    ]
+}
+
 # MCP Tool implementations
 @mcp_server.list_tools()
 async def handle_list_tools() -> list[Tool]:
@@ -382,6 +531,7 @@ async def handle_list_tools() -> list[Tool]:
         Tool(
             name="planexe.session.create",
             description="Creates a new session and output namespace",
+            outputSchema=SESSION_CREATE_OUTPUT_SCHEMA,
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -422,6 +572,7 @@ async def handle_list_tools() -> list[Tool]:
         Tool(
             name="planexe.session.status",
             description="Returns run status and progress",
+            outputSchema=SESSION_STATUS_OUTPUT_SCHEMA,
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -500,6 +651,7 @@ async def handle_list_tools() -> list[Tool]:
         Tool(
             name="planexe.get.result",
             description="Returns download metadata for the generated report",
+            outputSchema=REPORT_RESULT_OUTPUT_SCHEMA,
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -976,10 +1128,17 @@ async def handle_report_read(arguments: dict[str, Any]) -> CallToolResult:
     session_id = req.session_id
     task = resolve_task_for_session(session_id)
     if task is None:
-        return [TextContent(
-            type="text",
-            text=json.dumps({"error": {"code": "SESSION_NOT_FOUND", "message": f"Session not found: {session_id}"}})
-        )]
+        response = {
+            "error": {
+                "code": "SESSION_NOT_FOUND",
+                "message": f"Session not found: {session_id}",
+            }
+        }
+        return CallToolResult(
+            content=[TextContent(type="text", text=json.dumps(response))],
+            structuredContent=response,
+            isError=False,
+        )
 
     if task.state in (TaskState.pending, TaskState.processing) or task.state is None:
         response = {"state": "running"}
