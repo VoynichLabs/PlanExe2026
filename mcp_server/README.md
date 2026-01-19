@@ -111,12 +111,12 @@ The MCP server uses the same database configuration as other PlanExe services:
 
 See `extra/mcp-spec1.md` for full specification. Available tools:
 
-- `planexe_create` - Create a new task
-- `planexe_status` - Get task status and progress
-- `planexe_stop` - Stop an active task
-- `planexe_result` - Get report download metadata
+- `task_create` - Create a new task
+- `task_status` - Get task status and progress
+- `task_stop` - Stop an active task
+- `task_result` - Get report download metadata
 
-Download flow: call `planexe_result` to obtain the `download_url`, then fetch the
+Download flow: call `task_result` to obtain the `download_url`, then fetch the
 report via `GET /download/{task_id}/030-report.html` (API key required if configured).
 
 ## Architecture

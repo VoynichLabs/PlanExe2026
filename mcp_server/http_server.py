@@ -357,19 +357,19 @@ async def get_result(
 
 def _register_tools(server: FastMCP) -> None:
     server.tool(
-        name="planexe_create",
+        name="task_create",
         description="Creates a new task and output namespace",
     )(task_create)
     server.tool(
-        name="planexe_status",
+        name="task_status",
         description="Returns run status and progress",
     )(task_status)
     server.tool(
-        name="planexe_stop",
+        name="task_stop",
         description="Stops the active run",
     )(task_stop)
     server.tool(
-        name="planexe_result",
+        name="task_result",
         description="Returns download metadata for the generated report",
     )(get_result)
 

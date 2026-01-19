@@ -108,7 +108,7 @@ Tasks may exist independent of active runs.
 	•	failed (resumable depending on failure type)
 
 5.3 Allowed transitions
-	•	running → stopped via planexe_stop
+	•	running → stopped via task_stop
 	•	running → completed via normal success
 	•	running → failed via error
 
@@ -122,7 +122,7 @@ Invalid
 
 All tool names below are normative.
 
-6.1 planexe_create
+6.1 task_create
 
 Creates a new task and output namespace.
 
@@ -158,7 +158,7 @@ Behavior
 
 ⸻
 
-6.2 planexe_status
+6.2 task_status
 
 Returns run status and progress. Used for progress bars and UI states.
 
@@ -200,7 +200,7 @@ Notes
 
 ⸻
 
-6.3 planexe_stop
+6.3 task_stop
 
 Stops the active run.
 
@@ -308,7 +308,7 @@ At minimum:
 13. Performance Requirements
 
 13.1 Responsiveness
-	•	planexe_status must return within < 250ms under normal load.
+	•	task_status must return within < 250ms under normal load.
 
 13.2 Large artifacts
 	•	server SHOULD impose max read size per call (e.g., 2–10MB)
@@ -332,8 +332,8 @@ To match your UI behavior:
 Progress bars
 
 Use:
-	•	planexe_status.progress.overall
-	•	planexe_status.phase
+	•	task_status.progress.overall
+	•	task_status.phase
 	•	or progress_updated events
 
 ⸻
@@ -371,15 +371,15 @@ Appendix A — Example End-to-End Flow
 
 Create task
 
-planexe_create({ "idea": "...", "config": {...} })
+task_create({ "idea": "...", "config": {...} })
 
 Start run
 
-planexe_status({ "task_id": "pxe_..." })
+task_status({ "task_id": "pxe_..." })
 
 Stop
 
-planexe_stop({ "task_id": "pxe_...", "mode": "graceful" })
+task_stop({ "task_id": "pxe_...", "mode": "graceful" })
 
 ⸻
 

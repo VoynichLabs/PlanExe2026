@@ -486,7 +486,7 @@ async def handle_list_tools() -> list[Tool]:
     """List all available MCP tools."""
     return [
         Tool(
-            name="planexe_create",
+            name="task_create",
             description="Creates a new task and output namespace",
             outputSchema=TASK_CREATE_OUTPUT_SCHEMA,
             inputSchema={
@@ -514,7 +514,7 @@ async def handle_list_tools() -> list[Tool]:
             },
         ),
         Tool(
-            name="planexe_status",
+            name="task_status",
             description="Returns run status and progress",
             outputSchema=TASK_STATUS_OUTPUT_SCHEMA,
             inputSchema={
@@ -526,7 +526,7 @@ async def handle_list_tools() -> list[Tool]:
             },
         ),
         Tool(
-            name="planexe_stop",
+            name="task_stop",
             description="Stops the active run",
             inputSchema={
                 "type": "object",
@@ -538,7 +538,7 @@ async def handle_list_tools() -> list[Tool]:
             },
         ),
         Tool(
-            name="planexe_result",
+            name="task_result",
             description="Returns download metadata for the generated report",
             outputSchema=REPORT_RESULT_OUTPUT_SCHEMA,
             inputSchema={
@@ -555,13 +555,13 @@ async def handle_list_tools() -> list[Tool]:
 async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
     """Handle tool calls."""
     try:
-        if name == "planexe_create":
+        if name == "task_create":
             return await handle_task_create(arguments)
-        elif name == "planexe_status":
+        elif name == "task_status":
             return await handle_task_status(arguments)
-        elif name == "planexe_stop":
+        elif name == "task_stop":
             return await handle_task_stop(arguments)
-        elif name == "planexe_result":
+        elif name == "task_result":
             return await handle_report_read(arguments)
         else:
             return [TextContent(
@@ -576,7 +576,7 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
         )]
 
 async def handle_task_create(arguments: dict[str, Any]) -> CallToolResult:
-    """Handle planexe_create"""
+    """Handle task_create"""
     req = TaskCreateRequest(**arguments)
     
     with app.app_context():
@@ -630,7 +630,7 @@ async def handle_task_create(arguments: dict[str, Any]) -> CallToolResult:
     )
 
 async def handle_task_status(arguments: dict[str, Any]) -> CallToolResult:
-    """Handle planexe_status"""
+    """Handle task_status"""
     req = TaskStatusRequest(**arguments)
     task_id = req.task_id
     
@@ -709,7 +709,7 @@ async def handle_task_status(arguments: dict[str, Any]) -> CallToolResult:
     )
 
 async def handle_task_stop(arguments: dict[str, Any]) -> CallToolResult:
-    """Handle planexe_stop"""
+    """Handle task_stop"""
     req = TaskStopRequest(**arguments)
     task_id = req.task_id
     
@@ -746,7 +746,7 @@ async def handle_task_stop(arguments: dict[str, Any]) -> CallToolResult:
     )
 
 async def handle_report_read(arguments: dict[str, Any]) -> CallToolResult:
-    """Handle planexe_result."""
+    """Handle task_result."""
     req = ReportReadRequest(**arguments)
     task_id = req.task_id
     task = resolve_task_for_task_id(task_id)
