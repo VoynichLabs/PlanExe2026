@@ -115,9 +115,9 @@ See `extra/mcp-spec1.md` for full specification. Available tools:
 - `planexe_create` - Create a new session
 - `planexe_status` - Get run status and progress
 - `planexe_stop` - Stop active run
-- `planexe.get.result` - Get report download metadata
+- `planexe_result` - Get report download metadata
 
-Download flow: call `planexe.get.result` to obtain the
+Download flow: call `planexe_result` to obtain the
 `download_path`/`download_url`, then fetch the report via
 `GET /download/{session_id}/030-report.html` (API key required if configured).
 

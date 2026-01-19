@@ -27,7 +27,7 @@ class TestReportTool(unittest.TestCase):
     def test_report_tool_listed(self):
         tools = asyncio.run(handle_list_tools())
         tool_names = {tool.name for tool in tools}
-        self.assertIn("planexe.get.result", tool_names)
+        self.assertIn("planexe_result", tool_names)
 
     def test_zip_helpers(self):
         buffer = BytesIO()

@@ -371,7 +371,7 @@ def _register_tools(server: FastMCP) -> None:
         description="Stops the active run",
     )(session_stop)
     server.tool(
-        name="planexe.get.result",
+        name="planexe_result",
         description="Returns download metadata for the generated report",
     )(get_result)
 
