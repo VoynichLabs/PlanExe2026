@@ -115,15 +115,15 @@ SPEED_VS_DETAIL_ALIASES = {
 }
 
 # Pydantic models for request/response validation
-class SessionCreateRequest(BaseModel):
+class TaskCreateRequest(BaseModel):
     idea: str
     config: Optional[dict[str, Any]] = None
     metadata: Optional[dict[str, Any]] = None
 
-class SessionStatusRequest(BaseModel):
+class TaskStatusRequest(BaseModel):
     task_id: str
 
-class SessionStopRequest(BaseModel):
+class TaskStopRequest(BaseModel):
     task_id: str
     mode: str = "graceful"
 
@@ -580,7 +580,7 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
 
 async def handle_session_create(arguments: dict[str, Any]) -> CallToolResult:
     """Handle planexe_create"""
-    req = SessionCreateRequest(**arguments)
+    req = TaskCreateRequest(**arguments)
     
     with app.app_context():
         parameters = dict(req.config or {})
@@ -634,7 +634,7 @@ async def handle_session_create(arguments: dict[str, Any]) -> CallToolResult:
 
 async def handle_session_status(arguments: dict[str, Any]) -> CallToolResult:
     """Handle planexe_status"""
-    req = SessionStatusRequest(**arguments)
+    req = TaskStatusRequest(**arguments)
     task_id = req.task_id
     
     with app.app_context():
@@ -713,7 +713,7 @@ async def handle_session_status(arguments: dict[str, Any]) -> CallToolResult:
 
 async def handle_session_stop(arguments: dict[str, Any]) -> list[TextContent]:
     """Handle planexe_stop"""
-    req = SessionStopRequest(**arguments)
+    req = TaskStopRequest(**arguments)
     task_id = req.task_id
     
     with app.app_context():
