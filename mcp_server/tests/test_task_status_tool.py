@@ -7,11 +7,11 @@ from unittest.mock import AsyncMock, patch
 
 from mcp.types import CallToolResult
 from database_api.model_taskitem import TaskState
-from mcp_server.app import handle_session_status
+from mcp_server.app import handle_task_status
 
 
-class TestSessionStatusTool(unittest.TestCase):
-    def test_session_status_returns_structured_content(self):
+class TestTaskStatusTool(unittest.TestCase):
+    def test_task_status_returns_structured_content(self):
         task_id = "pxe_2026_01_18__b1530380"
         task = SimpleNamespace(
             id="b1530380-7942-4e84-827c-6a699b1c1e92",
@@ -28,7 +28,7 @@ class TestSessionStatusTool(unittest.TestCase):
         ), patch(
             "mcp_server.app.fetch_file_list_from_worker_plan", new=AsyncMock(return_value=[])
         ):
-            result = asyncio.run(handle_session_status({"task_id": task_id}))
+            result = asyncio.run(handle_task_status({"task_id": task_id}))
 
         self.assertIsInstance(result, CallToolResult)
         self.assertIsInstance(result.structuredContent, dict)

@@ -4,17 +4,17 @@ from contextlib import nullcontext
 from unittest.mock import MagicMock, patch
 
 from mcp.types import CallToolResult
-from mcp_server.app import handle_session_create
+from mcp_server.app import handle_task_create
 
 
-class TestSessionCreateTool(unittest.TestCase):
-    def test_session_create_returns_structured_content(self):
+class TestTaskCreateTool(unittest.TestCase):
+    def test_task_create_returns_structured_content(self):
         arguments = {"idea": "xcv", "config": None, "metadata": None}
         fake_session = MagicMock()
         with patch("mcp_server.app.app.app_context", return_value=nullcontext()), patch(
             "mcp_server.app.db.session", fake_session
         ):
-            result = asyncio.run(handle_session_create(arguments))
+            result = asyncio.run(handle_task_create(arguments))
 
         self.assertIsInstance(result, CallToolResult)
         self.assertIsInstance(result.structuredContent, dict)

@@ -556,11 +556,11 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
     """Handle tool calls."""
     try:
         if name == "planexe_create":
-            return await handle_session_create(arguments)
+            return await handle_task_create(arguments)
         elif name == "planexe_status":
-            return await handle_session_status(arguments)
+            return await handle_task_status(arguments)
         elif name == "planexe_stop":
-            return await handle_session_stop(arguments)
+            return await handle_task_stop(arguments)
         elif name == "planexe_result":
             return await handle_report_read(arguments)
         else:
@@ -575,7 +575,7 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
             text=json.dumps({"error": {"code": "INTERNAL_ERROR", "message": str(e)}})
         )]
 
-async def handle_session_create(arguments: dict[str, Any]) -> CallToolResult:
+async def handle_task_create(arguments: dict[str, Any]) -> CallToolResult:
     """Handle planexe_create"""
     req = TaskCreateRequest(**arguments)
     
@@ -629,7 +629,7 @@ async def handle_session_create(arguments: dict[str, Any]) -> CallToolResult:
         isError=False,
     )
 
-async def handle_session_status(arguments: dict[str, Any]) -> CallToolResult:
+async def handle_task_status(arguments: dict[str, Any]) -> CallToolResult:
     """Handle planexe_status"""
     req = TaskStatusRequest(**arguments)
     task_id = req.task_id
@@ -708,7 +708,7 @@ async def handle_session_status(arguments: dict[str, Any]) -> CallToolResult:
         isError=False,
     )
 
-async def handle_session_stop(arguments: dict[str, Any]) -> list[TextContent]:
+async def handle_task_stop(arguments: dict[str, Any]) -> list[TextContent]:
     """Handle planexe_stop"""
     req = TaskStopRequest(**arguments)
     task_id = req.task_id

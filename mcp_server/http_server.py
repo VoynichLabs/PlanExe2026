@@ -44,9 +44,9 @@ from mcp_server.app import (
     REPORT_CONTENT_TYPE,
     REPORT_FILENAME,
     fetch_artifact_from_worker_plan,
-    handle_session_create,
-    handle_session_status,
-    handle_session_stop,
+    handle_task_create,
+    handle_task_status,
+    handle_task_stop,
     handle_report_read,
     resolve_task_for_task_id,
 )
@@ -335,18 +335,18 @@ async def session_create(
     config: dict[str, Any] | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> Annotated[CallToolResult, SessionCreateOutput]:
-    return await handle_session_create({"idea": idea, "config": config, "metadata": metadata})
+    return await handle_task_create({"idea": idea, "config": config, "metadata": metadata})
 
 
 async def session_status(task_id: str) -> Annotated[CallToolResult, SessionStatusOutput]:
-    return await handle_session_status({"task_id": task_id})
+    return await handle_task_status({"task_id": task_id})
 
 
 async def session_stop(
     task_id: str,
     mode: str = "graceful",
 ) -> list[TextContent]:
-    return await handle_session_stop({"task_id": task_id, "mode": mode})
+    return await handle_task_stop({"task_id": task_id, "mode": mode})
 
 
 async def get_result(
