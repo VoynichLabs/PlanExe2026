@@ -48,7 +48,6 @@ from mcp_server.app import (
     handle_session_start,
     handle_session_status,
     handle_session_stop,
-    handle_session_resume,
     handle_report_read,
     handle_session_events,
     resolve_task_for_session,
@@ -367,22 +366,6 @@ async def session_stop(
     return await handle_session_stop({"session_id": session_id, "run_id": run_id, "mode": mode})
 
 
-async def session_resume(
-    session_id: str,
-    target: str = "build_plan_and_validate",
-    resume_policy: str = "luigi_up_to_date",
-    invalidate: dict[str, Any] | None = None,
-) -> list[TextContent]:
-    return await handle_session_resume(
-        {
-            "session_id": session_id,
-            "target": target,
-            "resume_policy": resume_policy,
-            "invalidate": invalidate,
-        }
-    )
-
-
 async def report_read(
     session_id: str,
     range: dict[str, int] | None = None,
@@ -419,10 +402,6 @@ def _register_tools(server: FastMCP) -> None:
         name="planexe.session.stop",
         description="Stops the active run",
     )(session_stop)
-    server.tool(
-        name="planexe.session.resume",
-        description="Resumes execution, reusing cached Luigi outputs",
-    )(session_resume)
     server.tool(
         name="planexe.report.read",
         description="Returns download metadata for the generated report (optional chunked fallback via range)",

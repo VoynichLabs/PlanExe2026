@@ -116,7 +116,6 @@ See `extra/mcp-spec1.md` for full specification. Available tools:
 - `planexe.session.start` - Start execution
 - `planexe.session.status` - Get run status and progress
 - `planexe.session.stop` - Stop active run
-- `planexe.session.resume` - Resume execution
 - `planexe.report.read` - Get report download metadata (optional chunked fallback via range)
 - `planexe.get.result` - Get report download metadata
 - `planexe.session.events` - Get incremental events

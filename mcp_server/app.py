@@ -133,12 +133,6 @@ class SessionStopRequest(BaseModel):
     run_id: Optional[str] = None
     mode: str = "graceful"
 
-class SessionResumeRequest(BaseModel):
-    session_id: str
-    target: str = "build_plan_and_validate"
-    resume_policy: str = "luigi_up_to_date"
-    invalidate: Optional[dict[str, Any]] = None
-
 class ReportReadRequest(BaseModel):
     session_id: str
     range: Optional[dict[str, int]] = None
@@ -580,20 +574,6 @@ async def handle_list_tools() -> list[Tool]:
             },
         ),
         Tool(
-            name="planexe.session.resume",
-            description="Resumes execution, reusing cached Luigi outputs",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string"},
-                    "target": {"type": "string", "default": "build_plan_and_validate"},
-                    "resume_policy": {"type": "string", "default": "luigi_up_to_date"},
-                    "invalidate": {"type": "object"},
-                },
-                "required": ["session_id"],
-            },
-        ),
-        Tool(
             name="planexe.report.read",
             description="Returns download metadata for the generated report (optional chunked fallback via range)",
             inputSchema={
@@ -646,8 +626,6 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
             return await handle_session_status(arguments)
         elif name == "planexe.session.stop":
             return await handle_session_stop(arguments)
-        elif name == "planexe.session.resume":
-            return await handle_session_resume(arguments)
         elif name == "planexe.report.read":
             return await handle_report_read(arguments)
         elif name == "planexe.get.result":
@@ -867,44 +845,6 @@ async def handle_session_stop(arguments: dict[str, Any]) -> list[TextContent]:
         
         response = {
             "state": "stopped",
-        }
-    
-    return [TextContent(type="text", text=json.dumps(response))]
-
-async def handle_session_resume(arguments: dict[str, Any]) -> list[TextContent]:
-    """Handle planexe.session.resume"""
-    req = SessionResumeRequest(**arguments)
-    session_id = req.session_id
-    
-    # Resume is similar to start - we create a new run (TaskItem state -> pending)
-    # For now, we'll reuse the same task
-    with app.app_context():
-        task = find_task_by_session_id(session_id)
-        if task is None:
-            return [TextContent(
-                type="text",
-                text=json.dumps({"error": {"code": "SESSION_NOT_FOUND", "message": f"Session not found: {session_id}"}})
-            )]
-        
-        if task.state == TaskState.processing:
-            return [TextContent(
-                type="text",
-                text=json.dumps({"error": {"code": "RUN_ALREADY_ACTIVE", "message": "A run is currently active for this session."}})
-            )]
-        
-        # Reset to pending to trigger a new run
-        task.state = TaskState.pending
-        task.progress_percentage = 0.0
-        task.progress_message = "Resuming..."
-        task.last_seen_timestamp = datetime.now(UTC)
-        task.stop_requested = False
-        task.stop_requested_timestamp = None
-        db.session.commit()
-        
-        run_id = f"run_{str(task.id).replace('-', '_')}"
-        response = {
-            "run_id": run_id,
-            "state": "running",
         }
     
     return [TextContent(type="text", text=json.dumps(response))]

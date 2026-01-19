@@ -111,12 +111,11 @@ Sessions may exist independent of active runs.
 5.3 Allowed transitions
 	•	created → running via session.start
 	•	running → stopped via session.stop
-	•	stopped → running via session.resume
 	•	running → completed via normal success
 	•	running → failed via error
 
 Invalid
-	•	completed → running (new run must be triggered via resume/new target)
+	•	completed → running (new run must be triggered via session.start)
 	•	running → running (no concurrent runs in v1)
 
 ⸻
@@ -254,39 +253,6 @@ Response
 Required semantics
 	•	Must stop workers cleanly where possible.
 	•	Must persist enough Luigi state to resume incrementally.
-
-⸻
-
-6.5 planexe.session.resume
-
-Resumes execution, reusing cached Luigi outputs and recomputing only invalidated tasks.
-
-Request
-
-{
-  "session_id": "pxe_...",
-  "target": "build_plan_and_validate",
-  "resume_policy": "luigi_up_to_date",
-  "invalidate": {
-    "artifacts": [
-      "planexe://sessions/pxe_.../out/plan.md"
-    ],
-    "tasks": []
-  }
-}
-
-Response
-
-{
-  "run_id": "run_0002",
-  "state": "running"
-}
-
-Required semantics
-	•	Resume must not delete artifacts unless explicitly configured.
-	•	If invalidate includes artifacts:
-	•	mark downstream tasks dependent on these artifacts as stale.
-	•	If a run is currently running, must return RUN_ALREADY_ACTIVE.
 
 ⸻
 
@@ -519,11 +485,6 @@ planexe.session.status({ "session_id": "pxe_..." })
 Stop
 
 planexe.session.stop({ "session_id": "pxe_...", "run_id": "run_0001", "mode": "graceful" })
-
-Resume
-
-planexe.session.resume({ "session_id": "pxe_...", "target": "build_plan_and_validate" })
-
 
 ⸻
 
