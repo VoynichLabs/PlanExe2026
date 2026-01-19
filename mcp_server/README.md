@@ -118,7 +118,7 @@ See `extra/mcp-spec1.md` for full specification. Available tools:
 - `planexe_result` - Get report download metadata
 
 Download flow: call `planexe_result` to obtain the `download_url`, then fetch the
-report via `GET /download/{session_id}/030-report.html` (API key required if configured).
+report via `GET /download/{task_id}/030-report.html` (API key required if configured).
 
 ## Architecture
 

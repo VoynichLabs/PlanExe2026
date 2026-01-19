@@ -121,28 +121,28 @@ class SessionCreateRequest(BaseModel):
     metadata: Optional[dict[str, Any]] = None
 
 class SessionStatusRequest(BaseModel):
-    session_id: str
+    task_id: str
 
 class SessionStopRequest(BaseModel):
-    session_id: str
+    task_id: str
     mode: str = "graceful"
 
 class ReportReadRequest(BaseModel):
-    session_id: str
+    task_id: str
     range: Optional[dict[str, int]] = None
 
 # Helper functions
-def find_task_by_session_id(session_id: str) -> Optional[TaskItem]:
-    """Find TaskItem by session_id stored in parameters."""
+def find_task_by_task_id(task_id: str) -> Optional[TaskItem]:
+    """Find TaskItem by task_id stored in parameters."""
     def _query() -> Optional[TaskItem]:
         query = db.session.query(TaskItem)
         if db.engine.dialect.name == "postgresql":
             tasks = query.filter(
-                cast(TaskItem.parameters, JSONB).contains({"_mcp_session_id": session_id})
+                cast(TaskItem.parameters, JSONB).contains({"_mcp_task_id": task_id})
             ).all()
         else:
             tasks = query.filter(
-                TaskItem.parameters.contains({"_mcp_session_id": session_id})
+                TaskItem.parameters.contains({"_mcp_task_id": task_id})
             ).all()
         if tasks:
             return tasks[0]
@@ -153,15 +153,15 @@ def find_task_by_session_id(session_id: str) -> Optional[TaskItem]:
     with app.app_context():
         return _query()
 
-def get_task_id_for_session(session_id: str) -> Optional[str]:
-    """Get the task_id (run_id) for a session."""
-    task = find_task_by_session_id(session_id)
+def get_task_uuid_for_task_id(task_id: str) -> Optional[str]:
+    """Get the TaskItem UUID for a task_id handle."""
+    task = find_task_by_task_id(task_id)
     if task:
         return str(task.id)
-    # Fallback: try parsing session_id format
-    if "__" in session_id:
+    # Fallback: try parsing task_id format
+    if "__" in task_id:
         # Extract UUID portion from pxe_YYYY_MM_DD__{uuid}
-        uuid_part = session_id.split("__", 1)[1]
+        uuid_part = task_id.split("__", 1)[1]
         # Try to find task by UUID
         try:
             task_id = uuid.UUID(uuid_part)
@@ -184,14 +184,14 @@ def get_task_by_id(task_id: str) -> Optional[TaskItem]:
     with app.app_context():
         return _query()
 
-def resolve_task_for_session(session_id: str) -> Optional[TaskItem]:
-    """Resolve a TaskItem from a session_id, with UUID fallback."""
-    task = find_task_by_session_id(session_id)
+def resolve_task_for_task_id(task_id: str) -> Optional[TaskItem]:
+    """Resolve a TaskItem from a task_id, with UUID fallback."""
+    task = find_task_by_task_id(task_id)
     if task is not None:
         return task
-    if "__" not in session_id:
+    if "__" not in task_id:
         return None
-    uuid_part = session_id.split("__", 1)[1]
+    uuid_part = task_id.split("__", 1)[1]
     try:
         uuid.UUID(uuid_part)
     except ValueError:
@@ -331,17 +331,17 @@ def resolve_speed_vs_detail(config: Optional[dict[str, Any]]) -> str:
         return value
     return SPEED_VS_DETAIL_DEFAULT
 
-def build_report_artifact_uri(session_id: str) -> str:
-    return f"planexe://sessions/{session_id}/out/{REPORT_FILENAME}"
+def build_report_artifact_uri(task_id: str) -> str:
+    return f"planexe://sessions/{task_id}/out/{REPORT_FILENAME}"
 
-def build_report_download_path(session_id: str) -> str:
-    return f"/download/{session_id}/{REPORT_FILENAME}"
+def build_report_download_path(task_id: str) -> str:
+    return f"/download/{task_id}/{REPORT_FILENAME}"
 
-def build_report_download_url(session_id: str) -> Optional[str]:
+def build_report_download_url(task_id: str) -> Optional[str]:
     base_url = os.environ.get("PLANEXE_MCP_PUBLIC_BASE_URL")
     if not base_url:
         return None
-    return f"{base_url.rstrip('/')}{build_report_download_path(session_id)}"
+    return f"{base_url.rstrip('/')}{build_report_download_path(task_id)}"
 
 # Output schemas for MCP tools.
 ERROR_SCHEMA = {
@@ -355,10 +355,10 @@ ERROR_SCHEMA = {
 SESSION_CREATE_OUTPUT_SCHEMA = {
     "type": "object",
     "properties": {
-        "session_id": {"type": "string"},
+        "task_id": {"type": "string"},
         "created_at": {"type": "string"},
     },
-    "required": ["session_id", "created_at"],
+    "required": ["task_id", "created_at"],
 }
 SESSION_STATUS_OUTPUT_SCHEMA = {
     "oneOf": [
@@ -370,7 +370,7 @@ SESSION_STATUS_OUTPUT_SCHEMA = {
         {
             "type": "object",
             "properties": {
-                "session_id": {"type": "string"},
+                "task_id": {"type": "string"},
                 "state": {
                     "type": "string",
                     "enum": ["stopped", "running", "completed", "failed", "stopping"],
@@ -422,7 +422,7 @@ SESSION_STATUS_OUTPUT_SCHEMA = {
                 "warnings": {"type": "array", "items": {"type": "string"}},
             },
             "required": [
-                "session_id",
+                "task_id",
                 "state",
                 "phase",
                 "progress",
@@ -523,9 +523,9 @@ async def handle_list_tools() -> list[Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "session_id": {"type": "string"},
+                    "task_id": {"type": "string"},
                 },
-                "required": ["session_id"],
+                "required": ["task_id"],
             },
         ),
         Tool(
@@ -534,10 +534,10 @@ async def handle_list_tools() -> list[Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "session_id": {"type": "string"},
+                    "task_id": {"type": "string"},
                     "mode": {"type": "string", "default": "graceful"},
                 },
-                "required": ["session_id"],
+                "required": ["task_id"],
             },
         ),
         Tool(
@@ -547,9 +547,9 @@ async def handle_list_tools() -> list[Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "session_id": {"type": "string"},
+                    "task_id": {"type": "string"},
                 },
-                "required": ["session_id"],
+                "required": ["task_id"],
             },
         ),
     ]
@@ -596,17 +596,17 @@ async def handle_session_create(arguments: dict[str, Any]) -> CallToolResult:
         db.session.add(task)
         db.session.commit()
         
-        # Generate session_id in format: pxe_{date}__{short_uuid}
+        # Generate task_id in format: pxe_{date}__{short_uuid}
         date_str = datetime.now(UTC).strftime("%Y_%m_%d")
         short_uuid = str(task.id).replace("-", "")[:8]
-        session_id = f"pxe_{date_str}__{short_uuid}"
-        # Store session_id mapping in task parameters for later lookup
+        task_id = f"pxe_{date_str}__{short_uuid}"
+        # Store task_id mapping in task parameters for later lookup
         parameters = dict(task.parameters or {})
-        parameters["_mcp_session_id"] = session_id
+        parameters["_mcp_task_id"] = task_id
         task.parameters = parameters
         event_context = {
             "task_id": str(task.id),
-            "session_id": session_id,
+            "task_handle": task_id,
             "prompt": task.prompt,
             "user_id": task.user_id,
             "config": req.config,
@@ -622,7 +622,7 @@ async def handle_session_create(arguments: dict[str, Any]) -> CallToolResult:
         db.session.commit()
         
         response = {
-            "session_id": session_id,
+            "task_id": task_id,
             "created_at": task.timestamp_created.isoformat() + "Z",
         }
     
@@ -635,15 +635,15 @@ async def handle_session_create(arguments: dict[str, Any]) -> CallToolResult:
 async def handle_session_status(arguments: dict[str, Any]) -> CallToolResult:
     """Handle planexe_status"""
     req = SessionStatusRequest(**arguments)
-    session_id = req.session_id
+    task_id = req.task_id
     
     with app.app_context():
-        task = find_task_by_session_id(session_id)
+        task = find_task_by_task_id(task_id)
         if task is None:
             response = {
                 "error": {
                     "code": "SESSION_NOT_FOUND",
-                    "message": f"Session not found: {session_id}",
+                    "message": f"Task not found: {task_id}",
                 }
             }
             return CallToolResult(
@@ -670,10 +670,10 @@ async def handle_session_status(arguments: dict[str, Any]) -> CallToolResult:
             state = "stopping"
         
         # Collect artifacts from worker_plan
-        run_id = get_task_id_for_session(session_id)
+        task_uuid = get_task_uuid_for_task_id(task_id)
         latest_artifacts = []
-        if run_id:
-            files_list = await fetch_file_list_from_worker_plan(run_id)
+        if task_uuid:
+            files_list = await fetch_file_list_from_worker_plan(task_uuid)
             if files_list:
                 for file_name in files_list[:10]:  # Limit to 10 most recent
                     if file_name != "log.txt":
@@ -687,7 +687,7 @@ async def handle_session_status(arguments: dict[str, Any]) -> CallToolResult:
             created_at = created_at.replace(tzinfo=UTC)
 
         response = {
-            "session_id": session_id,
+            "task_id": task_id,
             "state": state,
             "phase": phase,
             "progress": {
@@ -714,14 +714,14 @@ async def handle_session_status(arguments: dict[str, Any]) -> CallToolResult:
 async def handle_session_stop(arguments: dict[str, Any]) -> list[TextContent]:
     """Handle planexe_stop"""
     req = SessionStopRequest(**arguments)
-    session_id = req.session_id
+    task_id = req.task_id
     
     with app.app_context():
-        task = find_task_by_session_id(session_id)
+        task = find_task_by_task_id(task_id)
         if task is None:
             return [TextContent(
                 type="text",
-                text=json.dumps({"error": {"code": "SESSION_NOT_FOUND", "message": f"Session not found: {session_id}"}})
+                text=json.dumps({"error": {"code": "SESSION_NOT_FOUND", "message": f"Task not found: {task_id}"}})
             )]
         
         if task.state in (TaskState.pending, TaskState.processing):
@@ -729,7 +729,7 @@ async def handle_session_stop(arguments: dict[str, Any]) -> list[TextContent]:
             task.stop_requested_timestamp = datetime.now(UTC)
             task.progress_message = "Stop requested by user."
             db.session.commit()
-            logger.info("Stop requested for session %s; stop flag set on task %s.", session_id, task.id)
+            logger.info("Stop requested for task %s; stop flag set on task %s.", task_id, task.id)
         
         response = {
             "state": "stopped",
@@ -740,13 +740,13 @@ async def handle_session_stop(arguments: dict[str, Any]) -> list[TextContent]:
 async def handle_report_read(arguments: dict[str, Any]) -> CallToolResult:
     """Handle planexe_result."""
     req = ReportReadRequest(**arguments)
-    session_id = req.session_id
-    task = resolve_task_for_session(session_id)
+    task_id = req.task_id
+    task = resolve_task_for_task_id(task_id)
     if task is None:
         response = {
             "error": {
                 "code": "SESSION_NOT_FOUND",
-                "message": f"Session not found: {session_id}",
+                "message": f"Task not found: {task_id}",
             }
         }
         return CallToolResult(
@@ -774,7 +774,7 @@ async def handle_report_read(arguments: dict[str, Any]) -> CallToolResult:
     run_id = str(task.id)
     content_bytes = await fetch_artifact_from_worker_plan(run_id, REPORT_FILENAME)
     if content_bytes is None:
-        artifact_uri = build_report_artifact_uri(session_id)
+        artifact_uri = build_report_artifact_uri(task_id)
         response = {
             "state": "failed",
             "error": {
@@ -796,7 +796,7 @@ async def handle_report_read(arguments: dict[str, Any]) -> CallToolResult:
         "sha256": content_hash,
         "download_size": total_size,
     }
-    download_url = build_report_download_url(session_id)
+    download_url = build_report_download_url(task_id)
     if download_url:
         response["download_url"] = download_url
 

@@ -55,7 +55,7 @@ Session
 A long-lived container for a PlanExe project run.
 
 Key properties
-	•	session_id: stable unique identifier
+	•	task_id: stable unique identifier
 	•	output_dir: artifact root namespace for session
 	•	config: immutable run configuration (models, runtime limits, Luigi params)
 	•	created_at, updated_at
@@ -148,7 +148,7 @@ Request
 Response
 
 {
-  "session_id": "pxe_2026_01_14__abcd1234",
+  "task_id": "pxe_2026_01_14__abcd1234",
   "created_at": "2026-01-14T12:34:56Z"
 }
 
@@ -165,13 +165,13 @@ Returns run status and progress. Used for progress bars and UI states.
 Request
 
 {
-  "session_id": "pxe_..."
+  "task_id": "pxe_..."
 }
 
 Response
 
 {
-  "session_id": "pxe_...",
+  "task_id": "pxe_...",
   "state": "running",
   "phase": "generating_plan",
   "progress": {
@@ -207,7 +207,7 @@ Stops the active run.
 Request
 
 {
-  "session_id": "pxe_...",
+  "task_id": "pxe_...",
   "mode": "graceful"
 }
 
@@ -375,11 +375,11 @@ planexe_create({ "idea": "...", "config": {...} })
 
 Start run
 
-planexe_status({ "session_id": "pxe_..." })
+planexe_status({ "task_id": "pxe_..." })
 
 Stop
 
-planexe_stop({ "session_id": "pxe_...", "mode": "graceful" })
+planexe_stop({ "task_id": "pxe_...", "mode": "graceful" })
 
 ⸻
 

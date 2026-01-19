@@ -20,9 +20,9 @@ from mcp_server.app import (
 
 class TestReportTool(unittest.TestCase):
     def test_report_artifact_uri(self):
-        session_id = "pxe_2025_01_01__abcd1234"
-        expected_uri = f"planexe://sessions/{session_id}/out/{REPORT_FILENAME}"
-        self.assertEqual(build_report_artifact_uri(session_id), expected_uri)
+        task_id = "pxe_2025_01_01__abcd1234"
+        expected_uri = f"planexe://sessions/{task_id}/out/{REPORT_FILENAME}"
+        self.assertEqual(build_report_artifact_uri(task_id), expected_uri)
 
     def test_report_tool_listed(self):
         tools = asyncio.run(handle_list_tools())
@@ -44,15 +44,15 @@ class TestReportTool(unittest.TestCase):
         self.assertEqual(report_bytes, b"<html>ok</html>")
 
     def test_report_read_defaults_to_metadata(self):
-        session_id = "pxe_2025_01_01__abcd1234"
+        task_id = "pxe_2025_01_01__abcd1234"
         content_bytes = b"a" * (REPORT_READ_DEFAULT_BYTES + 10)
         task = SimpleNamespace(id="task-id", state=TaskState.completed, progress_message=None)
-        with patch("mcp_server.app.resolve_task_for_session", return_value=task):
+        with patch("mcp_server.app.resolve_task_for_task_id", return_value=task):
             with patch(
                 "mcp_server.app.fetch_artifact_from_worker_plan",
                 new=AsyncMock(return_value=content_bytes),
             ):
-                result = asyncio.run(handle_report_read({"session_id": session_id}))
+                result = asyncio.run(handle_report_read({"task_id": task_id}))
 
         payload = result.structuredContent
         self.assertEqual(payload["state"], "ready")
@@ -65,13 +65,13 @@ class TestReportTool(unittest.TestCase):
     def test_report_read_chunked_range(self):
         content_bytes = b"a" * (REPORT_READ_DEFAULT_BYTES + 10)
         task = SimpleNamespace(id="task-id", state=TaskState.completed, progress_message=None)
-        with patch("mcp_server.app.resolve_task_for_session", return_value=task):
+        with patch("mcp_server.app.resolve_task_for_task_id", return_value=task):
             with patch(
                 "mcp_server.app.fetch_artifact_from_worker_plan",
                 new=AsyncMock(return_value=content_bytes),
             ):
                 result = asyncio.run(
-                    handle_report_read({"session_id": "pxe_2025_01_01__abcd1234", "range": {}})
+                    handle_report_read({"task_id": "pxe_2025_01_01__abcd1234", "range": {}})
                 )
 
         payload = result.structuredContent

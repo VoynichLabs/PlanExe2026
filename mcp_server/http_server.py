@@ -48,7 +48,7 @@ from mcp_server.app import (
     handle_session_status,
     handle_session_stop,
     handle_report_read,
-    resolve_task_for_session,
+    resolve_task_for_task_id,
 )
 
 # API key validation
@@ -204,7 +204,7 @@ class ErrorDetail(BaseModel):
 
 
 class SessionCreateOutput(BaseModel):
-    session_id: str
+    task_id: str
     created_at: str
 
 
@@ -229,7 +229,7 @@ class SessionStatusArtifact(BaseModel):
 
 
 class SessionStatusOutput(BaseModel):
-    session_id: str | None = None
+    task_id: str | None = None
     state: Literal["stopped", "running", "completed", "failed", "stopping"] | None = None
     phase: (
         Literal["initializing", "generating_plan", "validating", "exporting", "finalizing"] | None
@@ -338,21 +338,21 @@ async def session_create(
     return await handle_session_create({"idea": idea, "config": config, "metadata": metadata})
 
 
-async def session_status(session_id: str) -> Annotated[CallToolResult, SessionStatusOutput]:
-    return await handle_session_status({"session_id": session_id})
+async def session_status(task_id: str) -> Annotated[CallToolResult, SessionStatusOutput]:
+    return await handle_session_status({"task_id": task_id})
 
 
 async def session_stop(
-    session_id: str,
+    task_id: str,
     mode: str = "graceful",
 ) -> list[TextContent]:
-    return await handle_session_stop({"session_id": session_id, "mode": mode})
+    return await handle_session_stop({"task_id": task_id, "mode": mode})
 
 
 async def get_result(
-    session_id: str,
+    task_id: str,
 ) -> Annotated[CallToolResult, ReportResultOutput]:
-    return await handle_report_read({"session_id": session_id})
+    return await handle_report_read({"task_id": task_id})
 
 
 def _register_tools(server: FastMCP) -> None:
@@ -526,14 +526,14 @@ async def list_tools(fastmcp_server: FastMCP = Depends(_get_fastmcp)) -> dict[st
         sanitized.append(tool_entry)
     return {"tools": sanitized}
 
-@app.get("/download/{session_id}/{filename}")
-async def download_report(session_id: str, filename: str) -> Response:
-    """Download the generated report HTML for a session."""
+@app.get("/download/{task_id}/{filename}")
+async def download_report(task_id: str, filename: str) -> Response:
+    """Download the generated report HTML for a task."""
     if filename != REPORT_FILENAME:
         raise HTTPException(status_code=404, detail="Report not found")
-    task = resolve_task_for_session(session_id)
+    task = resolve_task_for_task_id(task_id)
     if task is None:
-        raise HTTPException(status_code=404, detail="Session not found")
+        raise HTTPException(status_code=404, detail="Task not found")
     content_bytes = await fetch_artifact_from_worker_plan(str(task.id), REPORT_FILENAME)
     if content_bytes is None:
         raise HTTPException(status_code=404, detail="Report not found")
@@ -562,7 +562,7 @@ def root() -> dict[str, Any]:
             "tools": "/mcp/tools",
             "call": "/mcp/tools/call",
             "health": "/healthcheck",
-            "download": f"/download/{{session_id}}/{REPORT_FILENAME}",
+        "download": f"/download/{{task_id}}/{REPORT_FILENAME}",
         },
         "documentation": "See /docs for OpenAPI documentation",
         "authentication": "Authorization: Bearer <key>, X-API-Key, or ?api_key= (set PLANEXE_MCP_API_KEY)"

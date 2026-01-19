@@ -15,8 +15,8 @@ for AI agents and developer tools to interact with PlanExe. Communicates with
 - MCP tools must follow the specification in `extra/mcp-spec1.md`:
   - Session management maps to `TaskItem` records (each session = one TaskItem).
   - Events are queried from `EventItem` database records.
-- Keep session ID format consistent: `pxe_{YYYY_MM_DD}__{short_uuid}` stored
-  in `TaskItem.parameters._mcp_session_id` for lookup.
+- Keep task ID format consistent: `pxe_{YYYY_MM_DD}__{short_uuid}` stored
+  in `TaskItem.parameters._mcp_task_id`.
 - Forbidden imports: `worker_plan.app`, `worker_plan_internal`, `frontend_*`,
   `open_dir_server`.
 

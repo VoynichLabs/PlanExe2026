@@ -18,7 +18,7 @@ class TestSessionCreateTool(unittest.TestCase):
 
         self.assertIsInstance(result, CallToolResult)
         self.assertIsInstance(result.structuredContent, dict)
-        self.assertIn("session_id", result.structuredContent)
+        self.assertIn("task_id", result.structuredContent)
         self.assertIn("created_at", result.structuredContent)
 
 
