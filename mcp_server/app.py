@@ -493,7 +493,7 @@ async def handle_list_tools() -> list[Tool]:
     """List all available MCP tools."""
     return [
         Tool(
-            name="planexe.session.create",
+            name="planexe_create",
             description="Creates a new session and output namespace",
             outputSchema=SESSION_CREATE_OUTPUT_SCHEMA,
             inputSchema={
@@ -562,7 +562,7 @@ async def handle_list_tools() -> list[Tool]:
 async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
     """Handle tool calls."""
     try:
-        if name == "planexe.session.create":
+        if name == "planexe_create":
             return await handle_session_create(arguments)
         elif name == "planexe_status":
             return await handle_session_status(arguments)
@@ -583,7 +583,7 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
         )]
 
 async def handle_session_create(arguments: dict[str, Any]) -> CallToolResult:
-    """Handle planexe.session.create"""
+    """Handle planexe_create"""
     req = SessionCreateRequest(**arguments)
     
     with app.app_context():

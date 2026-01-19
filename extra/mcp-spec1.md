@@ -122,7 +122,7 @@ Invalid
 
 All tool names below are normative.
 
-6.1 planexe.session.create
+6.1 planexe_create
 
 Creates a new session and output namespace.
 
@@ -371,7 +371,7 @@ Appendix A — Example End-to-End Flow
 
 Create session
 
-planexe.session.create({ "idea": "...", "config": {...} })
+planexe_create({ "idea": "...", "config": {...} })
 
 Start run
 

@@ -359,7 +359,7 @@ async def get_result(
 
 def _register_tools(server: FastMCP) -> None:
     server.tool(
-        name="planexe.session.create",
+        name="planexe_create",
         description="Creates a new session and output namespace",
     )(session_create)
     server.tool(
