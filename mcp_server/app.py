@@ -120,11 +120,6 @@ class SessionCreateRequest(BaseModel):
     config: Optional[dict[str, Any]] = None
     metadata: Optional[dict[str, Any]] = None
 
-class SessionStartRequest(BaseModel):
-    session_id: str
-    target: str = "build_plan_and_validate"
-    inputs: Optional[dict[str, Any]] = None
-
 class SessionStatusRequest(BaseModel):
     session_id: str
 
@@ -532,19 +527,6 @@ async def handle_list_tools() -> list[Tool]:
             },
         ),
         Tool(
-            name="planexe.session.start",
-            description="Starts execution for a target DAG output",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string"},
-                    "target": {"type": "string", "default": "build_plan_and_validate"},
-                    "inputs": {"type": "object"},
-                },
-                "required": ["session_id"],
-            },
-        ),
-        Tool(
             name="planexe.session.status",
             description="Returns run status and progress",
             outputSchema=SESSION_STATUS_OUTPUT_SCHEMA,
@@ -604,8 +586,6 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
     try:
         if name == "planexe.session.create":
             return await handle_session_create(arguments)
-        elif name == "planexe.session.start":
-            return await handle_session_start(arguments)
         elif name == "planexe.session.status":
             return await handle_session_status(arguments)
         elif name == "planexe.session.stop":
@@ -682,44 +662,6 @@ async def handle_session_create(arguments: dict[str, Any]) -> CallToolResult:
         structuredContent=response,
         isError=False,
     )
-
-async def handle_session_start(arguments: dict[str, Any]) -> list[TextContent]:
-    """Handle planexe.session.start"""
-    req = SessionStartRequest(**arguments)
-    session_id = req.session_id
-    
-    with app.app_context():
-        task = find_task_by_session_id(session_id)
-        if task is None:
-            return [TextContent(
-                type="text",
-                text=json.dumps({"error": {"code": "SESSION_NOT_FOUND", "message": f"Session not found: {session_id}"}})
-            )]
-        
-        # Check if already running
-        if task.state == TaskState.processing:
-            return [TextContent(
-                type="text",
-                text=json.dumps({"error": {"code": "RUN_ALREADY_ACTIVE", "message": "A run is currently active for this session."}})
-            )]
-        
-        # Update task to pending (worker_plan_database will pick it up and change to processing)
-        task.state = TaskState.pending
-        task.progress_percentage = 0.0
-        task.progress_message = "Starting..."
-        task.last_seen_timestamp = datetime.now(UTC)
-        task.stop_requested = False
-        task.stop_requested_timestamp = None
-
-        db.session.commit()
-        
-        run_id = f"run_{str(task.id).replace('-', '_')}"
-        response = {
-            "run_id": run_id,
-            "state": "running",
-        }
-    
-    return [TextContent(type="text", text=json.dumps(response))]
 
 async def handle_session_status(arguments: dict[str, Any]) -> CallToolResult:
     """Handle planexe.session.status"""

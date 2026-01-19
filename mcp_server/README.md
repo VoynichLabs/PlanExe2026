@@ -113,7 +113,6 @@ The MCP server uses the same database configuration as other PlanExe services:
 See `extra/mcp-spec1.md` for full specification. Available tools:
 
 - `planexe.session.create` - Create a new session
-- `planexe.session.start` - Start execution
 - `planexe.session.status` - Get run status and progress
 - `planexe.session.stop` - Stop active run
 - `planexe.report.read` - Get report download metadata (optional chunked fallback via range)

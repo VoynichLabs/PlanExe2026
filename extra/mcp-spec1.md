@@ -109,13 +109,12 @@ Sessions may exist independent of active runs.
 	•	failed (resumable depending on failure type)
 
 5.3 Allowed transitions
-	•	created → running via session.start
 	•	running → stopped via session.stop
 	•	running → completed via normal success
 	•	running → failed via error
 
 Invalid
-	•	completed → running (new run must be triggered via session.start)
+	•	completed → running (new run must be triggered by creating a new session)
 	•	running → running (no concurrent runs in v1)
 
 ⸻
@@ -161,33 +160,7 @@ Behavior
 
 ⸻
 
-6.2 planexe.session.start
-
-Starts execution for a target DAG output.
-
-Request
-
-{
-  "session_id": "pxe_...",
-  "target": "build_plan_and_validate",
-  "inputs": {
-    "seed_artifacts": ["planexe://.../out/prompt.md"]
-  }
-}
-
-Response
-
-{
-  "run_id": "run_0001",
-  "state": "running"
-}
-
-Constraints
-	•	If a run is already running, must return error RUN_ALREADY_ACTIVE.
-
-⸻
-
-6.3 planexe.session.status
+6.2 planexe.session.status
 
 Returns run status and progress. Used for progress bars and UI states.
 
@@ -232,7 +205,7 @@ Notes
 
 ⸻
 
-6.4 planexe.session.stop
+6.3 planexe.session.stop
 
 Stops the active run.
 
@@ -407,10 +380,6 @@ Create session
 planexe.session.create({ "idea": "...", "config": {...} })
 
 Start run
-
-planexe.session.start({ "session_id": "pxe_...", "target": "build_plan_and_validate" })
-
-Poll status
 
 planexe.session.status({ "session_id": "pxe_..." })
 

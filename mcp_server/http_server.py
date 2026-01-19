@@ -45,7 +45,6 @@ from mcp_server.app import (
     REPORT_FILENAME,
     fetch_artifact_from_worker_plan,
     handle_session_create,
-    handle_session_start,
     handle_session_status,
     handle_session_stop,
     handle_report_read,
@@ -345,14 +344,6 @@ async def session_create(
     return await handle_session_create({"idea": idea, "config": config, "metadata": metadata})
 
 
-async def session_start(
-    session_id: str,
-    target: str = "build_plan_and_validate",
-    inputs: dict[str, Any] | None = None,
-) -> list[TextContent]:
-    return await handle_session_start({"session_id": session_id, "target": target, "inputs": inputs})
-
-
 async def session_status(session_id: str) -> Annotated[CallToolResult, SessionStatusOutput]:
     return await handle_session_status({"session_id": session_id})
 
@@ -382,10 +373,6 @@ def _register_tools(server: FastMCP) -> None:
         name="planexe.session.create",
         description="Creates a new session and output namespace",
     )(session_create)
-    server.tool(
-        name="planexe.session.start",
-        description="Starts execution for a target DAG output",
-    )(session_start)
     server.tool(
         name="planexe.session.status",
         description="Returns run status and progress",
