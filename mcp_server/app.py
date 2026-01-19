@@ -125,7 +125,6 @@ class SessionStatusRequest(BaseModel):
 
 class SessionStopRequest(BaseModel):
     session_id: str
-    run_id: Optional[str] = None
     mode: str = "graceful"
 
 class ReportReadRequest(BaseModel):
@@ -540,7 +539,6 @@ async def handle_list_tools() -> list[Tool]:
                 "type": "object",
                 "properties": {
                     "session_id": {"type": "string"},
-                    "run_id": {"type": "string"},
                     "mode": {"type": "string", "default": "graceful"},
                 },
                 "required": ["session_id"],

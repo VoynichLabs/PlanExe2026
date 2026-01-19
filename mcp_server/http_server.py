@@ -346,10 +346,9 @@ async def session_status(session_id: str) -> Annotated[CallToolResult, SessionSt
 
 async def session_stop(
     session_id: str,
-    run_id: str | None = None,
     mode: str = "graceful",
 ) -> list[TextContent]:
-    return await handle_session_stop({"session_id": session_id, "run_id": run_id, "mode": mode})
+    return await handle_session_stop({"session_id": session_id, "mode": mode})
 
 
 async def get_result(

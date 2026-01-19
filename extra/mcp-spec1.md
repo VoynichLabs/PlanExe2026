@@ -208,7 +208,6 @@ Request
 
 {
   "session_id": "pxe_...",
-  "run_id": "run_0001",
   "mode": "graceful"
 }
 
@@ -380,7 +379,7 @@ planexe.session.status({ "session_id": "pxe_..." })
 
 Stop
 
-planexe.session.stop({ "session_id": "pxe_...", "run_id": "run_0001", "mode": "graceful" })
+planexe.session.stop({ "session_id": "pxe_...", "mode": "graceful" })
 
 ⸻
 
