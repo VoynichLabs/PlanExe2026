@@ -71,7 +71,7 @@ After starting with Docker, configure your MCP client (e.g., LM Studio) to conne
 }
 ```
 
-Set `PLANEXE_MCP_API_KEY` to the same value you use in `Authorization: Bearer <key>`, `X-API-Key`, or `?api_key=`.
+Set `PLANEXE_MCP_API_KEY` to the same value you use in `Authorization: Bearer <key>` or `X-API-Key`.
 
 ### Available HTTP Endpoints
 
@@ -85,7 +85,7 @@ Set `PLANEXE_MCP_API_KEY` to the same value you use in `Authorization: Bearer <k
 
 ### HTTP Server Configuration
 
-- `PLANEXE_MCP_API_KEY`: **Required for production**. API key for authentication. Clients can provide `Authorization: Bearer <key>`, `X-API-Key`, or `?api_key=`.
+- `PLANEXE_MCP_API_KEY`: **Required for production**. API key for authentication. Clients can provide `Authorization: Bearer <key>` or `X-API-Key`.
 - `PLANEXE_MCP_HTTP_HOST`: HTTP server host (default: `127.0.0.1`). Use `0.0.0.0` to bind all interfaces (containers/cloud).
 - `PLANEXE_MCP_HTTP_PORT`: HTTP server port (default: `8001`). Railway will override with `PORT` env var.
 - `PLANEXE_MCP_PUBLIC_BASE_URL`: Public base URL for report download links (default unset; clients can use the connected base URL).

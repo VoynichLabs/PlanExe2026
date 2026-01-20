@@ -1,10 +1,8 @@
 import asyncio
-import json
 import unittest
 import uuid
 import zipfile
 from io import BytesIO
-from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from database_api.model_taskitem import TaskState
@@ -40,8 +38,12 @@ class TestReportTool(unittest.TestCase):
     def test_report_read_defaults_to_metadata(self):
         task_id = str(uuid.uuid4())
         content_bytes = b"a" * 10
-        task = SimpleNamespace(id="task-id", state=TaskState.completed, progress_message=None)
-        with patch("mcp_server.app.resolve_task_for_task_id", return_value=task):
+        task_snapshot = {
+            "id": "task-id",
+            "state": TaskState.completed,
+            "progress_message": None,
+        }
+        with patch("mcp_server.app._get_task_for_report_sync", return_value=task_snapshot):
             with patch(
                 "mcp_server.app.fetch_artifact_from_worker_plan",
                 new=AsyncMock(return_value=content_bytes),

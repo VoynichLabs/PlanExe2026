@@ -38,7 +38,7 @@ PLANEXE_MCP_RATE_WINDOW_SECONDS="60"
 ## Railway-Specific Notes
 
 - Railway automatically provides a `PORT` environment variable. The server will use it if set, otherwise defaults to `8001`.
-- Set `PLANEXE_MCP_API_KEY` to enable API key authentication. Clients can send it via `Authorization: Bearer`, `X-API-Key`, or `?api_key=`.
+- Set `PLANEXE_MCP_API_KEY` to enable API key authentication. Clients can send it via `Authorization: Bearer` or `X-API-Key`.
 - The server exposes an HTTP endpoint at `/mcp` (or `/mcp/tools/call`) for tool invocations.
 - Use Railway's Postgres addon or connect to an external Postgres database via `SQLALCHEMY_DATABASE_URI`.
 - Set `PLANEXE_WORKER_PLAN_URL` to point to your `worker_plan` service. Artifacts are fetched from `worker_plan` via HTTP instead of using a shared volume mount.

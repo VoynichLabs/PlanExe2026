@@ -12,7 +12,7 @@ import sys
 from collections import defaultdict, deque
 from contextlib import asynccontextmanager, suppress
 from time import monotonic
-from typing import Annotated, Any, Awaitable, Callable, Literal, Optional, Sequence
+from typing import Annotated, Any, Awaitable, Callable, Optional, Sequence
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,6 +22,11 @@ from mcp.server.fastmcp import FastMCP
 from mcp.types import CallToolResult, ContentBlock, TextContent
 
 from mcp_server.http_utils import strip_redundant_content
+from mcp_server.tool_models import (
+    ReportResultOutput,
+    TaskCreateOutput,
+    TaskStatusOutput,
+)
 
 # Load .env file early
 from mcp_server.dotenv_utils import load_planexe_dotenv
@@ -43,6 +48,7 @@ if not _dotenv_loaded:
 from mcp_server.app import (
     REPORT_CONTENT_TYPE,
     REPORT_FILENAME,
+    TOOL_DEFINITIONS,
     fetch_artifact_from_worker_plan,
     handle_task_create,
     handle_task_status,
@@ -90,9 +96,6 @@ def _extract_api_key(request: Request) -> Optional[str]:
     header_key = request.headers.get("X-API-Key") or request.headers.get("API_KEY")
     if header_key:
         return header_key
-    query_key = request.query_params.get("api_key")
-    if query_key:
-        return query_key
     return None
 
 
@@ -106,7 +109,7 @@ def _validate_api_key(request: Request) -> Optional[JSONResponse]:
         return JSONResponse(
             status_code=401,
             content={
-                "detail": "Missing API key. Use Authorization: Bearer <key>, X-API-Key, or ?api_key=."
+                "detail": "Missing API key. Use Authorization: Bearer <key> or X-API-Key."
             },
         )
 
@@ -198,41 +201,6 @@ class MCPToolCallResponse(BaseModel):
     error: Optional[dict[str, Any]] = None
 
 
-class ErrorDetail(BaseModel):
-    code: str
-    message: str
-
-
-class TaskCreateOutput(BaseModel):
-    task_id: str
-    created_at: str
-
-
-class TaskStatusTiming(BaseModel):
-    started_at: str | None
-    elapsed_sec: float
-
-
-class TaskStatusFile(BaseModel):
-    path: str
-    updated_at: str
-
-
-class TaskStatusOutput(BaseModel):
-    task_id: str | None = None
-    state: Literal["stopped", "running", "completed", "failed", "stopping"] | None = None
-    progress_percent: int | None = None
-    timing: TaskStatusTiming | None = None
-    files: list[TaskStatusFile] | None = None
-    error: ErrorDetail | None = None
-
-
-class ReportResultOutput(BaseModel):
-    content_type: str | None = None
-    sha256: str | None = None
-    download_size: int | None = None
-    download_url: str | None = None
-    error: ErrorDetail | None = None
 
 
 def extract_text_content(text_contents: Sequence[Any]) -> list[dict[str, Any]]:
@@ -331,22 +299,21 @@ async def get_result(
 
 
 def _register_tools(server: FastMCP) -> None:
-    server.tool(
-        name="task_create",
-        description="Creates a new task and output namespace",
-    )(task_create)
-    server.tool(
-        name="task_status",
-        description="Returns run status and progress",
-    )(task_status)
-    server.tool(
-        name="task_stop",
-        description="Stops the active run",
-    )(task_stop)
-    server.tool(
-        name="task_result",
-        description="Returns download metadata for the generated report",
-    )(get_result)
+    handler_map = {
+        "task_create": task_create,
+        "task_status": task_status,
+        "task_stop": task_stop,
+        "task_result": get_result,
+    }
+    for tool in TOOL_DEFINITIONS:
+        handler = handler_map.get(tool.name)
+        if handler is None:
+            logger.warning("No HTTP handler registered for tool %s", tool.name)
+            continue
+        server.tool(
+            name=tool.name,
+            description=tool.description,
+        )(handler)
 
 
 fastmcp_server = FastMCP(
@@ -506,7 +473,7 @@ async def download_report(task_id: str, filename: str) -> Response:
     """Download the generated report HTML for a task."""
     if filename != REPORT_FILENAME:
         raise HTTPException(status_code=404, detail="Report not found")
-    task = resolve_task_for_task_id(task_id)
+    task = await asyncio.to_thread(resolve_task_for_task_id, task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
     content_bytes = await fetch_artifact_from_worker_plan(str(task.id), REPORT_FILENAME)
@@ -540,7 +507,7 @@ def root() -> dict[str, Any]:
         "download": f"/download/{{task_id}}/{REPORT_FILENAME}",
         },
         "documentation": "See /docs for OpenAPI documentation",
-        "authentication": "Authorization: Bearer <key>, X-API-Key, or ?api_key= (set PLANEXE_MCP_API_KEY)"
+        "authentication": "Authorization: Bearer <key> or X-API-Key (set PLANEXE_MCP_API_KEY)"
     }
 
 

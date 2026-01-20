@@ -1,9 +1,7 @@
 import asyncio
 import unittest
 import uuid
-from contextlib import nullcontext
 from datetime import UTC, datetime
-from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from mcp.types import CallToolResult
@@ -14,16 +12,16 @@ from mcp_server.app import handle_task_status
 class TestTaskStatusTool(unittest.TestCase):
     def test_task_status_returns_structured_content(self):
         task_id = str(uuid.uuid4())
-        task = SimpleNamespace(
-            id=task_id,
-            state=TaskState.completed,
-            stop_requested=False,
-            progress_percentage=0.0,
-            progress_message="Picked up by server",
-            timestamp_created=datetime.now(UTC),
-        )
-        with patch("mcp_server.app.app.app_context", return_value=nullcontext()), patch(
-            "mcp_server.app.find_task_by_task_id", return_value=task
+        task_snapshot = {
+            "id": task_id,
+            "state": TaskState.completed,
+            "stop_requested": False,
+            "progress_percentage": 0.0,
+            "timestamp_created": datetime.now(UTC),
+        }
+        with patch(
+            "mcp_server.app._get_task_status_snapshot_sync",
+            return_value=task_snapshot,
         ), patch(
             "mcp_server.app.fetch_file_list_from_worker_plan", new=AsyncMock(return_value=[])
         ):
