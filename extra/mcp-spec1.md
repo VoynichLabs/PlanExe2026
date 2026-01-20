@@ -182,7 +182,7 @@ Response
     "started_at": "2026-01-14T12:35:10Z",
     "elapsed_sec": 512
   },
-  "latest_artifacts": [
+  "files": [
     {
       "path": "plan.md",
       "updated_at": "2026-01-14T12:43:11Z"

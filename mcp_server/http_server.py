@@ -223,7 +223,7 @@ class TaskStatusTiming(BaseModel):
     elapsed_sec: float
 
 
-class TaskStatusArtifact(BaseModel):
+class TaskStatusFile(BaseModel):
     path: str
     updated_at: str
 
@@ -233,7 +233,7 @@ class TaskStatusOutput(BaseModel):
     state: Literal["stopped", "running", "completed", "failed", "stopping"] | None = None
     progress: TaskStatusProgress | None = None
     timing: TaskStatusTiming | None = None
-    latest_artifacts: list[TaskStatusArtifact] | None = None
+    files: list[TaskStatusFile] | None = None
     error: ErrorDetail | None = None
 
 

@@ -395,7 +395,7 @@ TASK_STATUS_OUTPUT_SCHEMA = {
                     },
                     "required": ["started_at", "elapsed_sec"],
                 },
-                "latest_artifacts": {
+                "files": {
                     "type": "array",
                     "items": {
                         "type": "object",
@@ -412,7 +412,7 @@ TASK_STATUS_OUTPUT_SCHEMA = {
                 "state",
                 "progress",
                 "timing",
-                "latest_artifacts",
+                "files",
             ],
         },
     ]
@@ -642,15 +642,15 @@ async def handle_task_status(arguments: dict[str, Any]) -> CallToolResult:
         if task.state == TaskState.processing and task.stop_requested:
             state = "stopping"
         
-        # Collect artifacts from worker_plan
+        # Collect files from worker_plan
         task_uuid = get_task_uuid_for_task_id(task_id)
-        latest_artifacts = []
+        files = []
         if task_uuid:
             files_list = await fetch_file_list_from_worker_plan(task_uuid)
             if files_list:
                 for file_name in files_list[:10]:  # Limit to 10 most recent
                     if file_name != "log.txt":
-                        latest_artifacts.append({
+                        files.append({
                             "path": file_name,
                             "updated_at": datetime.now(UTC).isoformat() + "Z",  # Approximate
                         })
@@ -673,7 +673,7 @@ async def handle_task_status(arguments: dict[str, Any]) -> CallToolResult:
                 "started_at": created_at.isoformat().replace("+00:00", "Z") if created_at else None,
                 "elapsed_sec": (datetime.now(UTC) - created_at).total_seconds() if created_at else 0,
             },
-            "latest_artifacts": latest_artifacts[:10],  # Limit to 10 most recent
+            "files": files[:10],  # Limit to 10 most recent
         }
     
     return CallToolResult(
