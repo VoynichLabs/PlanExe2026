@@ -51,7 +51,6 @@ class TestReportTool(unittest.TestCase):
         payload = result.structuredContent
         self.assertEqual(payload["download_size"], len(content_bytes))
         self.assertEqual(payload["content_type"], "text/html; charset=utf-8")
-        self.assertNotIn("artifact_uri", payload)
         self.assertNotIn("download_path", payload)
         self.assertNotIn("content", payload)
         self.assertNotIn("state", payload)

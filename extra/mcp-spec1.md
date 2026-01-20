@@ -72,7 +72,6 @@ Artifact
 A file-like output managed by PlanExe.
 
 Key properties
-	•	artifact_uri: stable URI
 	•	path: path relative to task output root
 	•	size, updated_at
 	•	content_type: text/markdown, text/html, application/json, etc.
