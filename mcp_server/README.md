@@ -290,5 +290,5 @@ See `railway.md` for Railway-specific deployment instructions. The server automa
   - Other files are fetched by downloading the run zip and extracting the file (less efficient but works without additional endpoints)
 - Artifact writes are not yet supported via HTTP (would require a write endpoint in `worker_plan`).
 - Artifact writes are rejected while a run is active (strict policy per spec).
-- Session IDs use the format `pxe_{YYYY_MM_DD}__{short_uuid}` for compatibility.
+- Task IDs use the TaskItem UUID (e.g., `5e2b2a7c-8b49-4d2f-9b8f-6a3c1f05b9a1`).
 - **Security**: Always set `PLANEXE_MCP_API_KEY` in production deployments to prevent unauthorized access.

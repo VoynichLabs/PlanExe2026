@@ -133,8 +133,12 @@ class ReportReadRequest(BaseModel):
 
 # Helper functions
 def find_task_by_task_id(task_id: str) -> Optional[TaskItem]:
-    """Find TaskItem by task_id stored in parameters."""
-    def _query() -> Optional[TaskItem]:
+    """Find TaskItem by MCP task_id (UUID), with legacy fallback."""
+    task = get_task_by_id(task_id)
+    if task is not None:
+        return task
+
+    def _query_legacy() -> Optional[TaskItem]:
         query = db.session.query(TaskItem)
         if db.engine.dialect.name == "postgresql":
             tasks = query.filter(
@@ -149,26 +153,9 @@ def find_task_by_task_id(task_id: str) -> Optional[TaskItem]:
         return None
 
     if has_app_context():
-        return _query()
+        return _query_legacy()
     with app.app_context():
-        return _query()
-
-def get_task_uuid_for_task_id(task_id: str) -> Optional[str]:
-    """Get the TaskItem UUID for a task_id handle."""
-    task = find_task_by_task_id(task_id)
-    if task:
-        return str(task.id)
-    # Fallback: try parsing task_id format
-    if "__" in task_id:
-        # Extract UUID portion from pxe_YYYY_MM_DD__{uuid}
-        uuid_part = task_id.split("__", 1)[1]
-        # Try to find task by UUID
-        try:
-            task_id = uuid.UUID(uuid_part)
-            return str(task_id)
-        except ValueError:
-            pass
-    return None
+        return _query_legacy()
 
 def get_task_by_id(task_id: str) -> Optional[TaskItem]:
     """Fetch a TaskItem by its UUID string."""
@@ -185,18 +172,8 @@ def get_task_by_id(task_id: str) -> Optional[TaskItem]:
         return _query()
 
 def resolve_task_for_task_id(task_id: str) -> Optional[TaskItem]:
-    """Resolve a TaskItem from a task_id, with UUID fallback."""
-    task = find_task_by_task_id(task_id)
-    if task is not None:
-        return task
-    if "__" not in task_id:
-        return None
-    uuid_part = task_id.split("__", 1)[1]
-    try:
-        uuid.UUID(uuid_part)
-    except ValueError:
-        return None
-    return get_task_by_id(uuid_part)
+    """Resolve a TaskItem from a task_id (UUID), with legacy fallback."""
+    return find_task_by_task_id(task_id)
 
 def list_files_from_zip_bytes(zip_bytes: bytes) -> list[str]:
     """List file entries from an in-memory zip archive."""
@@ -559,14 +536,7 @@ async def handle_task_create(arguments: dict[str, Any]) -> CallToolResult:
         db.session.add(task)
         db.session.commit()
         
-        # Generate task_id in format: pxe_{date}__{short_uuid}
-        date_str = datetime.now(UTC).strftime("%Y_%m_%d")
-        short_uuid = str(task.id).replace("-", "")[:8]
-        task_id = f"pxe_{date_str}__{short_uuid}"
-        # Store task_id mapping in task parameters for later lookup
-        parameters = dict(task.parameters or {})
-        parameters["_mcp_task_id"] = task_id
-        task.parameters = parameters
+        task_id = str(task.id)
         event_context = {
             "task_id": str(task.id),
             "task_handle": task_id,
@@ -629,7 +599,7 @@ async def handle_task_status(arguments: dict[str, Any]) -> CallToolResult:
             progress_percent = 100
         
         # Collect files from worker_plan
-        task_uuid = get_task_uuid_for_task_id(task_id)
+        task_uuid = str(task.id)
         files = []
         if task_uuid:
             files_list = await fetch_file_list_from_worker_plan(task_uuid)
@@ -647,7 +617,7 @@ async def handle_task_status(arguments: dict[str, Any]) -> CallToolResult:
             created_at = created_at.replace(tzinfo=UTC)
 
         response = {
-            "task_id": task_id,
+            "task_id": str(task.id),
             "state": state,
             "progress_percent": progress_percent,
             "timing": {
@@ -760,7 +730,7 @@ async def handle_report_read(arguments: dict[str, Any]) -> CallToolResult:
         "sha256": content_hash,
         "download_size": total_size,
     }
-    download_url = build_report_download_url(task_id)
+    download_url = build_report_download_url(str(task.id))
     if download_url:
         response["download_url"] = download_url
 

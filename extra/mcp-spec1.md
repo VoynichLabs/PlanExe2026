@@ -53,7 +53,7 @@ Task
 A long-lived container for a PlanExe project run.
 
 Key properties
-	•	task_id: stable unique identifier
+	•	task_id: stable unique identifier (UUID, matches TaskItem.id)
 	•	output_dir: artifact root namespace for task
 	•	config: immutable run configuration (models, runtime limits, Luigi params)
 	•	created_at, updated_at
@@ -144,7 +144,7 @@ Request
 Response
 
 {
-  "task_id": "pxe_2026_01_14__abcd1234",
+  "task_id": "5e2b2a7c-8b49-4d2f-9b8f-6a3c1f05b9a1",
   "created_at": "2026-01-14T12:34:56Z"
 }
 
@@ -161,13 +161,13 @@ Returns run status and progress. Used for progress bars and UI states.
 Request
 
 {
-  "task_id": "pxe_..."
+  "task_id": "5e2b2a7c-8b49-4d2f-9b8f-6a3c1f05b9a1"
 }
 
 Response
 
 {
-  "task_id": "pxe_...",
+  "task_id": "5e2b2a7c-8b49-4d2f-9b8f-6a3c1f05b9a1",
   "state": "running",
   "progress_percent": 62,
   "timing": {
@@ -194,7 +194,7 @@ Stops the active run.
 Request
 
 {
-  "task_id": "pxe_...",
+  "task_id": "5e2b2a7c-8b49-4d2f-9b8f-6a3c1f05b9a1",
   "mode": "graceful"
 }
 
@@ -348,11 +348,11 @@ task_create({ "idea": "...", "config": {...} })
 
 Start run
 
-task_status({ "task_id": "pxe_..." })
+task_status({ "task_id": "5e2b2a7c-8b49-4d2f-9b8f-6a3c1f05b9a1" })
 
 Stop
 
-task_stop({ "task_id": "pxe_...", "mode": "graceful" })
+task_stop({ "task_id": "5e2b2a7c-8b49-4d2f-9b8f-6a3c1f05b9a1", "mode": "graceful" })
 
 ⸻
 

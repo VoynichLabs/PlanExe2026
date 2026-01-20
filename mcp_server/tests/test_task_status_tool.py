@@ -1,5 +1,6 @@
 import asyncio
 import unittest
+import uuid
 from contextlib import nullcontext
 from datetime import UTC, datetime
 from types import SimpleNamespace
@@ -12,9 +13,9 @@ from mcp_server.app import handle_task_status
 
 class TestTaskStatusTool(unittest.TestCase):
     def test_task_status_returns_structured_content(self):
-        task_id = "pxe_2026_01_18__b1530380"
+        task_id = str(uuid.uuid4())
         task = SimpleNamespace(
-            id="b1530380-7942-4e84-827c-6a699b1c1e92",
+            id=task_id,
             state=TaskState.completed,
             stop_requested=False,
             progress_percentage=0.0,
@@ -23,8 +24,6 @@ class TestTaskStatusTool(unittest.TestCase):
         )
         with patch("mcp_server.app.app.app_context", return_value=nullcontext()), patch(
             "mcp_server.app.find_task_by_task_id", return_value=task
-        ), patch(
-            "mcp_server.app.get_task_uuid_for_task_id", return_value=str(task.id)
         ), patch(
             "mcp_server.app.fetch_file_list_from_worker_plan", new=AsyncMock(return_value=[])
         ):

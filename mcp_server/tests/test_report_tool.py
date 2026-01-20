@@ -1,6 +1,7 @@
 import asyncio
 import json
 import unittest
+import uuid
 import zipfile
 from io import BytesIO
 from types import SimpleNamespace
@@ -38,7 +39,7 @@ class TestReportTool(unittest.TestCase):
         self.assertEqual(report_bytes, b"<html>ok</html>")
 
     def test_report_read_defaults_to_metadata(self):
-        task_id = "pxe_2025_01_01__abcd1234"
+        task_id = str(uuid.uuid4())
         content_bytes = b"a" * (REPORT_READ_DEFAULT_BYTES + 10)
         task = SimpleNamespace(id="task-id", state=TaskState.completed, progress_message=None)
         with patch("mcp_server.app.resolve_task_for_task_id", return_value=task):
@@ -64,7 +65,7 @@ class TestReportTool(unittest.TestCase):
                 new=AsyncMock(return_value=content_bytes),
             ):
                 result = asyncio.run(
-                    handle_report_read({"task_id": "pxe_2025_01_01__abcd1234", "range": {}})
+                    handle_report_read({"task_id": str(uuid.uuid4()), "range": {}})
                 )
 
         payload = result.structuredContent
