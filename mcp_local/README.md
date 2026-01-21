@@ -34,6 +34,14 @@ Here is what I imagine what it will be like:
 
 ### Development on localhost
 
+Clone the [PlanExe repository](https://github.com/neoneye/PlanExe) on your computer.
+
+Obtain absolute path to the `planexe_mcp_local.py` file, and insert it into the following snippet.
+
+Update `PLANEXE_PATH` so it's an absolute path to where PlanExe is allowed to manipulate files.
+
+The following is the code snippet that you have to paste into `mcp.json` (or similar named file).
+
 ```json
 "planexe": {
   "command": "uv",
@@ -46,30 +54,34 @@ Here is what I imagine what it will be like:
   "env": {
     "PLANEXE_URL": "http://localhost:8001/mcp",
     "PLANEXE_API_KEY": "insert-your-api-key-here",
-    "PLANEXE_PATH": "/User/your-name/Desktop",
+    "PLANEXE_PATH": "/User/your-name/Desktop"
   }
 }
 ```
 
 
-### Connect to docker on localhost
+### Future plan: Connect to docker on localhost
+
+In order to use `"@planexe/mcp"`, it requires that PlanExe gets deployed as a package.
 
 ```json
 "planexe": {
   "command": "uvx",
   "args": [
     "-y",
-    "@planexe/v1/mcp"
+    "@planexe/mcp"
   ],
   "env": {
     "PLANEXE_URL": "http://localhost:8001/mcp",
     "PLANEXE_API_KEY": "insert-your-api-key-here",
-    "PLANEXE_PATH": "/User/your-name/Desktop",
+    "PLANEXE_PATH": "/User/your-name/Desktop"
   }
 }
 ```
 
-### Connect to PlanExe server hosted on Railway
+### Future plan: Connect to PlanExe server hosted on Railway
+
+In order to use `"@planexe/mcp"`, it requires that PlanExe gets deployed as a package.
 
 When omitting `PLANEXE_URL`, the MCP script uses `https://your-railway-app.up.railway.app/mcp`.
 
@@ -78,11 +90,11 @@ When omitting `PLANEXE_URL`, the MCP script uses `https://your-railway-app.up.ra
   "command": "uvx",
   "args": [
     "-y",
-    "@planexe/v1/mcp"
+    "@planexe/mcp"
   ],
   "env": {
     "PLANEXE_API_KEY": "insert-your-api-key-here",
-    "PLANEXE_PATH": "/User/your-name/Desktop",
+    "PLANEXE_PATH": "/User/your-name/Desktop"
   }
 }
 ```
