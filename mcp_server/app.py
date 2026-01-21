@@ -721,11 +721,7 @@ async def handle_task_status(arguments: dict[str, Any]) -> CallToolResult:
             isError=True,
         )
 
-    progress_percent = (
-        int(round(float(task_snapshot["progress_percentage"])))
-        if task_snapshot["progress_percentage"]
-        else 0
-    )
+    progress_percent = int(round(float(task_snapshot.get("progress_percentage") or 0)))
 
     task_state = task_snapshot["state"]
     state = get_task_state_mapping(task_state)
