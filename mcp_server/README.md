@@ -119,6 +119,32 @@ See `extra/mcp-spec1.md` for full specification. Available tools:
 Download flow: call `task_download` to obtain the `download_url`, then fetch the
 report via `GET /download/{task_id}/030-report.html` (API key required if configured).
 
+## Debugging tools
+
+Use the MCP Inspector to verify tool registration and output schemas.
+
+Everything reference (stdio):
+
+```bash
+npx @modelcontextprotocol/inspector --transport stdio npx -y @modelcontextprotocol/server-everything
+```
+
+Steps:
+- Click "Connect"
+- Click "Tools"
+- Click "List Tools"
+
+PlanExe MCP (HTTP):
+
+```bash
+npx @modelcontextprotocol/inspector --transport http --server-url http://localhost:8001/mcp
+```
+
+Steps:
+- Click "Connect"
+- Click "Tools"
+- Click "List Tools"
+
 ## Architecture
 
 The MCP server maps MCP concepts to PlanExe's database models:
