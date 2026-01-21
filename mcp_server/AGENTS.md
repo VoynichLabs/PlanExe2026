@@ -25,6 +25,14 @@ for AI agents and developer tools to interact with PlanExe. Communicates with
 - All tool responses must be JSON-serializable and follow the error model in the spec.
 - Event cursors use format `cursor_{event_id}` for incremental polling.
 
+## mcp_local integration
+- `mcp_local` runs on the user's machine and forwards tool calls to this server over HTTP.
+- It targets either:
+  - the HTTP wrapper endpoint (`/mcp/tools/call`), or
+  - the streamable MCP JSON-RPC endpoint (`/mcp`).
+- `task_file_info` provides download metadata that `mcp_local` uses to download
+  artifacts via `/download/{task_id}/...`.
+
 ## Testing
 - No automated tests currently. If you change MCP tool behavior or database mappings,
   add a unit test close to the logic when feasible and run `python test.py` from
