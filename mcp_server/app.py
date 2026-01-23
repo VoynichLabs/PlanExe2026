@@ -749,24 +749,34 @@ async def handle_list_tools() -> list[Tool]:
     ]
 
 @mcp_server.call_tool()
-async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
+async def handle_call_tool(name: str, arguments: dict[str, Any]) -> CallToolResult:
     """Handle tool calls."""
     try:
         handler = TOOL_HANDLERS.get(name)
         if handler is None:
-            error_text = _format_error_text("INVALID_TOOL", f"Unknown tool: {name}")
-            return [TextContent(
-                type="text",
-                text=error_text,
-            )]
+            error_payload = {"error": {"code": "INVALID_TOOL", "message": f"Unknown tool: {name}"}}
+            error_text = _format_error_text(
+                error_payload["error"].get("code"),
+                error_payload["error"].get("message"),
+            )
+            return CallToolResult(
+                content=[TextContent(type="text", text=error_text)],
+                structuredContent=error_payload,
+                isError=True,
+            )
         return await handler(arguments)
     except Exception as e:
         logger.error(f"Error handling tool {name}: {e}", exc_info=True)
-        error_text = _format_error_text("INTERNAL_ERROR", str(e))
-        return [TextContent(
-            type="text",
-            text=error_text,
-        )]
+        error_payload = {"error": {"code": "INTERNAL_ERROR", "message": str(e)}}
+        error_text = _format_error_text(
+            error_payload["error"].get("code"),
+            error_payload["error"].get("message"),
+        )
+        return CallToolResult(
+            content=[TextContent(type="text", text=error_text)],
+            structuredContent=error_payload,
+            isError=True,
+        )
 
 async def handle_task_create(arguments: dict[str, Any]) -> CallToolResult:
     """Handle task_create"""
