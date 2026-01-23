@@ -24,8 +24,7 @@ file locally into `PLANEXE_PATH`.
 - If the HTTP wrapper is unavailable, the proxy falls back to MCP JSON-RPC
   over `POST /mcp` (not SSE).
 - Downloads use the remote `/download/{task_id}/...` endpoints.
-- Authentication uses `PLANEXE_MCP_API_KEY` (falls back to `PLANEXE_API_KEY`)
-  as a `Bearer` token.
+- Authentication uses `PLANEXE_MCP_API_KEY` as a `Bearer` token.
 
 ## Debugging with MCP Inspector
 
