@@ -343,6 +343,67 @@ Clients must ignore unknown fields and unknown event types.
 
 ⸻
 
+18. Future Extensions (MCP Resources)
+
+PlanExe is artifact-first, and MCP already has a native concept for that: resources.
+Today artifacts are exposed via download_url or via proxy download + saved_path.
+Future versions SHOULD expose artifacts as MCP resources so clients can fetch them
+via standard resource reads (and treat PlanExe as a first-class MCP server rather
+than a thin API wrapper).
+
+Proposed resource identifiers
+	•	planexe://task/<task_id>/report
+	•	planexe://task/<task_id>/zip
+
+Recommended resource metadata
+	•	mime type (content_type)
+	•	size (bytes)
+	•	sha256 (content hash)
+	•	generated_at (UTC timestamp)
+
+Notes
+	•	Resources can be backed by existing HTTP endpoints internally; the MCP
+		resource read returns the bytes + metadata.
+	•	This enables richer MCP client UX (preview, caching, validation) without
+		custom tool calls.
+
+⸻
+
+19. Future Tools (High-Leverage, Low-Complexity)
+
+The following tools remove common UX friction without expanding the core model.
+
+19.1 task_list (or task_recent)
+Return a short list of recent tasks so agents can recover if they lost a task_id.
+
+Notes
+	•	Default limit: 5–10 tasks.
+	•	Include task_id, created_at, state, and prompt summary.
+
+19.2 task_wait
+Blocking helper that polls internally until the task completes or times out.
+Returns the final task_status payload plus suggested next steps.
+
+Notes
+	•	Inputs: task_id, timeout_sec (optional), poll_interval_sec (optional).
+	•	Outputs: same as task_status + next_steps (string or list).
+
+19.3 task_get_latest
+Simplest recovery: return the most recently created task for the caller.
+
+Notes
+	•	Useful for single-user / single-session flows.
+	•	Should be scoped to the caller/user_id when available.
+
+19.4 task_logs_tail (optional)
+Return the tail of recent log lines for troubleshooting failures.
+
+Notes
+	•	Inputs: task_id, max_lines (optional), since_cursor (optional).
+	•	Useful when task_status shows failed but no context.
+
+⸻
+
 Appendix A — Example End-to-End Flow
 
 Create task
