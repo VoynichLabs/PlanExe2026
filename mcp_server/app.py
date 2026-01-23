@@ -779,7 +779,21 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> CallToolResu
         )
 
 async def handle_task_create(arguments: dict[str, Any]) -> CallToolResult:
-    """Handle task_create"""
+    """Create a new PlanExe task and enqueue it for processing.
+
+    Examples:
+        - {"idea": "Draft a 3-day Tokyo itinerary"} → returns task_id + created_at
+        - {"idea": "Generate onboarding plan", "speed_vs_detail": "fast"} → faster run
+
+    Args:
+        - idea: Prompt/goal for the plan.
+        - speed_vs_detail: Optional mode ("ping" | "fast" | "all").
+
+    Returns:
+        - content: Human-friendly summary (task id, next step).
+        - structuredContent: {"task_id": ..., "created_at": ...}
+        - isError: False on success.
+    """
     req = TaskCreateRequest(**arguments)
 
     merged_config = _merge_task_create_config(None, req.speed_vs_detail)
@@ -797,7 +811,19 @@ async def handle_task_create(arguments: dict[str, Any]) -> CallToolResult:
     )
 
 async def handle_task_status(arguments: dict[str, Any]) -> CallToolResult:
-    """Handle task_status"""
+    """Fetch the current run status, progress, and recent files for a task.
+
+    Examples:
+        - {"task_id": "uuid"} → state/progress/timing + recent files
+
+    Args:
+        - task_id: Task UUID returned by task_create.
+
+    Returns:
+        - content: Human-friendly status line.
+        - structuredContent: state/progress/timing/files payload or error.
+        - isError: True only when task_id is unknown.
+    """
     req = TaskStatusRequest(**arguments)
     task_id = req.task_id
 
@@ -869,7 +895,19 @@ async def handle_task_status(arguments: dict[str, Any]) -> CallToolResult:
     )
 
 async def handle_task_stop(arguments: dict[str, Any]) -> CallToolResult:
-    """Handle task_stop"""
+    """Request the active run for a task to stop.
+
+    Examples:
+        - {"task_id": "uuid"} → stop request accepted
+
+    Args:
+        - task_id: Task UUID returned by task_create.
+
+    Returns:
+        - content: Human-friendly acknowledgement.
+        - structuredContent: {"state": "stopped"} or error payload.
+        - isError: True only when task_id is unknown.
+    """
     req = TaskStopRequest(**arguments)
     task_id = req.task_id
 
@@ -903,7 +941,22 @@ async def handle_task_stop(arguments: dict[str, Any]) -> CallToolResult:
     )
 
 async def handle_task_file_info(arguments: dict[str, Any]) -> CallToolResult:
-    """Handle task_file_info."""
+    """Return download metadata for a task's report or zip artifact.
+
+    Examples:
+        - {"task_id": "uuid"} → report metadata (default)
+        - {"task_id": "uuid", "artifact": "zip"} → zip metadata
+
+    Args:
+        - task_id: Task UUID returned by task_create.
+        - artifact: Optional "report" or "zip".
+
+    Returns:
+        - content: Human-friendly availability summary.
+        - structuredContent: metadata (content_type, sha256, download_size,
+          optional download_url) or {} if not ready, or error payload.
+        - isError: True only when task_id is unknown.
+    """
     req = TaskFileInfoRequest(**arguments)
     task_id = req.task_id
     artifact = req.artifact.strip().lower() if isinstance(req.artifact, str) else "report"

@@ -486,6 +486,21 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> CallToolResu
 
 
 async def handle_task_create(arguments: dict[str, Any]) -> CallToolResult:
+    """Create a task on the remote MCP server via HTTP proxy.
+
+    Examples:
+        - {"idea": "Write a market research plan"} → task_id + created_at
+        - {"idea": "Generate onboarding plan", "speed_vs_detail": "fast"}
+
+    Args:
+        - idea: Prompt/goal for the plan.
+        - speed_vs_detail: Optional mode ("ping" | "fast" | "all").
+
+    Returns:
+        - content: Human-friendly summary.
+        - structuredContent: task_id/created_at payload or error.
+        - isError: True when the remote tool call fails.
+    """
     req = TaskCreateRequest(**arguments)
     payload, error = _call_remote_tool(
         "task_create",
@@ -499,6 +514,19 @@ async def handle_task_create(arguments: dict[str, Any]) -> CallToolResult:
 
 
 async def handle_task_status(arguments: dict[str, Any]) -> CallToolResult:
+    """Fetch status/progress for a task from the remote MCP server.
+
+    Examples:
+        - {"task_id": "uuid"} → state/progress/timing
+
+    Args:
+        - task_id: Task UUID returned by task_create.
+
+    Returns:
+        - content: Human-friendly status line.
+        - structuredContent: status payload or error.
+        - isError: True when the remote tool call fails.
+    """
     req = TaskStatusRequest(**arguments)
     payload, error = _call_remote_tool("task_status", {"task_id": req.task_id})
     if error:
@@ -509,6 +537,19 @@ async def handle_task_status(arguments: dict[str, Any]) -> CallToolResult:
 
 
 async def handle_task_stop(arguments: dict[str, Any]) -> CallToolResult:
+    """Request the remote MCP server to stop a running task.
+
+    Examples:
+        - {"task_id": "uuid"} → stop request acknowledged
+
+    Args:
+        - task_id: Task UUID returned by task_create.
+
+    Returns:
+        - content: Human-friendly acknowledgement.
+        - structuredContent: {"state": "stopped"} or error.
+        - isError: True when the remote tool call fails.
+    """
     req = TaskStopRequest(**arguments)
     payload, error = _call_remote_tool("task_stop", {"task_id": req.task_id})
     if error:
@@ -519,6 +560,21 @@ async def handle_task_stop(arguments: dict[str, Any]) -> CallToolResult:
 
 
 async def handle_task_download(arguments: dict[str, Any]) -> CallToolResult:
+    """Download report/zip for a task and save it locally.
+
+    Examples:
+        - {"task_id": "uuid"} → download report (default)
+        - {"task_id": "uuid", "artifact": "zip"} → download zip
+
+    Args:
+        - task_id: Task UUID returned by task_create.
+        - artifact: Optional "report" or "zip".
+
+    Returns:
+        - content: Human-friendly summary (ready / downloaded / error).
+        - structuredContent: metadata + saved_path or error.
+        - isError: True when download fails or remote tool errors.
+    """
     req = TaskDownloadRequest(**arguments)
     artifact = (req.artifact or "report").strip().lower()
     if artifact not in ("report", "zip"):
