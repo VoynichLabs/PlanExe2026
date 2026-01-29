@@ -128,10 +128,11 @@ See `extra/planexe_mcp_interface.md` for full specification. Available tools:
 - `task_status` - Get task status and progress
 - `task_stop` - Stop an active task
 - `task_file_info` - Get file metadata for report or zip
+- `prompt_catalog_samples` - Return curated example prompts from the catalog (entries with `mcp_example: true`). Use these to see the level of detail that produces good plans before calling `task_create`.
 
 Note: `task_download` is a synthetic tool provided by `mcp_local`, not by this server.
 
-**Tip**: For well-written prompt examples (300–800 words with context, constraints, and goals), see the PlanExe prompt catalog at `worker_plan/worker_plan_api/prompt/data/simple_plan_prompts.jsonl`.
+**Tip**: Call `prompt_catalog_samples` to see curated examples (300–800 words). The catalog is the same as in the frontends (`worker_plan.worker_plan_api.PromptCatalog`). When running with `PYTHONPATH` set to the repo root (e.g. stdio setup), the catalog is loaded automatically; otherwise built-in examples are returned.
 
 Download flow: call `task_file_info` to obtain the `download_url`, then fetch the
 report via `GET /download/{task_id}/030-report.html` (API key required if configured).

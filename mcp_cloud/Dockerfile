@@ -10,8 +10,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Bring in the shared database models and this MCP server implementation.
+# Bring in the shared database models, prompt catalog (for prompt_catalog_samples), and this MCP server.
 COPY database_api /app/database_api
+COPY worker_plan/worker_plan_api /app/worker_plan_api
 COPY mcp_cloud /app/mcp_cloud
 
 # Install dependencies

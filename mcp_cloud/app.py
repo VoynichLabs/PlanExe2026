@@ -534,6 +534,71 @@ def build_zip_download_url(task_id: str) -> Optional[str]:
         return None
     return f"{base_url.rstrip('/')}{build_zip_download_path(task_id)}"
 
+
+def _load_mcp_example_prompts() -> list[str]:
+    """Load prompts from the catalog that are marked as MCP examples (mcp_example or mcp-example-prompt true).
+
+    Uses worker_plan_api.PromptCatalog the same way as frontend_single_user and frontend_multi_user
+    (no env var). Tries repo-root import first, then adds worker_plan to sys.path so worker_plan_api
+    is top-level (same as frontends). Falls back to built-in examples if the catalog is unavailable.
+    """
+    catalog = None
+    try:
+        from worker_plan.worker_plan_api.prompt_catalog import PromptCatalog
+
+        catalog = PromptCatalog()
+        catalog.load_simple_plan_prompts()
+    except Exception:
+        try:
+            # Same as frontends when worker_plan exists; when not (e.g. Docker), repo_root has worker_plan_api
+            import sys
+
+            repo_root = Path(__file__).resolve().parent.parent
+            worker_plan_dir = repo_root / "worker_plan"
+            path_to_add = str(worker_plan_dir if worker_plan_dir.exists() else repo_root)
+            if path_to_add not in sys.path:
+                sys.path.insert(0, path_to_add)
+            from worker_plan_api.prompt_catalog import PromptCatalog
+
+            catalog = PromptCatalog()
+            catalog.load_simple_plan_prompts()
+        except Exception as e:
+            logger.warning(
+                "Prompt catalog unavailable (%s); using built-in examples.",
+                e,
+            )
+            return _builtin_mcp_example_prompts()
+
+    if catalog is None:
+        return _builtin_mcp_example_prompts()
+
+    samples: list[str] = []
+    for item in catalog.all():
+        if item.extras.get("mcp_example") is True or item.extras.get("mcp-example-prompt") is True:
+            samples.append(item.prompt)
+    if not samples:
+        return _builtin_mcp_example_prompts()
+    return samples
+
+
+def _builtin_mcp_example_prompts() -> list[str]:
+    """Fallback example prompts when the catalog file is missing or has no mcp_example entries."""
+    return [
+        (
+            "Vegan Butcher Shop. That sells artificial meat (Plant-Based). Location Kødbyen, Copenhagen. "
+            "Sell sandwiches and sausages. Provocative marketing. Budget: 10 million DKK. Grand Opening in month 3. "
+            "Profitability Goal: month 12. Create a signature item that is a social media hit. "
+            "Pick a realistic scenario. I already have negotiated a 2 year lease inside Kødbyen. "
+            "Banned words: blockchain, VR, AR, AI, Robots."
+        ),
+        (
+            "Start a dental clinic in Copenhagen with 3 treatment rooms, targeting families and children. "
+            "Budget 2.5M DKK. Open within 12 months. Include equipment, staffing, permits, and marketing. "
+            "Pick a realistic scenario; avoid overly ambitious timelines."
+        ),
+    ]
+
+
 ERROR_SCHEMA = ErrorDetail.model_json_schema()
 TASK_CREATE_OUTPUT_SCHEMA = TaskCreateOutput.model_json_schema()
 TASK_STATUS_SUCCESS_SCHEMA = TaskStatusSuccess.model_json_schema()
@@ -568,7 +633,15 @@ TASK_FILE_INFO_OUTPUT_SCHEMA = {
 TASK_CREATE_INPUT_SCHEMA = {
     "type": "object",
     "properties": {
-        "prompt": {"type": "string", "description": "What the plan should cover (goal, context, constraints)."},
+        "prompt": {
+            "type": "string",
+            "description": (
+                "What the plan should cover (goal, context, constraints). "
+                "Good prompts are often 300–800 words. Call prompt_catalog_samples to see curated examples; "
+                "you may need to iterate with your local LLM to reach similar detail before calling task_create. "
+                "You can also call task_create with a short prompt—plans will be less detailed."
+            ),
+        },
         "speed_vs_detail": {
             "type": "string",
             "enum": list(SPEED_VS_DETAIL_INPUT_VALUES),
@@ -608,6 +681,24 @@ TASK_FILE_INFO_INPUT_SCHEMA = {
     "required": ["task_id"],
 }
 
+PROMPT_CATALOG_SAMPLES_INPUT_SCHEMA = {
+    "type": "object",
+    "properties": {},
+    "required": [],
+}
+PROMPT_CATALOG_SAMPLES_OUTPUT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "samples": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Example prompts to copy or adapt when calling task_create.",
+        },
+        "message": {"type": "string"},
+    },
+    "required": ["samples", "message"],
+}
+
 @dataclass(frozen=True)
 class ToolDefinition:
     name: str
@@ -617,9 +708,20 @@ class ToolDefinition:
 
 TOOL_DEFINITIONS = [
     ToolDefinition(
+        name="prompt_catalog_samples",
+        description=(
+            "Return curated example prompts from the PlanExe prompt catalog (entries marked mcp_example). "
+            "Use these to see the level of detail that produces good plans; iterate with your local LLM "
+            "to refine your prompt before calling task_create, or call task_create with any prompt."
+        ),
+        input_schema=PROMPT_CATALOG_SAMPLES_INPUT_SCHEMA,
+        output_schema=PROMPT_CATALOG_SAMPLES_OUTPUT_SCHEMA,
+    ),
+    ToolDefinition(
         name="task_create",
         description=(
-            "Start creating a new plan. speed_vs_detail modes: "
+            "Start creating a new plan. Call prompt_catalog_samples to see good prompt shape before task_create. "
+            "speed_vs_detail modes: "
             "'all' runs the full pipeline with all details (slower, higher token usage/cost). "
             "'fast' runs the full pipeline with minimal work per step (faster, fewer details), "
             "useful to verify the pipeline is working. "
@@ -714,6 +816,25 @@ async def handle_task_create(arguments: dict[str, Any]) -> CallToolResult:
         structuredContent=response,
         isError=False,
     )
+
+
+async def handle_prompt_catalog_samples(arguments: dict[str, Any]) -> CallToolResult:
+    """Return curated prompts from the catalog (mcp_example true) so LLMs can see example detail."""
+    samples = _load_mcp_example_prompts()
+    payload = {
+        "samples": samples,
+        "message": (
+            "Use these as examples for the level of detail that produces good plans. "
+            "You may need to iterate with your local LLM to refine your prompt before calling task_create. "
+            "You can also call task_create with a short or rough prompt—plans will be less detailed."
+        ),
+    }
+    return CallToolResult(
+        content=[TextContent(type="text", text=json.dumps(payload))],
+        structuredContent=payload,
+        isError=False,
+    )
+
 
 async def handle_task_status(arguments: dict[str, Any]) -> CallToolResult:
     """Fetch the current run status, progress, and recent files for a task.
@@ -961,6 +1082,7 @@ TOOL_HANDLERS = {
     "task_status": handle_task_status,
     "task_stop": handle_task_stop,
     "task_file_info": handle_task_file_info,
+    "prompt_catalog_samples": handle_prompt_catalog_samples,
 }
 
 async def main():

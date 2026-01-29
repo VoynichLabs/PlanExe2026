@@ -161,8 +161,10 @@ The `prompt` parameter should be a detailed description of what the plan should 
 
 Short one-liners (e.g., "Construct a bridge") tend to produce poor output because they lack context for the planning pipeline. Important details are location, budget, time frame.
 
-For well-written examples, see the PlanExe prompt catalog:
-	•	`worker_plan/worker_plan_api/prompt/data/simple_plan_prompts.jsonl` — JSONL file with example prompts (each entry has an `id`, `prompt` field, and optional `tags`).
+Clients can call the MCP tool **prompt_catalog_samples** to retrieve curated example prompts (catalog entries with `mcp_example: true`). Users may need to iterate with their local LLM to reach similar detail before calling task_create; they can also call task_create with any prompt—short prompts produce less detailed plans.
+
+For the full catalog file:
+	•	`worker_plan/worker_plan_api/prompt/data/simple_plan_prompts.jsonl` — JSONL with `id`, `prompt`, optional `tags`, and optional `mcp_example` (true = curated for MCP).
 
 Response
 
@@ -229,6 +231,16 @@ Response
 Required semantics
 	•	Must stop workers cleanly where possible.
 	•	Must persist enough Luigi state to resume incrementally.
+
+⸻
+
+6.4 prompt_catalog_samples (optional, v1)
+
+Returns curated example prompts from the PlanExe prompt catalog (entries with `mcp_example: true` in the JSONL). Clients use this to show LLMs the level of detail that produces good plans; users may iterate with their local LLM to refine their prompt before calling task_create. task_create can also be called with any prompt—short prompts produce less detailed plans.
+
+Request: no parameters (empty object).
+
+Response: `{ "samples": [ "prompt text 1", "prompt text 2", ... ], "message": "..." }`.
 
 ⸻
 
