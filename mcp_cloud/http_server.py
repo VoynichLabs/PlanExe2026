@@ -348,7 +348,13 @@ def _register_tools(server: FastMCP) -> None:
 
 fastmcp_server = FastMCP(
     name="planexe-mcp-server",
-    instructions="HTTP wrapper for PlanExe MCP interface",
+    instructions=(
+    "PlanExe generates rough-draft project plans from a natural-language prompt. "
+    "You describe a large goal (e.g. open a clinic, launch a product, build a moon base)—the kind of project that takes months or years. "
+    "PlanExe produces a structured draft with steps and deliverables (Gantt chart, risk analysis, etc.); the plan is not executable yet, it's a draft to refine. "
+    "Creating a plan is a long-running task (100+ LLM calls). Main output: large HTML file (approx 700KB) and a zip of intermediary files (md, json, csv). "
+    "Call prompt_examples first, then task_create; poll task_status and use task_download when complete."
+),
     host=HTTP_HOST,
     port=HTTP_PORT,
     streamable_http_path="/",

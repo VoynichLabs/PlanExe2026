@@ -2,6 +2,16 @@ PlanExe MCP Interface Specification (v1.0)
 
 1. Purpose
 
+1.1 What is PlanExe
+
+PlanExe is a service that generates **rough-draft project plans** from a natural-language prompt. You describe a large goal (e.g. open a clinic, launch a product, build a moon base)—the kind of project that in reality takes months or years. PlanExe produces a structured draft: steps, documents, and deliverables. The plan is not executable in its current form; it is a draft to refine and act on. Creating a plan is a long-running task (100+ LLM inference calls): create a task with a prompt, poll status, then download the HTML report and zip when done.
+
+1.2 What kind of plan does it create
+
+The plan is a **project plan**: a DAG of steps (Luigi tasks) that produce artifacts including a Gantt chart, risk analysis, and other project management deliverables. The main output is a large HTML file (approx 700KB) containing many sections. There is also a zip file containing all intermediary files (md, json, csv). Plan quality depends on prompt quality; use the prompt_examples tool to see the baseline before calling task_create.
+
+1.3 Scope of this document
+
 This document specifies a Model Context Protocol (MCP) interface for PlanExe that enables AI agents and client UIs to:
 	1.	Create and run long-running plan generation workflows.
 	2.	Receive real-time progress updates (task status, log output).
