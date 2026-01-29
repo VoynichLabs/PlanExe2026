@@ -33,6 +33,9 @@ You should **not** enable "Run as task" for PlanExe. The Python MCP SDK and clie
   over `POST /mcp` (not SSE).
 - Downloads use the remote `/download/{task_id}/...` endpoints.
 - Authentication uses `PLANEXE_MCP_API_KEY` as a `Bearer` token.
+- **Retry behavior**: Transient failures (server 5xx errors, network timeouts) are
+  automatically retried up to 3 times with exponential backoff (1s, 2s delays).
+  Client errors (4xx) are not retried. Retries are logged at WARNING level.
 
 ## Debugging with MCP Inspector
 

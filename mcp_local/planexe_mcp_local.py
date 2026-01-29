@@ -10,10 +10,11 @@ import hashlib
 import json
 import logging
 import os
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, Optional
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 from urllib.parse import urljoin, urlparse
 from urllib.request import Request, urlopen
 
@@ -103,24 +104,70 @@ def _http_request_with_redirects(
     body: Optional[bytes],
     headers: dict[str, str],
     max_redirects: int = 5,
+    max_retries: int = 3,
+    retry_delay_base: float = 1.0,
 ) -> bytes:
-    for _ in range(max_redirects + 1):
-        request = Request(url, data=body, method=method, headers=headers)
+    """Make an HTTP request with redirect handling and retry logic.
+    
+    Retries on 5xx server errors and network timeouts with exponential backoff.
+    Does not retry on 4xx client errors (except redirects).
+    """
+    last_exception: Optional[Exception] = None
+    
+    for attempt in range(max_retries):
+        if attempt > 0:
+            delay = retry_delay_base * (2 ** (attempt - 1))
+            logger.warning(
+                "Retrying HTTP request to %s (attempt %d/%d) after %.1fs delay",
+                url,
+                attempt + 1,
+                max_retries,
+                delay,
+            )
+            time.sleep(delay)
+        
         try:
-            with urlopen(request, timeout=60) as response:
-                return response.read()
-        except HTTPError as exc:
-            if exc.code in (301, 302, 303, 307, 308):
-                location = exc.headers.get("Location")
-                if not location:
+            for redirect_count in range(max_redirects + 1):
+                request = Request(url, data=body, method=method, headers=headers)
+                try:
+                    with urlopen(request, timeout=60) as response:
+                        return response.read()
+                except HTTPError as exc:
+                    # Handle redirects (3xx)
+                    if exc.code in (301, 302, 303, 307, 308):
+                        location = exc.headers.get("Location")
+                        if not location:
+                            raise
+                        url = urljoin(url, location)
+                        if exc.code == 303:
+                            method = "GET"
+                            body = None
+                        continue
+                    # Retry on 5xx server errors
+                    if 500 <= exc.code < 600:
+                        last_exception = exc
+                        break  # Break redirect loop, will retry outer loop
+                    # Don't retry on 4xx client errors (except redirects handled above)
                     raise
-                url = urljoin(url, location)
-                if exc.code == 303:
-                    method = "GET"
-                    body = None
-                continue
-            raise
-    raise HTTPError(url, 310, "Too many redirects", None, None)
+                except (URLError, OSError, TimeoutError) as exc:
+                    # Retry on network errors and timeouts
+                    last_exception = exc
+                    break  # Break redirect loop, will retry outer loop
+            else:
+                # Redirect loop exhausted without success
+                raise HTTPError(url, 310, "Too many redirects", None, None)
+        except HTTPError as exc:
+            # 4xx errors: don't retry
+            if 400 <= exc.code < 500:
+                raise
+            # If we get here with a 5xx, last_exception is set and we'll retry
+            if attempt == max_retries - 1:
+                raise
+    
+    # All retries exhausted
+    if last_exception:
+        raise last_exception
+    raise HTTPError(url, 500, "Request failed after retries", None, None)
 
 
 def _http_json_request(method: str, url: str, payload: dict[str, Any]) -> dict[str, Any]:
