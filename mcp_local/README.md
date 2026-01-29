@@ -13,6 +13,8 @@ proxy forwards tool calls over HTTP and downloads artifacts from `/download/{tas
 `task_stop` - Abort creation of a plan.
 `task_download` - Download the plan, either html report or a zip with everything, and save it to disk.
 
+**Tip**: For well-written idea examples (300–800 words with context, constraints, and goals), see the PlanExe prompt catalog at `worker_plan/worker_plan_api/prompt/data/simple_plan_prompts.jsonl`.
+
 `task_download` is a synthetic tool provided by the local proxy. It calls the
 remote MCP tool `task_file_info` to obtain a download URL, then downloads the
 file locally into `PLANEXE_PATH`.

@@ -131,6 +131,8 @@ See `extra/planexe_mcp_interface.md` for full specification. Available tools:
 
 Note: `task_download` is a synthetic tool provided by `mcp_local`, not by this server.
 
+**Tip**: For well-written idea examples (300–800 words with context, constraints, and goals), see the PlanExe prompt catalog at `worker_plan/worker_plan_api/prompt/data/simple_plan_prompts.jsonl`.
+
 Download flow: call `task_file_info` to obtain the `download_url`, then fetch the
 report via `GET /download/{task_id}/030-report.html` (API key required if configured).
 

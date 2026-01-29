@@ -151,6 +151,19 @@ Example
   "speed_vs_detail": "ping"
 }
 
+Idea / prompt quality
+
+The `idea` parameter should be a detailed description of what the plan should cover. Good ideas are typically 300–800 words and include:
+	•	Clear context: background, constraints, and goals
+	•	Specific requirements: budget, timeline, location, or technical constraints
+	•	Success criteria: what "done" looks like
+	•	Banned words or approaches (if any)
+
+Short one-liners (e.g., "Construct a bridge") tend to produce poor output because they lack context for the planning pipeline. Important details are location, budget, time frame.
+
+For well-written examples, see the PlanExe prompt catalog:
+	•	`worker_plan/worker_plan_api/prompt/data/simple_plan_prompts.jsonl` — JSONL file with example prompts (each entry has an `id`, `prompt` field, and optional `tags`).
+
 Response
 
 {
