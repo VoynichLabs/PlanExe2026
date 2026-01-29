@@ -42,12 +42,12 @@ class TestResolveSpeedVsDetail(unittest.TestCase):
 class TestTaskCreateRequest(unittest.TestCase):
     def test_speed_vs_detail_accepts_enum(self):
         for value in ("ping", "fast", "all"):
-            req = TaskCreateRequest(idea="demo", speed_vs_detail=value)
+            req = TaskCreateRequest(prompt="demo", speed_vs_detail=value)
             self.assertEqual(req.speed_vs_detail, value)
 
     def test_speed_vs_detail_rejects_invalid(self):
         with self.assertRaises(ValidationError):
-            TaskCreateRequest(idea="demo", speed_vs_detail="slow")
+            TaskCreateRequest(prompt="demo", speed_vs_detail="slow")
 
 
 if __name__ == "__main__":

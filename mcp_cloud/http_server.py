@@ -283,7 +283,7 @@ def _normalize_tool_result(result: Any) -> tuple[list[dict[str, Any]], Optional[
 
 
 async def task_create(
-    idea: str,
+    prompt: str,
     speed_vs_detail: Annotated[
         SpeedVsDetailInput,
         Field(
@@ -295,7 +295,7 @@ async def task_create(
 ) -> Annotated[CallToolResult, TaskCreateOutput]:
     return await handle_task_create(
         {
-            "idea": idea,
+            "prompt": prompt,
             "speed_vs_detail": speed_vs_detail,
         }
     )

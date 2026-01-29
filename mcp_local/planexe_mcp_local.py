@@ -37,7 +37,7 @@ SpeedVsDetailInput = Literal[
 
 
 class TaskCreateRequest(BaseModel):
-    idea: str
+    prompt: str
     speed_vs_detail: Optional[SpeedVsDetailInput] = None
 
 
@@ -317,9 +317,9 @@ ERROR_SCHEMA = {
 TASK_CREATE_INPUT_SCHEMA = {
     "type": "object",
     "properties": {
-        "idea": {
+        "prompt": {
             "type": "string",
-            "description": "What the plan should cover. Good ideas are usually 300-800 words with clear context, constraints, and goals; short one-liners tend to produce poor output. For well-written examples, see the PlanExe prompt catalog.",
+            "description": "What the plan should cover. Good prompts are usually 300-800 words with clear context, constraints, and goals; short one-liners tend to produce poor output. For well-written examples, see the PlanExe prompt catalog.",
         },
         "speed_vs_detail": {
             "type": "string",
@@ -328,7 +328,7 @@ TASK_CREATE_INPUT_SCHEMA = {
             "description": "How much work to run. 'ping': single LLM call to check the pipeline is reachable (check logs if it fails). 'fast': minimal run (approx 5-10 min) through all pipeline steps, skipping where possible—use to verify the pipeline works. 'all': full plan with full detail (approx 10-20 min).",
         },
     },
-    "required": ["idea"],
+    "required": ["prompt"],
 }
 
 TASK_STATUS_INPUT_SCHEMA = {
@@ -489,11 +489,11 @@ async def handle_task_create(arguments: dict[str, Any]) -> CallToolResult:
     """Create a task in mcp_cloud via the local HTTP proxy.
 
     Examples:
-        - {"idea": "Write a market research plan"} → task_id + created_at
-        - {"idea": "Generate onboarding plan", "speed_vs_detail": "fast"}
+        - {"prompt": "Start a dental clinic in Copenhagen with 3 treatment rooms, targeting families and children. Budget 2.5M DKK. Open within 12 months."} → task_id + created_at
+        - {"prompt": "Launch a bike repair shop in Amsterdam with retail sales, service bays, and mobile repair van. Budget 150k EUR. Profitability goal: month 18.", "speed_vs_detail": "fast"}
 
     Args:
-        - idea: Prompt/goal for the plan.
+        - prompt: What the plan should cover (goal, context, constraints).
         - speed_vs_detail: Optional mode ("ping" | "fast" | "all").
 
     Returns:
@@ -504,7 +504,7 @@ async def handle_task_create(arguments: dict[str, Any]) -> CallToolResult:
     req = TaskCreateRequest(**arguments)
     payload, error = _call_remote_tool(
         "task_create",
-        {"idea": req.idea, "speed_vs_detail": req.speed_vs_detail} if req.speed_vs_detail else {"idea": req.idea},
+        {"prompt": req.prompt, "speed_vs_detail": req.speed_vs_detail} if req.speed_vs_detail else {"prompt": req.prompt},
     )
     if error:
         return _wrap_response({"error": error}, is_error=True)

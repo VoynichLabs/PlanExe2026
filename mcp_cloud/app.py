@@ -131,7 +131,7 @@ SPEED_VS_DETAIL_ALIASES = {
 }
 
 class TaskCreateRequest(BaseModel):
-    idea: str
+    prompt: str
     speed_vs_detail: Optional[SpeedVsDetailInput] = None
 
 class TaskStatusRequest(BaseModel):
@@ -193,7 +193,7 @@ def resolve_task_for_task_id(task_id: str) -> Optional[TaskItem]:
     return find_task_by_task_id(task_id)
 
 def _create_task_sync(
-    idea: str,
+    prompt: str,
     config: Optional[dict[str, Any]],
     metadata: Optional[dict[str, Any]],
 ) -> dict[str, Any]:
@@ -202,7 +202,7 @@ def _create_task_sync(
         parameters["speed_vs_detail"] = resolve_speed_vs_detail(parameters)
 
         task = TaskItem(
-            prompt=idea,
+            prompt=prompt,
             state=TaskState.pending,
             user_id=metadata.get("user_id", "mcp_user") if metadata else "mcp_user",
             parameters=parameters,
@@ -568,7 +568,7 @@ TASK_FILE_INFO_OUTPUT_SCHEMA = {
 TASK_CREATE_INPUT_SCHEMA = {
     "type": "object",
     "properties": {
-        "idea": {"type": "string", "description": "The idea/prompt for the plan"},
+        "prompt": {"type": "string", "description": "What the plan should cover (goal, context, constraints)."},
         "speed_vs_detail": {
             "type": "string",
             "enum": list(SPEED_VS_DETAIL_INPUT_VALUES),
@@ -578,7 +578,7 @@ TASK_CREATE_INPUT_SCHEMA = {
             ),
         },
     },
-    "required": ["idea"],
+    "required": ["prompt"],
 }
 TASK_STATUS_INPUT_SCHEMA = {
     "type": "object",
@@ -688,11 +688,11 @@ async def handle_task_create(arguments: dict[str, Any]) -> CallToolResult:
     """Create a new PlanExe task and enqueue it for processing.
 
     Examples:
-        - {"idea": "Draft a 3-day Tokyo itinerary"} → returns task_id + created_at
-        - {"idea": "Generate onboarding plan", "speed_vs_detail": "fast"} → faster run
+        - {"prompt": "Start a dental clinic in Copenhagen with 3 treatment rooms, targeting families and children. Budget 2.5M DKK. Open within 12 months."} → returns task_id + created_at
+        - {"prompt": "Launch a bike repair shop in Amsterdam with retail sales, service bays, and mobile repair van. Budget 150k EUR. Profitability goal: month 18.", "speed_vs_detail": "fast"} → faster run
 
     Args:
-        - idea: Prompt/goal for the plan.
+        - prompt: What the plan should cover (goal, context, constraints).
         - speed_vs_detail: Optional mode ("ping" | "fast" | "all").
 
     Returns:
@@ -705,7 +705,7 @@ async def handle_task_create(arguments: dict[str, Any]) -> CallToolResult:
     merged_config = _merge_task_create_config(None, req.speed_vs_detail)
     response = await asyncio.to_thread(
         _create_task_sync,
-        req.idea,
+        req.prompt,
         merged_config,
         None,
     )

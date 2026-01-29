@@ -11,7 +11,7 @@ from mcp_cloud.app import handle_task_create
 
 class TestTaskCreateTool(unittest.TestCase):
     def test_task_create_returns_structured_content(self):
-        arguments = {"idea": "xcv", "config": None, "metadata": None}
+        arguments = {"prompt": "xcv", "config": None, "metadata": None}
         fake_session = MagicMock()
         class StubTaskItem:
             def __init__(self, prompt: str, state, user_id: str, parameters):

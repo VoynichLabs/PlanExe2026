@@ -134,26 +134,26 @@ Schema
 {
   "type": "object",
   "properties": {
-    "idea": { "type": "string" },
+    "prompt": { "type": "string" },
     "speed_vs_detail": {
       "type": "string",
       "enum": ["ping", "fast", "all"],
       "default": "ping"
     }
   },
-  "required": ["idea"]
+  "required": ["prompt"]
 }
 
 Example
 
 {
-  "idea": "string",
+  "prompt": "string",
   "speed_vs_detail": "ping"
 }
 
-Idea / prompt quality
+Prompt quality
 
-The `idea` parameter should be a detailed description of what the plan should cover. Good ideas are typically 300–800 words and include:
+The `prompt` parameter should be a detailed description of what the plan should cover. Good prompts are typically 300–800 words and include:
 	•	Clear context: background, constraints, and goals
 	•	Specific requirements: budget, timeline, location, or technical constraints
 	•	Success criteria: what "done" looks like
@@ -427,7 +427,7 @@ Appendix A — Example End-to-End Flow
 
 Create task
 
-task_create({ "idea": "..." })
+task_create({ "prompt": "..." })
 
 Start run
 
