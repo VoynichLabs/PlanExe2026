@@ -19,32 +19,32 @@ Update `OPENROUTER_API_KEY` with your open router api key.
 ### Step 3 - `open_dir_server`
 
 In a new terminal: 
-Follow the [`open_dir_server`](../open_dir_server/README.md) instructions.
+Follow the [open_dir_server](developer/open_dir_server.md) instructions.
 
 ### Step 4 - `worker_plan`
 
 In a new terminal: 
-Follow the [`worker_plan`](../worker_plan/README.md) instructions.
+Follow the [worker_plan](developer/worker_plan.md) instructions.
 
 ### Step 5 - `frontend_single_user`
 
 In a new terminal: 
-Follow the [`frontend_single_user`](../frontend_single_user/README.md) instructions.
+Follow the [frontend_single_user](developer/frontend_single_user.md) instructions.
 
 ### Step 6 - `database_postgres`
 
 In a new terminal: 
-Follow the [`database_postgres`](../database_postgres/README.md) instructions.
+Follow the [database_postgres](developer/database_postgres.md) instructions.
 
 ### Step 7 - `worker_plan_database`
 
 In a new terminal: 
-Follow the [`worker_plan_database`](../worker_plan_database/README.md) instructions.
+Follow the [worker_plan_database](developer/worker_plan_database.md) instructions.
 
 ### Step 8 - `frontend_multi_user`
 
 In a new terminal: 
-Follow the [`frontend_multi_user`](../frontend_multi_user/README.md) instructions.
+Follow the [frontend_multi_user](developer/frontend_multi_user.md) instructions.
 
 ### Step 9 - Tests
 
