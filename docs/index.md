@@ -1,6 +1,8 @@
 # Welcome to PlanExe Documentation
 
-**PlanExe** is an open-source AI planning tool that turns vague ideas into detailed, actionable plans. Use the navigation on the left to explore the docs.
+**PlanExe** is an open-source tool that turns a single plain-English goal into a ~40-page strategic plan in about 15 minutes, using local or cloud LLMs. It’s an accelerator for first drafts—not a replacement for human refinement. Typical output includes an executive summary, Gantt chart, governance structure, stakeholder maps, risk registers, and SWOT analyses. PlanExe removes most of the labor for the planning scaffold; the final 10–30% that makes a plan credible and defensible remains human work.
+
+See [example plans](https://planexe.org/examples/) (e.g. Minecraft escape room, Faraday cage company, Human-as-a-Service pilot). Use the navigation on the left to explore setup, usage, and reference.
 
 ## Quick links
 
