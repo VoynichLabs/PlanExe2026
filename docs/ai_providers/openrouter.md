@@ -1,34 +1,42 @@
+---
+title: OpenRouter - AI provider
+---
+
 # Using PlanExe with OpenRouter
+
+For new users, OpenRouter is the recommended starting point. When you have have generated a few plans via OpenRouter, then you can try switch to other AI providers.
 
 [OpenRouter](https://openrouter.ai/) provides access to a large number of LLM models, that runs in the cloud.
 
 Unfortunately there is no `free` model that works reliable with PlanExe.
 
-In my experience, the `paid` models are the most reliable. Models like [google/gemini-2.0-flash-001](https://openrouter.ai/google/gemini-2.0-flash-001) and [openai/gpt-4o-mini](https://openrouter.ai/openai/gpt-4o-mini) are cheap and faster than running models on my own computer and without risk of it overheating.
+In my experience, the `paid` models are the most reliable. Models like [google/gemini-2.0-flash-001](https://openrouter.ai/google/gemini-2.0-flash-001). and [openai/gpt-4o-mini](https://openrouter.ai/openai/gpt-4o-mini) are cheap and faster than running models on my own computer and without risk of it overheating.
 
 I haven't been able to find a `free` model on OpenRouter that works well with PlanExe.
 
+Avoid pricey `paid` models. PlanExe does more than 100 LLM inference calls per plan, so each run uses many tokens. With a cheap model, creating a full plan costs less than 0.30 USD; with one of the newest models, the price can exceed 20 USD. To keep PlanExe affordable for as many users as possible, the defaults use older, cheaper models.
+
 ## Quickstart (Docker)
 
-1) Install Docker (with Docker Compose) — no local Python or pip is needed now.
-2) Clone the repo and enter it:
+1. Install Docker (with Docker Compose) — no local Python or pip is needed now.
+2. Clone the repo and enter it:
 ```
 git clone https://github.com/PlanExeOrg/PlanExe.git
 cd PlanExe
 ```
-3) Copy `.env.docker-example` to `.env`, then set your API key and pick a default OpenRouter profile so the worker uses the cloud model by default:
+3. Copy `.env.docker-example` to `.env`, then set your API key and pick a default OpenRouter profile so the worker uses the cloud model by default:
 ```
 OPENROUTER_API_KEY='sk-or-v1-...'
 DEFAULT_LLM='openrouter-paid-gemini-2.0-flash-001'   # or openrouter-paid-openai-gpt-4o-mini
 ```
    The containers mount `.env` and `llm_config.json` automatically.
-4) Start PlanExe:
+4. Start PlanExe:
 ```
 docker compose up worker_plan frontend_single_user
 ```
    - Wait for http://localhost:7860 to come up, submit a prompt, and watch progress with `docker compose logs -f worker_plan`.
    - Outputs are written to `run/<timestamped-output-dir>` on the host (mounted from the containers).
-5) Stop with `Ctrl+C` (or `docker compose down`). If you change `llm_config.json`, restart the containers so they reload it: `docker compose restart worker_plan frontend_single_user` (or `docker compose down && docker compose up`). No rebuild is needed for config-only edits.
+5. Stop with `Ctrl+C` (or `docker compose down`). If you change `llm_config.json`, restart the containers so they reload it: `docker compose restart worker_plan frontend_single_user` (or `docker compose down && docker compose up`). No rebuild is needed for config-only edits.
 
 ## Configuration
 

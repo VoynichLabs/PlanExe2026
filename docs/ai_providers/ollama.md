@@ -1,13 +1,19 @@
+---
+title: Ollama - AI provider
+---
+
 # Using PlanExe with Ollama
+
+This is for **advanced users** that already have PlanExe working. If you're new to PlanExe, start with [OpenRouter](openrouter.md) instead.
 
 [Ollama](https://ollama.com/) is an open source app for macOS/Windows/Linux for running LLMs on your own computer (or on a remote computer).
 
 PlanExe processes more text than regular chat. You will need expensive hardware to run a LLM at a reasonable speed.
 
 ## Quickstart (Docker)
-1) Install Ollama on your host and pull a small model: `ollama run llama3.1` (downloads ~4.9 GB and proves the host service works).  
-2) Copy `.env.docker-example` to `.env` (even if you leave keys empty for Ollama) and pick the Docker entry in `llm_config.json` (snippet below) so `base_url` points to `http://host.docker.internal:11434` (Docker Desktop) or your Linux bridge IP.  
-3) Start PlanExe: `docker compose up worker_plan frontend_single_user`. Open http://localhost:7860, submit a prompt, and watch `docker compose logs -f worker_plan` for progress.
+1. Install Ollama on your host and pull a small model: `ollama run llama3.1` (downloads ~4.9 GB and proves the host service works).  
+2. Copy `.env.docker-example` to `.env` (even if you leave keys empty for Ollama) and pick the Docker entry in `llm_config.json` (snippet below) so `base_url` points to `http://host.docker.internal:11434` (Docker Desktop) or your Linux bridge IP.  
+3. Start PlanExe: `docker compose up worker_plan frontend_single_user`. Open http://localhost:7860, submit a prompt, and watch `docker compose logs -f worker_plan` for progress.
 
 ### Host-only (no Docker) — for advanced users
 - Use the host entry (e.g., `"ollama-llama3.1"`) in `llm_config.json` so `base_url` stays on `http://localhost:11434`.

@@ -1,36 +1,38 @@
+---
+title: Mistral - AI provider
+---
+
 # Using PlanExe with Mistral
 
-This is for **advanced users** that already have PlanExe working.
+This is for **advanced users** that already have PlanExe working. If you're new to PlanExe, start with [OpenRouter](openrouter.md) instead.
 
-If you are getting started with PlanExe, I (the developer of PlanExe) recommend following the [openrouter.md](openrouter.md) instructions. Stick with the default settings. 
-
-If you want to use Mistral, then [OpenRouter has several mistral models](https://openrouter.ai/models?q=mistral). 
+If you want to use Mistral, [OpenRouter has several mistral models](https://openrouter.ai/models?q=mistral). 
 
 ## Docker setup for Mistral
 
 Mistral support is not baked into the Docker image by default. You must add the Mistral LlamaIndex extension to the worker, rebuild the image, and supply your API key.
 
-1) Install Docker (with Docker Compose), then clone the repo and enter it:
+1. Install Docker (with Docker Compose), then clone the repo and enter it:
 ```
 git clone https://github.com/PlanExeOrg/PlanExe.git
 cd PlanExe
 ```
-2) Enable the Mistral client inside the worker image by editing `worker_plan/pyproject.toml`. Under `[project].dependencies`, add or uncomment these lines:
+2. Enable the Mistral client inside the worker image by editing `worker_plan/pyproject.toml`. Under `[project].dependencies`, add or uncomment these lines:
 ```
 "llama-index-llms-mistralai==0.4.0",
 "mistralai==1.5.2",
 ```
    Without this step, the Docker image will not have the `MistralAI` class.
-3) Copy `.env.docker-example` to `.env` and add your key:
+3. Copy `.env.docker-example` to `.env` and add your key:
 ```
 MISTRAL_API_KEY='INSERT-YOUR-SECRET-KEY-HERE'
 ```
-4) Add (or keep) a Mistral entry in `llm_config.json` (example below).
-5) Rebuild the images so the new dependencies are baked in:
+4. Add (or keep) a Mistral entry in `llm_config.json` (example below).
+5. Rebuild the images so the new dependencies are baked in:
 ```
 docker compose build --no-cache worker_plan frontend_single_user
 ```
-6) Start PlanExe:
+6. Start PlanExe:
 ```
 docker compose up worker_plan frontend_single_user
 ```
