@@ -3,7 +3,7 @@ Docker Compose for PlanExe
 
 TL;DR
 -----
-- Services: `database_postgres` (DB on `${PLANEXE_POSTGRES_PORT:-5432}`), `frontend_single_user` (UI on 7860), `worker_plan` (API on 8000), `frontend_multi_user` (UI on `${PLANEXE_FRONTEND_MULTIUSER_PORT:-5001}`), plus DB workers (`worker_plan_database` and `worker_plan_database_1/2/3`), and `mcp_cloud` (MCP interface, stdio); `frontend_single_user` waits for the worker to be healthy and `frontend_multi_user` waits for Postgres health.
+- Services: `database_postgres` (DB on `${PLANEXE_POSTGRES_PORT:-5432}`), `frontend_single_user` (UI on 7860), `worker_plan` (API on 8000), `frontend_multi_user` (UI on `${PLANEXE_FRONTEND_MULTIUSER_PORT:-5001}`), plus DB workers (`worker_plan_database` and `worker_plan_database_1/2/3`), and `mcp_cloud` (MCP interface, HTTP on `${PLANEXE_MCP_HTTP_PORT:-8001}`); `frontend_single_user` waits for the worker to be healthy and `frontend_multi_user` waits for Postgres health.
 - Shared host files: `.env` and `llm_config.json` mounted read-only; `./run` bind-mounted so outputs persist; `.env` is also loaded via `env_file`.
 - Postgres defaults to user/db/password `planexe`; override via env or `.env`; data lives in the `database_postgres_data` volume.
 - Env defaults live in `docker-compose.yml` but can be overridden in `.env` or your shell (URLs, timeouts, run dirs, optional auth and opener URL).
@@ -13,11 +13,11 @@ Quickstart (run from repo root)
 -------------------------------
 - Up (single user): `docker compose up worker_plan frontend_single_user`.
 - Up (multi user): `docker compose up frontend_multi_user database_postgres worker_plan worker_plan_database_1 worker_plan_database_2 worker_plan_database_3`.
-- Up (MCP server): `docker compose up mcp_cloud` (requires `database_postgres` to be running).
+- Up (MCP server): `docker compose up mcp_cloud` (requires `database_postgres` and `worker_plan` to be running).
 - Down: `docker compose down` (add `--remove-orphans` if stray containers linger).
 - Rebuild clean: `docker compose build --no-cache database_postgres worker_plan frontend_single_user frontend_multi_user worker_plan_database worker_plan_database_1 worker_plan_database_2 worker_plan_database_3 mcp_cloud`.
 - UI: single user -> http://localhost:7860; multi user -> http://localhost:5001 after the stack is up.
-- MCP: configure your MCP client to connect to the `mcp_cloud` container via stdio.
+- MCP: connect via HTTP at `http://localhost:${PLANEXE_MCP_HTTP_PORT:-8001}/mcp` (or use `mcp_local` for local downloads).
 - Logs: `docker compose logs -f worker_plan` or `... frontend_single_user` or `... mcp_cloud`.
 - One-off inside a container: `docker compose run --rm worker_plan python -m worker_plan_internal.fiction.fiction_writer` (use `exec` if already running).
 - Ensure `.env` and `llm_config.json` exist; copy `.env.docker-example` to `.env` if you need a starter.
@@ -88,7 +88,7 @@ Service: `worker_plan_database` (DB-backed worker)
 --------------------------------------------------
 - Purpose: polls `TaskItem` rows in Postgres, marks them processing, runs the PlanExe pipeline, and writes progress/events back to the DB; no HTTP port exposed.
 - Build: `worker_plan_database/Dockerfile` (ships `worker_plan` code, shared `database_api` models, and this worker subclass).
-- Depends on: `database_postgres` health.
+- Depends on: `database_postgres` and `worker_plan` health.
 - Env defaults: derives `SQLALCHEMY_DATABASE_URI` from `PLANEXE_POSTGRES_HOST|PORT|DB|USER|PASSWORD` (fallbacks to `database_postgres` + `planexe/planexe` on 5432); `PLANEXE_CONFIG_PATH=/app`, `PLANEXE_RUN_DIR=/app/run`; MachAI confirmation URLs default to `https://example.com/iframe_generator_confirmation` for both `PLANEXE_IFRAME_GENERATOR_CONFIRMATION_PRODUCTION_URL` and `PLANEXE_IFRAME_GENERATOR_CONFIRMATION_DEVELOPMENT_URL` (override with real endpoints).
 - Volumes: `.env` (ro), `llm_config.json` (ro), `run/` (rw for pipeline output).
 - Entrypoint: `python -m worker_plan_database.app` (runs the long-lived poller loop).
@@ -102,9 +102,9 @@ Service: `mcp_cloud` (MCP interface)
 - Build: `mcp_cloud/Dockerfile` (ships shared `database_api` models and the MCP server implementation).
 - Depends on: `database_postgres` health.
 - Env defaults: derives `SQLALCHEMY_DATABASE_URI` from `PLANEXE_POSTGRES_HOST|PORT|DB|USER|PASSWORD` (fallbacks to `database_postgres` + `planexe/planexe` on 5432); `PLANEXE_CONFIG_PATH=/app`, `PLANEXE_RUN_DIR=/app/run`; `PLANEXE_MCP_PUBLIC_BASE_URL=http://localhost:8001` for report download URLs.
-- Volumes: `run/` (rw for artifact access).
-- Entrypoint: `python -m mcp_cloud.app` (runs the MCP server over stdio).
-- Communication: the server communicates over stdio (standard input/output) following the MCP protocol. Configure your MCP client to connect to this container. The container runs with `stdin_open: true` and `tty: true` to enable stdio communication.
+- Volumes: none required; artifacts are fetched from `worker_plan` over HTTP (no run dir mount needed).
+- Entrypoint: `python -m mcp_cloud.http_server` (runs the MCP HTTP server).
+- Communication: the server exposes HTTP endpoints at `/mcp` (JSON-RPC) and `/mcp/tools/call` (wrapper). Configure your MCP client to connect via URL, or use `mcp_local` to proxy and download artifacts locally.
 - MCP tools: implements the specification in `docs/mcp/planexe_mcp_interface.md` including session management, artifact operations, and event streaming.
 
 Usage notes
