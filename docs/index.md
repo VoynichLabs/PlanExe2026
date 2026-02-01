@@ -1,3 +1,7 @@
+---
+title: Welcome to PlanExe
+---
+
 # Welcome!
 
 PlanExe turns a single plain-English goal into a ~40-page [strategic plan](https://en.wikipedia.org/wiki/Strategic_planning) in ~15 minutes using local or cloud LLMs. It’s an accelerator for first drafts — not a replacement for human refinement. PlanExe removes most of the labor for the planning scaffold; the final 10–30% that makes a plan credible and defensible remains human work.

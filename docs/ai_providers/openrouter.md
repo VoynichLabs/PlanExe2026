@@ -1,3 +1,7 @@
+---
+title: OpenRouter - AI provider
+---
+
 # Using PlanExe with OpenRouter
 
 For new users, OpenRouter is the recommended starting point. When you have have generated a few plans via OpenRouter, then you can try switch to other AI providers.

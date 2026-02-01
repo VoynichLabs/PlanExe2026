@@ -1,3 +1,7 @@
+---
+title: LM Studio - AI provider
+---
+
 # Using PlanExe with LM Studio
 
 This is for **advanced users** that already have PlanExe working. If you're new to PlanExe, start with [OpenRouter](openrouter.md) instead.
