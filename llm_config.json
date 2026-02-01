@@ -1,11 +1,28 @@
 {
+    "openrouter-paid-openai-gpt-5-nano": {
+        "comment": "GPT-5 Nano - Fast reasoning model. It's paid, check pricing before use. This is a reasoning model, uses more tokens than LLMs. Temperature must be 1.0 for reasoning models. Using OpenAI class directly to avoid context window issues.",
+        "priority": 1,
+        "class": "OpenAI",
+        "arguments": {
+            "model": "gpt-5-nano",
+            "api_key": "${OPENAI_API_KEY}",
+            "temperature": 1.0,
+            "timeout": 120.0,
+            "context_window": 400000,
+            "is_function_calling_model": false,
+            "is_chat_model": true,
+            "max_tokens": 128000,
+            "max_retries": 5
+        }
+    },
     "openrouter-paid-openai-gpt-oss-20b": {
-        "comment": "This is very fast. It's paid, so check the pricing before use. Created August 5, 2025. 131,072 context. $0.05/M input tokens. $0.20/M output tokens. This is a reasoning model, and uses more tokens than LLMs.",
+        "comment": "This is very fast. It's paid, so check the pricing before use. Created August 5, 2025. 131,072 context. $0.05/M input tokens. $0.20/M output tokens. This is a reasoning model, and uses more tokens than LLMs. Temperature must be 1.0 for reasoning models.",
+        "priority": 7,
         "class": "OpenRouter",
         "arguments": {
             "model": "openai/gpt-oss-20b",
             "api_key": "${OPENROUTER_API_KEY}",
-            "temperature": 0.1,
+            "temperature": 1.0,
             "timeout": 60.0,
             "is_function_calling_model": false,
             "is_chat_model": true,
@@ -14,12 +31,13 @@
         }
     },
     "openrouter-paid-nvidia-nemotron-3-nano-30b-a3b": {
-        "comment": "This is very fast. It's paid, so check the pricing before use. Created Dec 14, 2025. 262,144 context. $0.06/M input tokens. $0.24/M output tokens. This is a reasoning model, and uses more tokens than LLMs.",
+        "comment": "This is very fast. It's paid, so check the pricing before use. Created Dec 14, 2025. 262,144 context. $0.06/M input tokens. $0.24/M output tokens. This is a reasoning model, and uses more tokens than LLMs. Temperature must be 1.0 for reasoning models.",
+        "priority": 6,
         "class": "OpenRouter",
         "arguments": {
             "model": "nvidia/nemotron-3-nano-30b-a3b",
             "api_key": "${OPENROUTER_API_KEY}",
-            "temperature": 0.1,
+            "temperature": 1.0,
             "timeout": 60.0,
             "is_function_calling_model": false,
             "is_chat_model": true,
@@ -27,12 +45,12 @@
             "max_retries": 5
         }
     },
-    "openrouter-paid-gemini-2.0-flash-001": {
-        "comment": "This is very fast. It's paid, so check the pricing before use. Created Feb 25, 2025. 1,048,576 context. $0.075/M input tokens. $0.30/M output tokens.",
-        "priority": 1,
+    "openrouter-paid-gemini-3-flash-preview": {
+        "comment": "Gemini 3 Flash Preview - Very fast. It's paid, check the pricing before use. Current workhorse model.",
+        "priority": 2,
         "class": "OpenRouter",
         "arguments": {
-            "model": "google/gemini-2.0-flash-001",
+            "model": "google/gemini-3-flash-preview",
             "api_key": "${OPENROUTER_API_KEY}",
             "temperature": 0.1,
             "timeout": 60.0,
@@ -42,12 +60,42 @@
             "max_retries": 5
         }
     },
-    "openrouter-paid-openai-gpt-4o-mini": {
-        "comment": "This is medium fast. It's paid, so check the pricing before use. Created Jul 18, 2024. 128,000 context. Starting at $0.15/M input tokens. Starting at $0.60/M output tokens.",
-        "priority": 2,
+    "openrouter-paid-z-ai-glm-4.7-flash": {
+        "comment": "GLM-4.7 Flash - Fast model from Z-AI. It's paid, check pricing before use.",
+        "priority": 3,
         "class": "OpenRouter",
         "arguments": {
-            "model": "openai/gpt-4o-mini",
+            "model": "z-ai/glm-4.7-flash",
+            "api_key": "${OPENROUTER_API_KEY}",
+            "temperature": 0.1,
+            "timeout": 60.0,
+            "is_function_calling_model": false,
+            "is_chat_model": true,
+            "max_tokens": 8192,
+            "max_retries": 5
+        }
+    },
+    "openrouter-paid-z-ai-glm-4.7": {
+        "comment": "GLM-4.7 - Standard model from Z-AI. It's paid, check pricing before use.",
+        "priority": 4,
+        "class": "OpenRouter",
+        "arguments": {
+            "model": "z-ai/glm-4.7",
+            "api_key": "${OPENROUTER_API_KEY}",
+            "temperature": 0.1,
+            "timeout": 60.0,
+            "is_function_calling_model": false,
+            "is_chat_model": true,
+            "max_tokens": 8192,
+            "max_retries": 5
+        }
+    },
+    "openrouter-paid-xiaomi-mimo-v2-flash": {
+        "comment": "Mimo v2 Flash - Fast model from Xiaomi. It's paid, check pricing before use.",
+        "priority": 5,
+        "class": "OpenRouter",
+        "arguments": {
+            "model": "xiaomi/mimo-v2-flash",
             "api_key": "${OPENROUTER_API_KEY}",
             "temperature": 0.1,
             "timeout": 60.0,
@@ -58,8 +106,8 @@
         }
     },
     "openrouter-paid-qwen3-30b-a3b": {
-        "comment": "This is slow. It's paid, so check the pricing before use. Created Apr 28, 2025. 40,960 context. $0.08/M input tokens. $0.29/M output tokens.",
-        "priority": 3,
+        "comment": "This is slow. It's paid, so check the pricing before use. Created Apr 28, 2025. 40,960 context. $0.08/M input tokens. $0.29/M output tokens. DEPRECATED - Use newer models instead.",
+        "priority": 10,
         "class": "OpenRouter",
         "arguments": {
             "model": "qwen/qwen3-30b-a3b",
