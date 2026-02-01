@@ -8,6 +8,7 @@
             "api_key": "${OPENAI_API_KEY}",
             "temperature": 1.0,
             "timeout": 120.0,
+            "reasoning_effort": "minimal",
             "context_window": 400000,
             "is_function_calling_model": false,
             "is_chat_model": true,
@@ -41,7 +42,7 @@
             "timeout": 60.0,
             "is_function_calling_model": false,
             "is_chat_model": true,
-            "max_tokens": 8192,
+            "max_tokens": 128000,
             "max_retries": 5
         }
     },
@@ -56,7 +57,7 @@
             "timeout": 60.0,
             "is_function_calling_model": false,
             "is_chat_model": true,
-            "max_tokens": 8192,
+            "max_tokens": 128000,
             "max_retries": 5
         }
     },
@@ -71,7 +72,7 @@
             "timeout": 60.0,
             "is_function_calling_model": false,
             "is_chat_model": true,
-            "max_tokens": 8192,
+            "max_tokens": 128000,
             "max_retries": 5
         }
     },
@@ -86,7 +87,7 @@
             "timeout": 60.0,
             "is_function_calling_model": false,
             "is_chat_model": true,
-            "max_tokens": 8192,
+            "max_tokens": 128000,
             "max_retries": 5
         }
     },
@@ -101,7 +102,7 @@
             "timeout": 60.0,
             "is_function_calling_model": false,
             "is_chat_model": true,
-            "max_tokens": 8192,
+            "max_tokens": 128000,
             "max_retries": 5
         }
     },
