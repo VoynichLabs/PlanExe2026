@@ -55,7 +55,7 @@
             "api_key": "${OPENROUTER_API_KEY}",
             "temperature": 1.0,
             "timeout": 60.0,
-            "reasoning_effort": "low",
+            "reasoning_effort": "minimal",
             "is_function_calling_model": false,
             "is_chat_model": true,
             "max_tokens": 128000,
