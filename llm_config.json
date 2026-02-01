@@ -15,6 +15,22 @@
             "max_retries": 5
         }
     },
+    "openai-paid-gpt-5-nano": {
+        "comment": "This is slow. It's paid, and requires that you have a OPENAI_API_KEY in the .env file. This is a reasoning model, so it takes MUCH longer to create a plan.",
+        "priority": 8,
+        "class": "OpenAI",
+        "arguments": {
+            "model": "gpt-5-nano",
+            "api_key": "${OPENAI_API_KEY}",
+            "temperature": 1.0,
+            "timeout": 120.0,
+            "context_window": 400000,
+            "is_function_calling_model": false,
+            "is_chat_model": true,
+            "max_tokens": 128000,
+            "max_retries": 5
+        }
+    },
     "openrouter-paid-openai-gpt-oss-20b": {
         "comment": "This is very fast. It's paid, so check the pricing before use. Created August 5, 2025. 131,072 context. $0.05/M input tokens. $0.20/M output tokens. This is a reasoning model, and uses more tokens than LLMs. Temperature must be 1.0 for reasoning models.",
         "priority": 7,
