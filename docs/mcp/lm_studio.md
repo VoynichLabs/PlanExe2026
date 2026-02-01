@@ -1,3 +1,7 @@
+---
+title: LM Studio - MCP integration
+---
+
 # LM Studio
 
 [LM Studio](https://lmstudio.ai/) is available for Linux/macOS/Windows.

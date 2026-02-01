@@ -1,3 +1,7 @@
+---
+title: Statistics for PlanExe
+---
+
 # PlanExe Statistics
 
 ## GitHub stars

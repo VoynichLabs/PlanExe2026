@@ -1,3 +1,7 @@
+---
+title: Codex - MCP integration
+---
+
 # OpenAI Codex
 
 Guide for connecting [codex](https://openai.com/codex/) with PlanExe via MCP.

@@ -1,3 +1,7 @@
+---
+title: Cursor - MCP integration
+---
+
 # Cursor
 
 According to [Cursor's wikipedia page](https://en.wikipedia.org/wiki/Cursor_(code_editor)):

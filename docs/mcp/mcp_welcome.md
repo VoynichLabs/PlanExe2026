@@ -1,3 +1,7 @@
+---
+title: Welcome to PlanExe MCP
+---
+
 # Welcome to PlanExe MCP
 
 PlanExe MCP lets [AI agents](https://en.wikipedia.org/wiki/AI_agent) (and the tools you build) create [strategic plans](https://en.wikipedia.org/wiki/Strategic_planning) from a plain-English prompt. You send a goal; PlanExe produces a draft plan. The MCP user then chooses whether to download the **HTML report** or a **zip** of intermediary files (JSON, MD, CSV) used to build that report.
