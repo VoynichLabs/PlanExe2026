@@ -46,7 +46,7 @@
             "max_retries": 5
         }
     },
-    "openrouter-free-nvidia-nemotron-3-nano-30b-a3b": {
+    "openrouter-free-nvidia-nemotron-3-nano-30b-a3b:free": {
         "comment": "Free slug of Nemotron 3 Nano via OpenRouter. Added Feb 1, 2026 for testing.",
         "priority": 1,
         "class": "OpenRouter",
@@ -124,7 +124,7 @@
     },
     "openrouter-free-trinity-large-preview": {
         "comment": "Free model from Arcee AI via OpenRouter. Updated Feb 1, 2026. Testing priority 1.",
-        "priority": 1,
+        "priority": 11,
         "class": "OpenRouter",
         "arguments": {
             "model": "arcee-ai/trinity-large-preview:free",
