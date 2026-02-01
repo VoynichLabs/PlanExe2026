@@ -33,7 +33,7 @@
     },
     "openrouter-paid-nvidia-nemotron-3-nano-30b-a3b": {
         "comment": "This is very fast. It's paid, so check the pricing before use. Created Dec 14, 2025. 262,144 context. $0.06/M input tokens. $0.24/M output tokens. This is a reasoning model, and uses more tokens than LLMs. Temperature must be 1.0 for reasoning models.",
-        "priority": 6,
+        "priority": 2,
         "class": "OpenRouter",
         "arguments": {
             "model": "nvidia/nemotron-3-nano-30b-a3b",
@@ -48,7 +48,7 @@
     },
     "openrouter-paid-gemini-3-flash-preview": {
         "comment": "Gemini 3 Flash Preview - Very fast. It's paid, check the pricing before use. Current workhorse model.",
-        "priority": 2,
+        "priority": 6,
         "class": "OpenRouter",
         "arguments": {
             "model": "google/gemini-3-flash-preview",
@@ -106,18 +106,18 @@
             "max_retries": 5
         }
     },
-    "openrouter-paid-qwen3-30b-a3b": {
-        "comment": "This is slow. It's paid, so check the pricing before use. Created Apr 28, 2025. 40,960 context. $0.08/M input tokens. $0.29/M output tokens. DEPRECATED - Use newer models instead.",
-        "priority": 10,
+    "openrouter-free-trinity-large-preview": {
+        "comment": "Free model from Arcee AI via OpenRouter. Updated Feb 1, 2026. Testing priority 1.",
+        "priority": 1,
         "class": "OpenRouter",
         "arguments": {
-            "model": "qwen/qwen3-30b-a3b",
+            "model": "arcee-ai/trinity-large-preview:free",
             "api_key": "${OPENROUTER_API_KEY}",
-            "temperature": 0.1,
-            "timeout": 60.0,
+            "temperature": 1.0,
+            "timeout": 120.0,
             "is_function_calling_model": false,
             "is_chat_model": true,
-            "max_tokens": 8192,
+            "max_tokens": 100000,
             "max_retries": 5
         }
     },
