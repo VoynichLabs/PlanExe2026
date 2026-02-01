@@ -1,3 +1,7 @@
+---
+title: Deploy PlanExe on Railway
+---
+
 # PlanExe on Railway - Experimental
 
 As of 2026-Jan-04, I'm experimenting with Railway. Currently the `frontend_multi_user` UI is an ugly MVP. I recommend going with the `frontend_single_user`, that doesn't use database.
