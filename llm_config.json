@@ -1,7 +1,7 @@
 {
     "openai-paid-gpt-5-nano": {
         "comment": "This is slow. It's paid, and requires that you have a OPENAI_API_KEY in the .env file. This is a reasoning model, so it takes MUCH longer to create a plan.",
-        "priority": 1,
+        "priority": 3,
         "class": "OpenAI",
         "arguments": {
             "model": "gpt-5-nano",
@@ -40,6 +40,22 @@
             "api_key": "${OPENROUTER_API_KEY}",
             "temperature": 1.0,
             "timeout": 60.0,
+            "is_function_calling_model": false,
+            "is_chat_model": true,
+            "max_tokens": 128000,
+            "max_retries": 5
+        }
+    },
+    "openrouter-free-nvidia-nemotron-3-nano-30b-a3b": {
+        "comment": "Free slug of Nemotron 3 Nano via OpenRouter. Added Feb 1, 2026 for testing.",
+        "priority": 1,
+        "class": "OpenRouter",
+        "arguments": {
+            "model": "nvidia/nemotron-3-nano-30b-a3b:free",
+            "api_key": "${OPENROUTER_API_KEY}",
+            "temperature": 1.0,
+            "timeout": 60.0,
+            "reasoning_effort": "low",
             "is_function_calling_model": false,
             "is_chat_model": true,
             "max_tokens": 128000,
