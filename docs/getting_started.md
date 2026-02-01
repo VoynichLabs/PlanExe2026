@@ -43,7 +43,7 @@ The generated plans are written to `run/<timestamped-output-dir>`.
 
 ## Troubleshooting and next steps
 - For Docker tips, see [docker.md](docker.md).
-- For OpenRouter-specific notes, see [openrouter.md](openrouter.md).
+- For OpenRouter-specific notes, see [openrouter.md](ai_providers/openrouter.md).
 - If the UI fails to load or plans don’t start, check worker logs: `docker compose logs -f worker_plan`.
 
 ## Community

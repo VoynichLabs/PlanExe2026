@@ -61,7 +61,7 @@ When adding or editing links from one doc file to another in `PlanExe/docs/`, us
 ```markdown
 [PlanExe MCP interface](mcp/planexe_mcp_interface.md)
 [Docker](docker.md)
-[OpenRouter](openrouter.md)
+[OpenRouter](ai_providers/openrouter.md)
 ```
 
 External links (e.g. `https://planexe.org/`) are unchanged; this applies only to links between documentation `.md` files in this repo.
