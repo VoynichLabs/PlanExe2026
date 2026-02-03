@@ -341,12 +341,13 @@ def _register_tools(server: FastMCP) -> None:
 fastmcp_server = FastMCP(
     name="planexe-mcp-server",
     instructions=(
-    "PlanExe generates rough-draft project plans from a natural-language prompt. "
-    "You describe a large goal (e.g. open a clinic, launch a product, build a moon base)—the kind of project that takes months or years. "
-    "PlanExe produces a structured draft with steps and deliverables (Gantt chart, risk analysis, etc.); the plan is not executable yet, it's a draft to refine. "
-    "Creating a plan is a long-running task (100+ LLM calls). Main output: large HTML file (approx 700KB) and a zip of intermediary files (md, json, csv). "
-    "Call prompt_examples first, then task_create; poll task_status and use task_download or task_file_info when complete."
-),
+        "PlanExe generates rough-draft project plans from a natural-language prompt. "
+        "You describe a large goal (e.g. open a clinic, launch a product, build a moon base)—the kind of project that takes months or years. "
+        "PlanExe produces a structured draft with steps and deliverables (Gantt chart, risk analysis, etc.); the plan is not executable yet, it's a draft to refine. "
+        "Creating a plan is a long-running task (100+ LLM calls). Main output: large HTML file (approx 700KB) and a zip of intermediary files (md, json, csv). "
+        "Flow: (1) Call prompt_examples to fetch example prompts. (2) Draft a prompt with similar structure; get user approval. (3) Only then call task_create. "
+        "Poll task_status; use task_download or task_file_info when complete. To stop a running plan, call task_stop with the same task_id (UUID) returned by task_create."
+    ),
     host=HTTP_HOST,
     port=HTTP_PORT,
     streamable_http_path="/",

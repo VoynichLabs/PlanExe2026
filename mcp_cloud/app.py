@@ -106,7 +106,8 @@ PLANEXE_SERVER_INSTRUCTIONS = (
     "You describe a large goal (e.g. open a clinic, launch a product, build a moon base)—the kind of project that takes months or years. "
     "PlanExe produces a structured draft with steps and deliverables (Gantt chart, risk analysis, etc.); the plan is not executable yet, it's a draft to refine. "
     "Creating a plan is a long-running task (100+ LLM calls). Main output: large HTML file (approx 700KB) and a zip of intermediary files (md, json, csv). "
-    "Call prompt_examples first, then task_create; poll task_status and use task_download or task_file_info when complete."
+    "Flow: (1) Call prompt_examples to fetch example prompts. (2) Draft a prompt with similar structure; get user approval. (3) Only then call task_create. "
+    "Poll task_status; use task_download or task_file_info when complete. To stop a running plan, call task_stop with the same task_id (UUID) returned by task_create."
 )
 
 mcp_cloud = Server("planexe-mcp-cloud", instructions=PLANEXE_SERVER_INSTRUCTIONS)
@@ -664,7 +665,8 @@ TOOL_DEFINITIONS = [
         description=(
             "Call this first to see what a good prompt looks like. "
             "Returns curated example prompts from the PlanExe catalog (entries marked mcp_example). "
-            "Use them as the level of detail for task_create; short prompts produce less detailed plans."
+            "Do NOT call task_create immediately with a copied example. "
+            "Use the examples as inspiration; draft a prompt with similar structure; get user approval; only then call task_create."
         ),
         input_schema=PROMPT_EXAMPLES_INPUT_SCHEMA,
         output_schema=PROMPT_EXAMPLES_OUTPUT_SCHEMA,
@@ -673,8 +675,8 @@ TOOL_DEFINITIONS = [
         name="task_create",
         description=(
             "PlanExe turns a plain-English goal into a structured strategic-plan draft (executive summary, Gantt, risk register, governance, etc.) in ~15–20 min. "
-            "Start creating a new plan. Call prompt_examples for example prompts first. "
-            "Returns task_id as a UUID; use that exact id for task_status/task_stop/task_download. "
+            "Do NOT invoke immediately with a copied example prompt. Flow: call prompt_examples first; draft a prompt with similar structure; get user approval; then call task_create. "
+            "Returns task_id as a UUID; use that exact id for task_status, task_stop, and task_download. "
             "speed_vs_detail modes: "
             "'all' runs the full pipeline with all details (slower, higher token usage/cost). "
             "'fast' runs the full pipeline with minimal work per step (faster, fewer details), "
@@ -697,7 +699,10 @@ TOOL_DEFINITIONS = [
     ),
     ToolDefinition(
         name="task_stop",
-        description="Stops the plan that is currently being created.",
+        description=(
+            "Request the plan generation to stop. Pass the task_id (the UUID returned by task_create). "
+            "This is a normal MCP tool call: call task_stop with that task_id."
+        ),
         input_schema=TASK_STOP_INPUT_SCHEMA,
         output_schema=TASK_STOP_OUTPUT_SCHEMA,
     ),
@@ -785,7 +790,10 @@ async def handle_prompt_examples(arguments: dict[str, Any]) -> CallToolResult:
     samples = _load_mcp_example_prompts()
     payload = {
         "samples": samples,
-        "message": "Use these as examples for task_create.",
+        "message": (
+            "Use these as inspiration. Draft a prompt with similar structure, get user approval, then call task_create. "
+            "Do not call task_create immediately with a copied example."
+        ),
     }
     return CallToolResult(
         content=[TextContent(type="text", text=json.dumps(payload))],

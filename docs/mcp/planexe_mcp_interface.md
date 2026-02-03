@@ -15,7 +15,7 @@ The plan is a **project plan**: a DAG of steps (Luigi tasks) that produce artifa
 Implementors should expose the following to agents so they understand what PlanExe does:
 
 - **What:** PlanExe turns a plain-English goal into a structured strategic-plan draft (executive summary, Gantt, risk register, governance, etc.) in ~15–20 min. The plan is a draft to refine, not an executable or final document.
-- **Flow:** Call prompt_examples first, then task_create; poll task_status at reasonable intervals (e.g. every 5 min); use task_download or task_file_info when complete.
+- **Flow:** (1) Call prompt_examples to fetch example prompts. (2) Draft a prompt with similar structure; get user approval. (3) Only then call task_create. Poll task_status at reasonable intervals (e.g. every 5 min); use task_download or task_file_info when complete. To stop a running plan, call task_stop with the same task_id (UUID) returned by task_create.
 - **Output:** Large HTML report (~700KB) and optional zip of intermediate files (md, json, csv).
 
 ### 1.3 Scope of this document
@@ -163,7 +163,7 @@ All tool names below are normative.
 
 ### 6.1 prompt_examples
 
-Returns example prompts that define the baseline for a good prompt. Call this tool before task_create and refine your prompt until it matches that quality. If you create a task with a weaker prompt, the resulting plan will be lower quality than it could be.
+Returns example prompts that define the baseline for what a good prompt looks like. **Do not call task_create immediately with a copied example.** Correct flow: (1) Call this tool to fetch examples. (2) Draft a prompt with similar structure, taking inspiration from the examples. (3) Get user approval of the draft. (4) Only then call task_create. If you create a task with a weaker or unapproved prompt, the resulting plan will be lower quality than it could be.
 
 **Request:** no parameters (empty object).
 
@@ -180,7 +180,7 @@ Returns example prompts that define the baseline for a good prompt. Call this to
 
 ### 6.2 task_create
 
-Start creating a new plan. speed_vs_detail modes: 'all' runs the full pipeline with all details (slower, higher token usage/cost). 'fast' runs the full pipeline with minimal work per step (faster, fewer details), useful to verify the pipeline is working. 'ping' runs the pipeline entrypoint and makes a single LLM call to verify the worker_plan_database is processing tasks and can reach the LLM.
+Start creating a new plan. **Do not invoke immediately with a copied example prompt.** Correct flow: call prompt_examples first; draft a prompt with similar structure; get user approval; then call task_create. speed_vs_detail modes: 'all' runs the full pipeline with all details (slower, higher token usage/cost). 'fast' runs the full pipeline with minimal work per step (faster, fewer details), useful to verify the pipeline is working. 'ping' runs the pipeline entrypoint and makes a single LLM call to verify the worker_plan_database is processing tasks and can reach the LLM.
 
 **Request**
 
@@ -291,7 +291,7 @@ Returns run status and progress. Used for progress bars and UI states. **Polling
 
 ### 6.4 task_stop
 
-Stops the active run.
+Requests the plan generation to stop. Pass the **task_id** (the UUID returned by task_create). This is a normal MCP tool call: call task_stop with that task_id.
 
 **Request**
 
@@ -303,7 +303,7 @@ Stops the active run.
 
 **Input**
 
-- task_id: UUID returned by task_create. Use it to stop the plan creation.
+- task_id: UUID returned by task_create. Use this same UUID when calling task_stop to request the run to stop.
 
 **Response**
 

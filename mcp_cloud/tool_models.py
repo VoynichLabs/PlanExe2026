@@ -34,7 +34,7 @@ class TaskStatusInput(BaseModel):
 class TaskStopInput(BaseModel):
     task_id: str = Field(
         ...,
-        description="Task UUID returned by task_create. Use it to stop the plan creation.",
+        description="The UUID returned by task_create. Call task_stop with this task_id to request the plan generation to stop.",
     )
 
 
