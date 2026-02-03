@@ -71,16 +71,6 @@ MAX_BODY_BYTES = int(os.environ.get("PLANEXE_MCP_MAX_BODY_BYTES", "1048576"))
 RATE_LIMIT_REQUESTS = int(os.environ.get("PLANEXE_MCP_RATE_LIMIT", "60"))
 RATE_LIMIT_WINDOW_SECONDS = float(os.environ.get("PLANEXE_MCP_RATE_WINDOW_SECONDS", "60"))
 
-SpeedVsDetailInput = Literal[
-    "ping",
-    "fast",
-    "all",
-]
-ResultArtifactInput = Literal[
-    "report",
-    "zip",
-]
-
 
 def _split_csv_env(value: Optional[str]) -> list[str]:
     if not value:
@@ -283,37 +273,39 @@ def _normalize_tool_result(result: Any) -> tuple[list[dict[str, Any]], Optional[
     return content, error
 
 
+SpeedVsDetailInput = Literal["ping", "fast", "all"]
+ResultArtifactInput = Literal["report", "zip"]
+
+
 async def task_create(
     prompt: str,
     speed_vs_detail: Annotated[
         SpeedVsDetailInput,
         Field(
-            description=(
-                "Defaults to ping (alias for ping_llm). Options: ping, fast, all."
-            ),
+            description="Defaults to ping (alias for ping_llm). Options: ping, fast, all.",
         ),
     ] = "ping",
 ) -> Annotated[CallToolResult, TaskCreateOutput]:
+    """Create a new PlanExe task. Use prompt_examples first for example prompts."""
     return await handle_task_create(
-        {
-            "prompt": prompt,
-            "speed_vs_detail": speed_vs_detail,
-        }
+        {"prompt": prompt, "speed_vs_detail": speed_vs_detail},
     )
 
 
-async def task_status(task_id: str) -> Annotated[CallToolResult, TaskStatusOutput]:
+async def task_status(
+    task_id: str = Field(..., description="Task UUID returned by task_create."),
+) -> Annotated[CallToolResult, TaskStatusOutput]:
     return await handle_task_status({"task_id": task_id})
 
 
 async def task_stop(
-    task_id: str,
+    task_id: str = Field(..., description="Task UUID returned by task_create. Use it to stop the plan creation."),
 ) -> Annotated[CallToolResult, TaskStopOutput]:
     return await handle_task_stop({"task_id": task_id})
 
 
 async def task_file_info(
-    task_id: str,
+    task_id: str = Field(..., description="Task UUID returned by task_create. Use it to download the created plan."),
     artifact: Annotated[
         ResultArtifactInput,
         Field(description="Download artifact type: report or zip."),
@@ -349,12 +341,13 @@ def _register_tools(server: FastMCP) -> None:
 fastmcp_server = FastMCP(
     name="planexe-mcp-server",
     instructions=(
-    "PlanExe generates rough-draft project plans from a natural-language prompt. "
-    "You describe a large goal (e.g. open a clinic, launch a product, build a moon base)—the kind of project that takes months or years. "
-    "PlanExe produces a structured draft with steps and deliverables (Gantt chart, risk analysis, etc.); the plan is not executable yet, it's a draft to refine. "
-    "Creating a plan is a long-running task (100+ LLM calls). Main output: large HTML file (approx 700KB) and a zip of intermediary files (md, json, csv). "
-    "Call prompt_examples first, then task_create; poll task_status and use task_download or task_file_info when complete."
-),
+        "PlanExe generates rough-draft project plans from a natural-language prompt. "
+        "Required interaction order: Step 1 — Call prompt_examples to fetch example prompts. "
+        "Step 2 — Formulate a good prompt (use examples as a baseline; similar structure; get user approval). "
+        "Step 3 — Only then call task_create with the approved prompt. "
+        "Then poll task_status; use task_download or task_file_info when complete. To stop, call task_stop with the task_id from task_create. "
+        "Main output: large HTML report (~700KB) and zip of intermediary files (md, json, csv)."
+    ),
     host=HTTP_HOST,
     port=HTTP_PORT,
     streamable_http_path="/",
