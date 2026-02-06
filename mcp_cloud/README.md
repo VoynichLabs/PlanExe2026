@@ -88,11 +88,25 @@ Set `PLANEXE_MCP_API_KEY` to the same value you use in `Authorization: Bearer <k
 
 ### Available HTTP Endpoints
 
-- `POST /mcp` - Main MCP JSON-RPC endpoint (recommended)
-- `POST /mcp/tools/call` - Alternative HTTP wrapper for tool calls
-- `GET /mcp/tools` - List available tools
+- `POST /mcp` - Main MCP JSON-RPC endpoint (Streamable HTTP; may use SSE for streaming)
+- `GET /mcp/tools` - **List tools (JSON). No SSE required.** Use this if your client reports "SSE error" when connecting to `/mcp`.
+- `POST /mcp/tools/call` - **Call a tool (JSON). No SSE required.**
 - `GET /healthcheck` - Health check endpoint
 - `GET /docs` - OpenAPI documentation (Swagger UI)
+
+### "SSE error" or "no Server-SSE stream" from the client
+
+Some MCP clients (e.g. OpenClaw/mcporter) connect by doing a **GET** to the server URL and expect a **Server-Sent Events (SSE)** stream (`Content-Type: text/event-stream`). That is the **Streamable HTTP** transport. This server mounts FastMCP at `/mcp`; **GET /mcp** returns a **307 redirect** to `/mcp/`, and the Streamable HTTP handshake may not match what the client expects, so the client reports "SSE error" or "could not fetch … no SSE stream".
+
+**You do not need SSE for tools.** MCP over HTTP can use plain JSON:
+
+- **List tools:** `GET http://<host>:8001/mcp/tools` → returns `{"tools": [...]}` (JSON).
+- **Call a tool:** `POST http://<host>:8001/mcp/tools/call` with body `{"tool": "task_create", "arguments": {"prompt": "…", "speed_vs_detail": "ping"}}` → returns JSON.
+
+If your client only supports Streamable HTTP and fails on `/mcp`, you have two options:
+
+1. **Point the client at the JSON API** if it allows a separate "tools list" URL: use `GET /mcp/tools` for listing and `POST /mcp/tools/call` for calls (no SSE).
+2. **Use baseUrl with trailing slash** (e.g. `http://192.168.1.10:8001/mcp/`) so the client does not follow a redirect; whether that fixes SSE depends on how the client and FastMCP do the Streamable HTTP handshake.
 
 ## Environment Variables
 
@@ -101,7 +115,7 @@ Set `PLANEXE_MCP_API_KEY` to the same value you use in `Authorization: Bearer <k
 - `PLANEXE_MCP_API_KEY`: **Required for production**. API key for authentication. Clients can provide `Authorization: Bearer <key>` or `X-API-Key`.
 - `PLANEXE_MCP_HTTP_HOST`: HTTP server host (default: `127.0.0.1`). Use `0.0.0.0` to bind all interfaces (containers/cloud).
 - `PLANEXE_MCP_HTTP_PORT`: HTTP server port (default: `8001`). Railway will override with `PORT` env var.
-- `PLANEXE_MCP_PUBLIC_BASE_URL`: Public base URL for report download links (default unset; clients can use the connected base URL).
+- `PLANEXE_MCP_PUBLIC_BASE_URL`: Public base URL for report/zip download links in `task_file_info` (e.g. `http://192.168.1.40:8001`). When unset, the HTTP server uses the request’s host (scheme + authority), so clients connecting at `http://192.168.1.40:8001/mcp/` get download URLs like `http://192.168.1.40:8001/download/...` instead of localhost. If clients still see localhost in download URLs (e.g. behind a proxy), uncomment and set this in the repo’s `.env.docker-example` or `.env.developer-example` (copy to `.env` and fill in your public URL).
 - `PORT`: Railway-provided port (takes precedence over `PLANEXE_MCP_HTTP_PORT`)
 - `PLANEXE_MCP_CORS_ORIGINS`: Comma-separated list of allowed origins (default: `http://localhost,http://127.0.0.1`).
 - `PLANEXE_MCP_MAX_BODY_BYTES`: Max request size for `POST /mcp/tools/call` (default: `1048576`).
@@ -125,7 +139,7 @@ mcp_cloud uses the same database configuration as other PlanExe services:
 See `docs/mcp/planexe_mcp_interface.md` for full specification. Available tools:
 
 - `prompt_examples` - Return example prompts. Use these as examples for task_create.
-- `task_create` - Create a new task
+- `task_create` - Create a new task (returns task_id as UUID)
 - `task_status` - Get task status and progress
 - `task_stop` - Stop an active task
 - `task_file_info` - Get file metadata for report or zip
