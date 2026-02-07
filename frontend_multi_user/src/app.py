@@ -454,47 +454,46 @@ class MyFlaskApp:
         if not provider_user_id:
             raise ValueError("OAuth profile missing provider user id.")
 
-        with self.app.app_context():
-            existing_provider = UserProvider.query.filter_by(
-                provider=provider,
-                provider_user_id=provider_user_id,
-            ).first()
-            now = datetime.now(UTC)
+        existing_provider = UserProvider.query.filter_by(
+            provider=provider,
+            provider_user_id=provider_user_id,
+        ).first()
+        now = datetime.now(UTC)
 
-            if existing_provider:
-                user = self.db.session.get(UserAccount, existing_provider.user_id)
-                existing_provider.raw_profile = profile
-                existing_provider.email = profile.get("email")
-                existing_provider.last_login_at = now
-                if user:
-                    user.last_login_at = now
-                    self._update_user_from_profile(user, profile)
-                    self.db.session.commit()
-                    return user
+        if existing_provider:
+            user = self.db.session.get(UserAccount, existing_provider.user_id)
+            existing_provider.raw_profile = profile
+            existing_provider.email = profile.get("email")
+            existing_provider.last_login_at = now
+            if user:
+                user.last_login_at = now
+                self._update_user_from_profile(user, profile)
+                self.db.session.commit()
+                return user
 
-            user = UserAccount(
-                email=profile.get("email"),
-                name=profile.get("name") or profile.get("username") or profile.get("login"),
-                given_name=profile.get("given_name"),
-                family_name=profile.get("family_name"),
-                locale=profile.get("locale"),
-                avatar_url=profile.get("picture") or profile.get("avatar_url") or profile.get("avatar"),
-                last_login_at=now,
-            )
-            self.db.session.add(user)
-            self.db.session.commit()
+        user = UserAccount(
+            email=profile.get("email"),
+            name=profile.get("name") or profile.get("username") or profile.get("login"),
+            given_name=profile.get("given_name"),
+            family_name=profile.get("family_name"),
+            locale=profile.get("locale"),
+            avatar_url=profile.get("picture") or profile.get("avatar_url") or profile.get("avatar"),
+            last_login_at=now,
+        )
+        self.db.session.add(user)
+        self.db.session.commit()
 
-            provider_row = UserProvider(
-                user_id=user.id,
-                provider=provider,
-                provider_user_id=provider_user_id,
-                email=profile.get("email"),
-                raw_profile=profile,
-                last_login_at=now,
-            )
-            self.db.session.add(provider_row)
-            self.db.session.commit()
-            return user
+        provider_row = UserProvider(
+            user_id=user.id,
+            provider=provider,
+            provider_user_id=provider_user_id,
+            email=profile.get("email"),
+            raw_profile=profile,
+            last_login_at=now,
+        )
+        self.db.session.add(provider_row)
+        self.db.session.commit()
+        return user
 
     def _update_user_from_profile(self, user: UserAccount, profile: dict[str, Any]) -> None:
         user.email = profile.get("email") or user.email
@@ -620,6 +619,10 @@ class MyFlaskApp:
                 abort(404)
             client = self.oauth.create_client(provider)
             redirect_uri = self._oauth_redirect_url(provider)
+            if provider == "google":
+                nonce = secrets.token_urlsafe(16)
+                session["oauth_google_nonce"] = nonce
+                return client.authorize_redirect(redirect_uri, nonce=nonce)
             return client.authorize_redirect(redirect_uri)
 
         @self.app.route('/auth/<provider>/callback')
@@ -628,7 +631,13 @@ class MyFlaskApp:
                 abort(404)
             client = self.oauth.create_client(provider)
             token = client.authorize_access_token()
-            profile = self._get_user_from_provider(provider, token)
+            if provider == "google":
+                nonce = session.pop("oauth_google_nonce", None)
+                profile = client.parse_id_token(token, nonce=nonce)
+                if not profile:
+                    profile = client.get("userinfo").json()
+            else:
+                profile = self._get_user_from_provider(provider, token)
             user = self._upsert_user_from_oauth(provider, profile)
             login_user(User(user.id, is_admin=user.is_admin))
             new_api_key = self._get_or_create_api_key(user)
