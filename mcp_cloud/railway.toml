@@ -1,5 +1,6 @@
 [build]
-builder = "NIXPACKS"
+builder = "DOCKERFILE"
+dockerfilePath = "mcp_cloud/Dockerfile"
 
 [deploy]
 startCommand = "python -m mcp_cloud.http_server"

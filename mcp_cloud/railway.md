@@ -2,6 +2,11 @@
 
 Deploy mcp_cloud (PlanExe MCP cloud service) to Railway as an HTTP service.
 
+```
+PLANEXE_MCP_HTTP_HOST="0.0.0.0"
+PLANEXE_MCP_HTTP_PORT=8001
+```
+
 ## Required Environment Variables
 
 Set these in your Railway project:
@@ -65,3 +70,8 @@ Replace `https://your-railway-app.up.railway.app` with your Railway deployment U
 ## Health Check
 
 The service exposes a health check endpoint at `/healthcheck` that Railway can use for monitoring.
+
+## Domain
+
+Configure a `Custom Domain` named `mcp.planexe.org`, that points to railway.
+Incoming traffic on port 80 gets redirect to target port 8001.
