@@ -65,6 +65,7 @@
     <div class="form-signin" style="margin-top: 16px;">
         <h4>Or sign in with username and password</h4>
         <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
             <label for="username" class="sr-only">Username</label>
             <input type="text" id="username" name="username" class="form-control" placeholder="Username" required autofocus>
             <label for="password" class="sr-only">Password</label>

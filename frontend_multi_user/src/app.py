@@ -23,6 +23,7 @@ from flask_admin import Admin, AdminIndexView, expose
 from flask_admin.contrib.sqla import ModelView
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from authlib.integrations.flask_client import OAuth
+from flask_wtf.csrf import CSRFProtect
 from functools import wraps
 import urllib.request
 from urllib.error import URLError
@@ -216,6 +217,10 @@ class MyFlaskApp:
             self.app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
         if not self.public_base_url:
             logger.warning("PLANEXE_PUBLIC_BASE_URL not set; OAuth redirects will use request.host.")
+
+        # Enable CSRF protection
+        self.csrf = CSRFProtect(self.app)
+        logger.info("CSRF protection enabled")
 
         self.oauth = OAuth(self.app)
         self._register_oauth_providers()
