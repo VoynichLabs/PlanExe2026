@@ -635,6 +635,12 @@ class MyFlaskApp:
                 telegram_login_url=os.environ.get("PLANEXE_TELEGRAM_LOGIN_URL") or None,
             )
 
+        @self.app.route('/api/oauth-redirect-uri')
+        def oauth_redirect_uri_debug():
+            """Return the redirect URI the app sends to Google. Use this to verify Google Console has the exact same URI."""
+            redirect_uri = self._oauth_redirect_url("google") if "google" in self.oauth_providers else ""
+            return redirect_uri, 200, {"Content-Type": "text/plain; charset=utf-8"}
+
         @self.app.route('/login/<provider>')
         def oauth_login(provider: str):
             if provider not in self.oauth_providers:
