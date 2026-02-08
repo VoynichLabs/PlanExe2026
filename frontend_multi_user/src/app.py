@@ -583,6 +583,23 @@ class MyFlaskApp:
             )
 
     def _setup_routes(self):
+        @self.app.context_processor
+        def inject_current_user_name():
+            """Inject current_user_name for header display (full name or None)."""
+            if not current_user.is_authenticated:
+                return {"current_user_name": None}
+            if current_user.is_admin:
+                return {"current_user_name": "Admin"}
+            try:
+                user_uuid = uuid.UUID(str(current_user.id))
+            except ValueError:
+                return {"current_user_name": None}
+            user = self.db.session.get(UserAccount, user_uuid)
+            if not user:
+                return {"current_user_name": None}
+            name = (user.name or user.given_name or user.email or "Account").strip() or "Account"
+            return {"current_user_name": name}
+
         @self.app.route('/')
         def index():
             return render_template('index.html')
@@ -611,7 +628,12 @@ class MyFlaskApp:
                     login_user(user)
                     return redirect(url_for('admin.index'))
                 return 'Invalid credentials', 401
-            return render_template('login.html', oauth_providers=self.oauth_providers)
+            return render_template(
+                'login.html',
+                oauth_providers=self.oauth_providers,
+                telegram_enabled=bool(os.environ.get("PLANEXE_TELEGRAM_BOT_TOKEN")),
+                telegram_login_url=os.environ.get("PLANEXE_TELEGRAM_LOGIN_URL") or None,
+            )
 
         @self.app.route('/login/<provider>')
         def oauth_login(provider: str):

@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}PlanExe{% endblock %}</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css">
+    <style>
+        :root {
+            --planexe-header-bg: #fff;
+            --planexe-header-border: #e5e5e5;
+            --planexe-brand: #333;
+            --planexe-link: #1a73e8;
+            --planexe-body-bg: #f8f9fa;
+        }
+        body {
+            background-color: var(--planexe-body-bg);
+            padding-top: 0;
+            padding-bottom: 30px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+        .planexe-header {
+            background: var(--planexe-header-bg);
+            border-bottom: 1px solid var(--planexe-header-border);
+            padding: 12px 0;
+            margin-bottom: 24px;
+        }
+        .planexe-header .container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        .planexe-brand {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--planexe-brand);
+            text-decoration: none;
+        }
+        .planexe-brand:hover {
+            color: var(--planexe-brand);
+            text-decoration: none;
+        }
+        .planexe-user-nav {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .planexe-user-nav a {
+            color: var(--planexe-link);
+            text-decoration: none;
+        }
+        .planexe-user-nav a:hover {
+            text-decoration: underline;
+        }
+        .planexe-user-name {
+            color: var(--planexe-brand);
+            font-weight: 500;
+        }
+        .card {
+            background: #fff;
+            border-radius: 6px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        code {
+            word-break: break-all;
+        }
+    </style>
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <header class="planexe-header">
+        <div class="container">
+            <a href="{{ url_for('index') }}" class="planexe-brand">PlanExe</a>
+            <nav class="planexe-user-nav">
+                {% if current_user_name %}
+                    <a href="{{ url_for('account') }}" class="planexe-user-name">{{ current_user_name }}</a>
+                    <a href="{{ url_for('logout') }}">Logout</a>
+                {% else %}
+                    <a href="{{ url_for('account') }}">Account</a>
+                {% endif %}
+            </nav>
+        </div>
+    </header>
+    <div class="container">
+        {% block content %}{% endblock %}
+    </div>
+</body>
+</html>

@@ -1,28 +1,6 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Account - PlanExe</title>
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css">
-    <style>
-        body {
-            padding-top: 30px;
-            padding-bottom: 30px;
-            background-color: #f8f8f8;
-        }
-        .card {
-            background: #fff;
-            border-radius: 6px;
-            padding: 20px;
-            margin-bottom: 20px;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-        }
-        code {
-            word-break: break-all;
-        }
-    </style>
-</head>
-<body>
-<div class="container">
+{% extends "base.html" %}
+{% block title %}Account - PlanExe{% endblock %}
+{% block content %}
     <h2>Account</h2>
     <div class="card">
         <h4>Profile</h4>
@@ -75,8 +53,4 @@
             {% endif %}
         </form>
     </div>
-
-    <a href="/logout">Logout</a>
-</div>
-</body>
-</html>
+{% endblock %}
