@@ -186,6 +186,8 @@ class MyFlaskApp:
                 SQLALCHEMY_TRACK_MODIFICATIONS=False,
             )
 
+        self.public_base_url = (os.environ.get("PLANEXE_PUBLIC_BASE_URL") or "").rstrip("/")
+
         # Validate SECRET_KEY - check for both default values
         secret_key = self.app.config.get("SECRET_KEY")
         is_default_key = secret_key in ("dev-secret-key", "your-secret-key", None)
@@ -210,7 +212,6 @@ class MyFlaskApp:
         self.app.config.setdefault('SESSION_COOKIE_SAMESITE', 'Lax')
         logger.info(f"Session cookie security: secure={is_production}, httponly=True, samesite=Lax")
 
-        self.public_base_url = (os.environ.get("PLANEXE_PUBLIC_BASE_URL") or "").rstrip("/")
         if self.public_base_url.lower().startswith("https://"):
             self.app.config["SESSION_COOKIE_SECURE"] = True
             self.app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
