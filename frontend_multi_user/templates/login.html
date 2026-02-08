@@ -39,6 +39,12 @@
 {% block content %}
     <h2 class="form-signin-heading" style="text-align: center; margin-bottom: 20px;">Sign in</h2>
 
+    {% if error %}
+    <div class="alert alert-danger" role="alert" style="max-width: 500px; margin: 0 auto 20px auto;">
+        {{ error }}
+    </div>
+    {% endif %}
+
     {% if oauth_providers %}
     <div class="form-signin">
         <h4>Sign in with</h4>
