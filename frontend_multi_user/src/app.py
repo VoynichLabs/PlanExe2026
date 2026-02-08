@@ -186,6 +186,11 @@ class MyFlaskApp:
                 SQLALCHEMY_TRACK_MODIFICATIONS=False,
             )
 
+        # Env overrides: production sets PLANEXE_FRONTEND_MULTIUSER_SECRET_KEY; honor it over config.py
+        env_secret = os.environ.get("PLANEXE_FRONTEND_MULTIUSER_SECRET_KEY")
+        if env_secret:
+            self.app.config["SECRET_KEY"] = env_secret
+
         self.public_base_url = (os.environ.get("PLANEXE_PUBLIC_BASE_URL") or "").rstrip("/")
 
         # Validate SECRET_KEY - check for both default values
