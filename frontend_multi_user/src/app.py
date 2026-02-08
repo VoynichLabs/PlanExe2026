@@ -186,8 +186,29 @@ class MyFlaskApp:
                 SQLALCHEMY_TRACK_MODIFICATIONS=False,
             )
 
-        if self.app.config.get("SECRET_KEY") == "dev-secret-key":
-            logger.warning("Using default Flask SECRET_KEY. Set PLANEXE_FRONTEND_MULTIUSER_SECRET_KEY for production.")
+        # Validate SECRET_KEY - check for both default values
+        secret_key = self.app.config.get("SECRET_KEY")
+        is_default_key = secret_key in ("dev-secret-key", "your-secret-key", None)
+        is_production = os.environ.get("FLASK_ENV") == "production" or bool(self.public_base_url)
+
+        if is_default_key:
+            if is_production:
+                raise ValueError(
+                    "Cannot use default SECRET_KEY in production. "
+                    "Set PLANEXE_FRONTEND_MULTIUSER_SECRET_KEY environment variable. "
+                    "Generate with: python -c 'import secrets; print(secrets.token_hex(32))'"
+                )
+            logger.warning(
+                "Using default Flask SECRET_KEY (%s). "
+                "Set PLANEXE_FRONTEND_MULTIUSER_SECRET_KEY for production.",
+                secret_key
+            )
+
+        # Session cookie security settings
+        self.app.config.setdefault('SESSION_COOKIE_SECURE', is_production)
+        self.app.config.setdefault('SESSION_COOKIE_HTTPONLY', True)
+        self.app.config.setdefault('SESSION_COOKIE_SAMESITE', 'Lax')
+        logger.info(f"Session cookie security: secure={is_production}, httponly=True, samesite=Lax")
 
         self.public_base_url = (os.environ.get("PLANEXE_PUBLIC_BASE_URL") or "").rstrip("/")
         if not self.public_base_url:
@@ -450,9 +471,15 @@ class MyFlaskApp:
         raise ValueError(f"Unsupported OAuth provider: {provider}")
 
     def _upsert_user_from_oauth(self, provider: str, profile: dict[str, Any]) -> UserAccount:
+        # Validate required fields
         provider_user_id = str(profile.get("sub") or profile.get("id") or "")
         if not provider_user_id:
-            raise ValueError("OAuth profile missing provider user id.")
+            raise ValueError(f"OAuth profile from {provider} missing user identifier (sub/id).")
+
+        # Email is optional for some providers - log warning if missing
+        email = profile.get("email")
+        if not email:
+            logger.warning(f"OAuth profile from {provider} missing email for user {provider_user_id}")
 
         existing_provider = UserProvider.query.filter_by(
             provider=provider,
@@ -657,21 +684,34 @@ class MyFlaskApp:
         def oauth_callback(provider: str):
             if provider not in self.oauth_providers:
                 abort(404)
-            client = self.oauth.create_client(provider)
-            token = client.authorize_access_token()
-            if provider == "google":
-                nonce = session.pop("oauth_google_nonce", None)
-                profile = client.parse_id_token(token, nonce=nonce)
-                if not profile:
-                    profile = client.get("userinfo").json()
-            else:
-                profile = self._get_user_from_provider(provider, token)
-            user = self._upsert_user_from_oauth(provider, profile)
-            login_user(User(user.id, is_admin=user.is_admin))
-            new_api_key = self._get_or_create_api_key(user)
-            if new_api_key:
-                session["new_api_key"] = new_api_key
-            return redirect(url_for('account'))
+
+            try:
+                client = self.oauth.create_client(provider)
+                token = client.authorize_access_token()
+
+                if provider == "google":
+                    nonce = session.pop("oauth_google_nonce", None)
+                    profile = client.parse_id_token(token, nonce=nonce)
+                    if not profile:
+                        profile = client.get("userinfo").json()
+                else:
+                    profile = self._get_user_from_provider(provider, token)
+
+                user = self._upsert_user_from_oauth(provider, profile)
+                login_user(User(user.id, is_admin=user.is_admin))
+                new_api_key = self._get_or_create_api_key(user)
+                if new_api_key:
+                    session["new_api_key"] = new_api_key
+                return redirect(url_for('account'))
+
+            except Exception as e:
+                logger.error(f"OAuth callback error for {provider}: {e}", exc_info=True)
+                return render_template('login.html',
+                    error=f"Authentication failed. Please try again or contact support.",
+                    oauth_providers=self.oauth_providers,
+                    telegram_enabled=bool(os.environ.get("PLANEXE_TELEGRAM_BOT_TOKEN")),
+                    telegram_login_url=os.environ.get("PLANEXE_TELEGRAM_LOGIN_URL") or None,
+                ), 401
 
         @self.app.route('/logout')
         @login_required
