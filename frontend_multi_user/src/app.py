@@ -190,6 +190,9 @@ class MyFlaskApp:
             logger.warning("Using default Flask SECRET_KEY. Set PLANEXE_FRONTEND_MULTIUSER_SECRET_KEY for production.")
 
         self.public_base_url = (os.environ.get("PLANEXE_PUBLIC_BASE_URL") or "").rstrip("/")
+        if self.public_base_url.lower().startswith("https://"):
+            self.app.config["SESSION_COOKIE_SECURE"] = True
+            self.app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
         if not self.public_base_url:
             logger.warning("PLANEXE_PUBLIC_BASE_URL not set; OAuth redirects will use request.host.")
 
@@ -414,7 +417,10 @@ class MyFlaskApp:
         for name, config in providers.items():
             if not config["client_id"] or not config["client_secret"]:
                 continue
-            self.oauth.register(name=name, **config)
+            reg_config = dict(config)
+            if name == "google":
+                reg_config["redirect_uri"] = self._oauth_redirect_url("google")
+            self.oauth.register(name=name, **reg_config)
             self.oauth_providers.append(name)
 
         if not self.oauth_providers:
@@ -638,8 +644,12 @@ class MyFlaskApp:
         @self.app.route('/api/oauth-redirect-uri')
         def oauth_redirect_uri_debug():
             """Return the redirect URI the app sends to Google. Use this to verify Google Console has the exact same URI."""
-            redirect_uri = self._oauth_redirect_url("google") if "google" in self.oauth_providers else ""
-            return redirect_uri, 200, {"Content-Type": "text/plain; charset=utf-8"}
+            lines = [
+                f"PLANEXE_PUBLIC_BASE_URL={self.public_base_url or '(not set)'}",
+                f"redirect_uri={self._oauth_redirect_url('google') if 'google' in self.oauth_providers else '(google not configured)'}",
+            ]
+            body = "\n".join(lines)
+            return body, 200, {"Content-Type": "text/plain; charset=utf-8"}
 
         @self.app.route('/login/<provider>')
         def oauth_login(provider: str):
