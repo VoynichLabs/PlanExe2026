@@ -1,9 +1,17 @@
 import json
 import logging
 import os
+import re
 from typing import Dict, List, Any, Tuple
 
 import requests
+
+from .prompt_sanitizer import sanitize_for_llm_prompt, truncate_plan_summary
+from .llm_schemas import (
+    validate_llm_response,
+    KPI_EXTRACTION_SCHEMA,
+    COMPARISON_KPI_SCHEMA
+)
 
 logger = logging.getLogger(__name__)
 
@@ -11,6 +19,25 @@ OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
 OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "google/gemini-2.0-flash-001")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 EMBED_MODEL = os.environ.get("EMBED_MODEL", "text-embedding-3-small")
+
+
+def _sanitize_error_message(message: str) -> str:
+    """Remove sensitive API keys from error messages before logging."""
+    # Replace any API key patterns with masked versions
+    if OPENROUTER_API_KEY:
+        message = message.replace(OPENROUTER_API_KEY, "***")
+    if OPENAI_API_KEY:
+        message = message.replace(OPENAI_API_KEY, "***")
+    
+    # Also catch Bearer token patterns
+    message = re.sub(r'Bearer\s+sk-[A-Za-z0-9_-]+', 'Bearer ***', message)
+    message = re.sub(r'sk-[A-Za-z0-9_-]{20,}', '***', message)
+    
+    # Generic API key pattern masking
+    message = re.sub(r'(api[_-]?key["\']?\s*[:=]\s*["\']?)([^"\'}\s]+)', r'\1***', message, flags=re.IGNORECASE)
+    message = re.sub(r'(authorization["\']?\s*[:=]\s*["\']?)([^"\'}\s]+)', r'\1***', message, flags=re.IGNORECASE)
+    
+    return message
 
 
 def _openrouter_chat(prompt: str) -> str:
@@ -25,10 +52,16 @@ def _openrouter_chat(prompt: str) -> str:
         "temperature": 0.2,
         "max_tokens": 2048
     }
-    resp = requests.post(url, headers={"Authorization": f"Bearer {OPENROUTER_API_KEY}"}, json=payload, timeout=60)
-    resp.raise_for_status()
-    data = resp.json()
-    return data["choices"][0]["message"]["content"]
+    try:
+        resp = requests.post(url, headers={"Authorization": f"Bearer {OPENROUTER_API_KEY}"}, json=payload, timeout=60)
+        resp.raise_for_status()
+        data = resp.json()
+        return data["choices"][0]["message"]["content"]
+    except Exception as exc:
+        # Sanitize error message before logging
+        error_msg = _sanitize_error_message(str(exc))
+        logger.error("OpenRouter API error: %s", error_msg)
+        raise
 
 
 def _openai_embed(text: str) -> list[float]:
@@ -36,13 +69,19 @@ def _openai_embed(text: str) -> list[float]:
         raise RuntimeError("OPENAI_API_KEY not set")
     url = "https://api.openai.com/v1/embeddings"
     payload = {"model": EMBED_MODEL, "input": text}
-    resp = requests.post(url, headers={"Authorization": f"Bearer {OPENAI_API_KEY}"}, json=payload, timeout=60)
-    resp.raise_for_status()
-    data = resp.json()
-    embedding = data.get("data", [{}])[0].get("embedding")
-    if not embedding:
-        raise RuntimeError("Embedding response missing values")
-    return embedding
+    try:
+        resp = requests.post(url, headers={"Authorization": f"Bearer {OPENAI_API_KEY}"}, json=payload, timeout=60)
+        resp.raise_for_status()
+        data = resp.json()
+        embedding = data.get("data", [{}])[0].get("embedding")
+        if not embedding:
+            raise RuntimeError("Embedding response missing values")
+        return embedding
+    except Exception as exc:
+        # Sanitize error message before logging
+        error_msg = _sanitize_error_message(str(exc))
+        logger.error("OpenAI API error: %s", error_msg)
+        raise
 
 
 def _limit_words(text: str, max_words: int = 30) -> str:
@@ -124,6 +163,13 @@ Return ONLY valid JSON.
         logger.error("Failed to parse KPI JSON: %s", exc)
         raise
 
+    # Validate LLM response against schema
+    try:
+        validate_llm_response(kpis, KPI_EXTRACTION_SCHEMA)
+    except ValueError as exc:
+        logger.error("KPI extraction schema validation failed: %s", exc)
+        raise ValueError(f"Invalid KPI extraction response from LLM: {exc}") from exc
+
     required = ["novelty_score", "prompt_quality", "technical_completeness", "feasibility", "impact_estimate"]
     normalized: Dict[str, int] = {}
     for key in required:
@@ -161,6 +207,13 @@ Plan B:
     except Exception as exc:
         logger.error("Failed to parse comparison KPI JSON: %s", exc)
         raise
+
+    # Validate LLM response against schema
+    try:
+        validate_llm_response(kpis, COMPARISON_KPI_SCHEMA)
+    except ValueError as exc:
+        logger.error("Comparison KPI schema validation failed: %s", exc)
+        raise ValueError(f"Invalid comparison KPI response from LLM: {exc}") from exc
 
     if not isinstance(kpis, list) or not kpis:
         raise ValueError("Comparison KPI output must be a non-empty list")
