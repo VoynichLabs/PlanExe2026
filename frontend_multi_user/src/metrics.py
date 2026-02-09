@@ -133,7 +133,8 @@ def map_to_likert(value: float) -> int:
 
 
 def extract_raw_kpis(plan_json: dict, budget_cents: int) -> Dict[str, int]:
-    prompt = plan_json.get("prompt", "")
+    # Sanitize all user inputs before building prompt
+    prompt = sanitize_for_llm_prompt(plan_json.get("prompt", ""), max_length=1000)
     wbs = plan_json.get("wbs", {})
     estimated_cost = plan_json.get("estimated_cost_cents", 0)
 
@@ -160,14 +161,16 @@ Return ONLY valid JSON.
     try:
         kpis = json.loads(text)
     except Exception as exc:
-        logger.error("Failed to parse KPI JSON: %s", exc)
+        error_msg = _sanitize_error_message(str(exc))
+        logger.error("Failed to parse KPI JSON: %s", error_msg)
         raise
 
     # Validate LLM response against schema
     try:
         validate_llm_response(kpis, KPI_EXTRACTION_SCHEMA)
     except ValueError as exc:
-        logger.error("KPI extraction schema validation failed: %s", exc)
+        error_msg = _sanitize_error_message(str(exc))
+        logger.error("KPI extraction schema validation failed: %s", error_msg)
         raise ValueError(f"Invalid KPI extraction response from LLM: {exc}") from exc
 
     required = ["novelty_score", "prompt_quality", "technical_completeness", "feasibility", "impact_estimate"]
@@ -180,8 +183,11 @@ Return ONLY valid JSON.
 
 
 def compare_two_kpis(plan_a: Dict[str, Any], plan_b: Dict[str, Any]) -> Tuple[float, List[Dict[str, Any]]]:
-    summary_a = _plan_summary(plan_a)
-    summary_b = _plan_summary(plan_b)
+    # Use truncated plan summaries to prevent prompt injection and size issues
+    plan_a_truncated = truncate_plan_summary(plan_a)
+    plan_b_truncated = truncate_plan_summary(plan_b)
+    summary_a = _plan_summary(plan_a_truncated)
+    summary_b = _plan_summary(plan_b_truncated)
 
     prompt = f"""You are a neutral evaluator. Compare two PlanExe plans.
 
@@ -205,14 +211,16 @@ Plan B:
     try:
         kpis = json.loads(text)
     except Exception as exc:
-        logger.error("Failed to parse comparison KPI JSON: %s", exc)
+        error_msg = _sanitize_error_message(str(exc))
+        logger.error("Failed to parse comparison KPI JSON: %s", error_msg)
         raise
 
     # Validate LLM response against schema
     try:
         validate_llm_response(kpis, COMPARISON_KPI_SCHEMA)
     except ValueError as exc:
-        logger.error("Comparison KPI schema validation failed: %s", exc)
+        error_msg = _sanitize_error_message(str(exc))
+        logger.error("Comparison KPI schema validation failed: %s", error_msg)
         raise ValueError(f"Invalid comparison KPI response from LLM: {exc}") from exc
 
     if not isinstance(kpis, list) or not kpis:
