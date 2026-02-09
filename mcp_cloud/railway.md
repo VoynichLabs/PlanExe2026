@@ -5,9 +5,10 @@ Deploy mcp_cloud (PlanExe MCP cloud service) to Railway as an HTTP service.
 ```
 PLANEXE_MCP_HTTP_HOST="0.0.0.0"
 PLANEXE_MCP_HTTP_PORT=8001
+PLANEXE_POSTGRES_PASSWORD="${{shared.PLANEXE_POSTGRES_PASSWORD}}"
 ```
 
-## Required Environment Variables
+## Other Environment Variables
 
 Set these in your Railway project:
 
@@ -28,11 +29,7 @@ PLANEXE_POSTGRES_PASSWORD="your-password"
 PLANEXE_WORKER_PLAN_URL="http://your-worker-plan-service:8000"
 ```
 
-## Optional Environment Variables
-
 ```
-PLANEXE_MCP_HTTP_HOST="0.0.0.0"  # Use to bind all interfaces (default is 127.0.0.1)
-PLANEXE_MCP_HTTP_PORT="8001"      # Default (Railway will override with PORT env var)
 PLANEXE_WORKER_PLAN_URL="http://your-worker-plan-service:8000"  # URL of worker_plan service
 PLANEXE_MCP_CORS_ORIGINS="https://your-frontend.example.com"
 PLANEXE_MCP_MAX_BODY_BYTES="1048576"
@@ -56,7 +53,7 @@ After deployment, configure your MCP client (e.g., LM Studio) with:
 {
   "mcpServers": {
     "planexe": {
-      "url": "https://your-railway-app.up.railway.app/mcp",
+      "url": "https://mcp.planexe.org/mcp",
       "headers": {
         "X-API-Key": "your-secret-api-key-here"
       }
@@ -65,7 +62,7 @@ After deployment, configure your MCP client (e.g., LM Studio) with:
 }
 ```
 
-Replace `https://your-railway-app.up.railway.app` with your Railway deployment URL.
+Replace `https://mcp.planexe.org` with your Railway deployment URL.
 
 ## Health Check
 
