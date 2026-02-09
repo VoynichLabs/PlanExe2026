@@ -231,6 +231,12 @@ class MyFlaskApp:
         self.oauth = OAuth(self.app)
         self._register_oauth_providers()
 
+        # Determine open access mode (no login required).
+        # When no OAuth providers are configured and PLANEXE_AUTH_REQUIRED is not
+        # explicitly true, the app auto-logins every request as admin so Docker
+        # localhost users can create plans without setting up Google Console, etc.
+        self.open_access = self._determine_open_access()
+
         db_settings: Dict[str, str] = {}
         sqlalchemy_database_uri = self.planexe_dotenv.get("SQLALCHEMY_DATABASE_URI")
         if sqlalchemy_database_uri is None:
@@ -458,6 +464,48 @@ class MyFlaskApp:
         if not self.oauth_providers:
             logger.warning("No OAuth providers configured. Set PLANEXE_OAUTH_* env vars to enable OAuth login.")
 
+    def _determine_open_access(self) -> bool:
+        """Check if the app should run in open access mode (no login required).
+
+        Open access is enabled when no OAuth providers are configured and
+        ``PLANEXE_AUTH_REQUIRED`` is not explicitly set to ``true``.
+        This lets Docker-on-localhost users create plans immediately after
+        ``docker compose up`` without setting up Google Console or any other
+        OAuth provider.
+
+        To force login even without OAuth (e.g. admin-only access via
+        username/password), set ``PLANEXE_AUTH_REQUIRED=true``.
+        """
+        env_val = os.environ.get("PLANEXE_AUTH_REQUIRED", "").strip().lower()
+        if env_val in ("1", "true", "yes"):
+            if not self.oauth_providers:
+                raise ValueError(
+                    "PLANEXE_AUTH_REQUIRED=true but no OAuth providers are configured. "
+                    "Either set PLANEXE_OAUTH_* env vars (Google / GitHub / Discord) "
+                    "or remove PLANEXE_AUTH_REQUIRED to use open access mode."
+                )
+            logger.info(
+                "Authentication required (PLANEXE_AUTH_REQUIRED=true). "
+                "%d OAuth provider(s) configured.",
+                len(self.oauth_providers),
+            )
+            return False
+        if env_val in ("0", "false", "no"):
+            logger.info("Open access mode forced via PLANEXE_AUTH_REQUIRED=false.")
+            return True
+        # Auto-detect: open access when no OAuth providers are configured.
+        if not self.oauth_providers:
+            logger.info(
+                "Open access mode: no OAuth providers configured, login not required. "
+                "Set PLANEXE_AUTH_REQUIRED=true to enforce login."
+            )
+            return True
+        logger.info(
+            "Authentication required. %d OAuth provider(s) configured.",
+            len(self.oauth_providers),
+        )
+        return False
+
     def _oauth_redirect_url(self, provider: str) -> str:
         if self.public_base_url:
             return f"{self.public_base_url}/auth/{provider}/callback"
@@ -627,22 +675,34 @@ class MyFlaskApp:
             )
 
     def _setup_routes(self):
+        @self.app.before_request
+        def _auto_login_open_access():
+            """In open access mode, auto-login as admin so @login_required routes work."""
+            if self.open_access and not current_user.is_authenticated:
+                login_user(User(self.admin_username, is_admin=True))
+
         @self.app.context_processor
         def inject_current_user_name():
             """Inject current_user_name for header display (full name or None)."""
+            extra: dict[str, Any] = {"open_access": self.open_access}
             if not current_user.is_authenticated:
-                return {"current_user_name": None}
+                extra["current_user_name"] = None
+                return extra
             if current_user.is_admin:
-                return {"current_user_name": "Admin"}
+                extra["current_user_name"] = "Admin"
+                return extra
             try:
                 user_uuid = uuid.UUID(str(current_user.id))
             except ValueError:
-                return {"current_user_name": None}
+                extra["current_user_name"] = None
+                return extra
             user = self.db.session.get(UserAccount, user_uuid)
             if not user:
-                return {"current_user_name": None}
+                extra["current_user_name"] = None
+                return extra
             name = (user.name or user.given_name or user.email or "Account").strip() or "Account"
-            return {"current_user_name": name}
+            extra["current_user_name"] = name
+            return extra
 
         @self.app.route('/')
         def index():
@@ -904,6 +964,12 @@ class MyFlaskApp:
                 )
             return jsonify({"status": "ok"})
 
+        # Exempt external webhook endpoints from CSRF protection.
+        # These receive POST requests from third-party services (Stripe, Telegram)
+        # that cannot provide a CSRF token.
+        self.csrf.exempt(stripe_webhook)
+        self.csrf.exempt(telegram_webhook)
+
         @self.app.route('/ping')
         @login_required
         def ping():
@@ -1157,5 +1223,11 @@ if __name__ == '__main__':
         level=logging.DEBUG, 
         format='%(asctime)s - %(name)s - %(levelname)s - %(threadName)s - %(message)s'
     )
-    flask_app_instance = MyFlaskApp()
+    try:
+        flask_app_instance = MyFlaskApp()
+    except ValueError as exc:
+        # Configuration errors (e.g. PLANEXE_AUTH_REQUIRED=true without OAuth).
+        # Exit with code 0 so Docker "on-failure" restart policy does NOT restart.
+        logger.critical("Configuration error – service will not start: %s", exc)
+        sys.exit(0)
     flask_app_instance.run_server()
