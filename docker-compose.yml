@@ -135,8 +135,6 @@ services:
       dockerfile: frontend_single_user/Dockerfile
     container_name: frontend_single_user
     depends_on:
-      database_postgres:
-        condition: service_healthy
       worker_plan:
         condition: service_healthy
     env_file:
@@ -148,12 +146,6 @@ services:
       PLANEXE_GRADIO_SERVER_PORT: ${PLANEXE_GRADIO_SERVER_PORT:-7860}
       PLANEXE_PASSWORD: ${PLANEXE_PASSWORD:-}
       PLANEXE_OPEN_DIR_SERVER_URL: ${PLANEXE_OPEN_DIR_SERVER_URL:-}
-      PLANEXE_RUN_DIR: /app/run
-      PLANEXE_POSTGRES_HOST: database_postgres
-      PLANEXE_POSTGRES_PORT: "5432"
-      PLANEXE_POSTGRES_DB: ${PLANEXE_POSTGRES_DB:-planexe}
-      PLANEXE_POSTGRES_USER: ${PLANEXE_POSTGRES_USER:-planexe}
-      PLANEXE_POSTGRES_PASSWORD: ${PLANEXE_POSTGRES_PASSWORD:-planexe}
     ports:
       - "7860:7860"
     volumes:

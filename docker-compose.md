@@ -62,11 +62,16 @@ docker compose up
 
 Service: `frontend_single_user` (single user UI)
 ------------------------------------
-- Purpose: Single user Gradio UI; waits for a healthy worker and serves on port 7860. Does not use database.
+- Purpose: Single user Gradio UI; waits for a healthy `worker_plan` and serves on port 7860. **Does NOT depend on the database** and can run independently without `database_postgres`.
 - Build: `frontend_single_user/Dockerfile`.
 - Env defaults: `PLANEXE_WORKER_PLAN_URL=http://worker_plan:8000`, timeout, server host/port, optional password, optional `PLANEXE_OPEN_DIR_SERVER_URL` for the host opener.
 - Volumes: mirrors the worker (`.env` ro, `llm_config.json` ro, `run/` rw) so both share config and outputs.
 - Watch: sync frontend code, shared API code in `worker_plan/`, and config files; rebuild on `worker_plan/pyproject.toml`; restart on compose edits.
+- **Minimal startup**: to run just the single-user frontend without multi-user features or database, run:
+  ```bash
+  docker compose up worker_plan frontend_single_user
+  ```
+  No database required.
 
 Service: `frontend_multi_user` (multi user UI)
 ------------------------------------------
