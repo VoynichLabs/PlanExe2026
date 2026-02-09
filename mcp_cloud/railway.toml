@@ -1,6 +1,7 @@
 [build]
 builder = "DOCKERFILE"
-dockerfilePath = "mcp_cloud/Dockerfile"
+dockerfilePath = "/mcp_cloud/Dockerfile"
+context = "."
 
 [deploy]
 startCommand = "python -m mcp_cloud.http_server"
