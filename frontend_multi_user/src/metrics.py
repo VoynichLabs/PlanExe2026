@@ -1,7 +1,7 @@
 import json
 import logging
 import os
-from typing import Dict
+from typing import Dict, List, Any, Tuple
 
 import requests
 
@@ -45,6 +45,38 @@ def _openai_embed(text: str) -> list[float]:
     return embedding
 
 
+def _limit_words(text: str, max_words: int = 30) -> str:
+    words = (text or "").strip().split()
+    if len(words) <= max_words:
+        return " ".join(words)
+    return " ".join(words[:max_words])
+
+
+def _plan_summary(plan_json: Dict[str, Any]) -> str:
+    if not plan_json:
+        return "(no plan data)"
+    prompt = plan_json.get("prompt") or ""
+    title = plan_json.get("title") or ""
+    wbs = plan_json.get("wbs") or {}
+    wbs_depth = 0
+    if isinstance(wbs, dict) and wbs:
+        wbs_depth = max((len(k.split('.')) for k in wbs.keys()), default=0)
+    estimated_cost = plan_json.get("estimated_cost_cents")
+    duration = plan_json.get("duration_months") or plan_json.get("duration_days")
+    summary_parts = []
+    if title:
+        summary_parts.append(f"Title: {title}")
+    if prompt:
+        summary_parts.append(f"Prompt: {prompt}")
+    if wbs_depth:
+        summary_parts.append(f"WBS depth: {wbs_depth}")
+    if estimated_cost is not None:
+        summary_parts.append(f"Estimated cost cents: {estimated_cost}")
+    if duration is not None:
+        summary_parts.append(f"Duration: {duration}")
+    return "\n".join(summary_parts) if summary_parts else "(no plan data)"
+
+
 def extract_raw_kpis(plan_json: dict, budget_cents: int) -> Dict[str, float]:
     prompt = plan_json.get("prompt", "")
     wbs = plan_json.get("wbs", {})
@@ -83,34 +115,79 @@ Return ONLY valid JSON.
     return kpis
 
 
-def compare_two_kpis(kpis_a: Dict[str, float], kpis_b: Dict[str, float]) -> float:
-    prompt = f"""You are a neutral evaluator. Given the KPI vectors for two plans, decide which plan is better overall.
-Plan A KPIs:
-- Novelty: {kpis_a['novelty_score']:.2f}
-- Prompt quality: {kpis_a['prompt_quality']:.2f}
-- Technical completeness: {kpis_a['technical_completeness']:.2f}
-- Feasibility: {kpis_a['feasibility']:.2f}
-- Impact estimate: {kpis_a['impact_estimate']:.2f}
+def compare_two_kpis(plan_a: Dict[str, Any], plan_b: Dict[str, Any]) -> Tuple[float, List[Dict[str, Any]]]:
+    summary_a = _plan_summary(plan_a)
+    summary_b = _plan_summary(plan_b)
 
-Plan B KPIs:
-- Novelty: {kpis_b['novelty_score']:.2f}
-- Prompt quality: {kpis_b['prompt_quality']:.2f}
-- Technical completeness: {kpis_b['technical_completeness']:.2f}
-- Feasibility: {kpis_b['feasibility']:.2f}
-- Impact estimate: {kpis_b['impact_estimate']:.2f}
+    prompt = f"""You are a neutral evaluator. Compare two PlanExe plans.
 
-Respond with one term: strongly prefer A | weakly prefer A | neutral | weakly prefer B | strongly prefer B
+Your task:
+1) Choose 5-7 KPIs that are relevant to BOTH plans.
+2) Add ONE additional KPI for remaining considerations not covered above. You must choose the name yourself.
+3) Score each KPI on a Likert 1-5 integer scale for Plan A and Plan B.
+4) Provide a reasoning string of MAX 30 words for why those values were chosen.
+
+Return ONLY valid JSON as an array of objects with this schema:
+{{"name": "<KPI name>", "plan_a": <int 1-5>, "plan_b": <int 1-5>, "reasoning": "<<=30 words>"}}
+
+Plan A:
+{summary_a}
+
+Plan B:
+{summary_b}
 """
 
-    text = _openrouter_chat(prompt).strip().lower()
-    mapping = {
-        "strongly prefer a": 0.9,
-        "weakly prefer a": 0.7,
-        "neutral": 0.5,
-        "weakly prefer b": 0.3,
-        "strongly prefer b": 0.1,
-    }
-    return mapping.get(text, 0.5)
+    text = _openrouter_chat(prompt)
+    try:
+        kpis = json.loads(text)
+    except Exception as exc:
+        logger.error("Failed to parse comparison KPI JSON: %s", exc)
+        raise
+
+    if not isinstance(kpis, list) or not kpis:
+        raise ValueError("Comparison KPI output must be a non-empty list")
+
+    total_a = 0
+    total_b = 0
+    cleaned: List[Dict[str, Any]] = []
+    for item in kpis:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name") or "").strip()
+        plan_a_score = int(round(float(item.get("plan_a", 3))))
+        plan_b_score = int(round(float(item.get("plan_b", 3))))
+        plan_a_score = max(1, min(5, plan_a_score))
+        plan_b_score = max(1, min(5, plan_b_score))
+        reasoning = _limit_words(str(item.get("reasoning") or ""), 30)
+        cleaned.append({
+            "name": name or "(unnamed KPI)",
+            "plan_a": plan_a_score,
+            "plan_b": plan_b_score,
+            "reasoning": reasoning,
+        })
+        total_a += plan_a_score
+        total_b += plan_b_score
+
+    if not cleaned:
+        return 0.5, []
+
+    diff = total_a - total_b
+    if diff >= 3:
+        prob_a = 0.9
+    elif diff == 2:
+        prob_a = 0.7
+    elif diff == 1:
+        prob_a = 0.6
+    elif diff == 0:
+        prob_a = 0.5
+    elif diff == -1:
+        prob_a = 0.4
+    elif diff == -2:
+        prob_a = 0.3
+    else:
+        prob_a = 0.1
+
+    return prob_a, cleaned
 
 
 def update_elo(elo_a: float, elo_b: float, prob_a: float, k: float = 32.0) -> tuple[float, float]:

@@ -979,19 +979,21 @@ class MyFlaskApp:
 
             with self.db.engine.begin() as conn:
                 conn.execute(text(
-                    """INSERT INTO plan_corpus (id, title, url, owner_id, embedding)
-                       VALUES (:id, :title, :url, :owner_id, :embedding::vector)
+                    """INSERT INTO plan_corpus (id, title, url, owner_id, embedding, json_data)
+                       VALUES (:id, :title, :url, :owner_id, :embedding::vector, :json_data::jsonb)
                        ON CONFLICT (id) DO UPDATE SET
                          title = EXCLUDED.title,
                          url = EXCLUDED.url,
                          owner_id = EXCLUDED.owner_id,
-                         embedding = EXCLUDED.embedding"""
+                         embedding = EXCLUDED.embedding,
+                         json_data = EXCLUDED.json_data"""
                 ), {
                     "id": str(plan_uuid),
                     "title": title,
                     "url": url,
                     "owner_id": user_id,
                     "embedding": embedding_str,
+                    "json_data": json.dumps(plan_json),
                 })
 
                 conn.execute(text(
@@ -1018,7 +1020,7 @@ class MyFlaskApp:
 
                 neighbors = conn.execute(text(
                     """SELECT pc.id, pm.elo, pm.novelty_score, pm.prompt_quality, pm.technical_completeness,
-                              pm.feasibility, pm.impact_estimate
+                              pm.feasibility, pm.impact_estimate, pc.json_data
                        FROM plan_corpus pc
                        JOIN plan_metrics pm ON pm.plan_id = pc.id
                        WHERE pc.id != :plan_id AND pc.embedding IS NOT NULL
@@ -1029,8 +1031,9 @@ class MyFlaskApp:
                 if not neighbors:
                     neighbors = conn.execute(text(
                         """SELECT pm.plan_id as id, pm.elo, pm.novelty_score, pm.prompt_quality, pm.technical_completeness,
-                                  pm.feasibility, pm.impact_estimate
+                                  pm.feasibility, pm.impact_estimate, pc.json_data
                            FROM plan_metrics pm
+                           JOIN plan_corpus pc ON pc.id = pm.plan_id
                            WHERE pm.plan_id != :plan_id
                            ORDER BY random() LIMIT 10"""
                     ), {"plan_id": str(plan_uuid)}).fetchall()
@@ -1046,7 +1049,25 @@ class MyFlaskApp:
                         "feasibility": float(row[5] or 0.5),
                         "impact_estimate": float(row[6] or 0.5),
                     }
-                    prob_a = ranking_metrics.compare_two_kpis(kpis, other_kpis)
+                    other_json = row[7] if len(row) > 7 else None
+                    if isinstance(other_json, str):
+                        try:
+                            other_json = json.loads(other_json)
+                        except Exception:
+                            other_json = None
+                    if not other_json:
+                        other_json = {
+                            "prompt": (
+                                "Plan with KPI scores: "
+                                f"novelty {other_kpis['novelty_score']:.2f}, "
+                                f"prompt {other_kpis['prompt_quality']:.2f}, "
+                                f"technical {other_kpis['technical_completeness']:.2f}, "
+                                f"feasibility {other_kpis['feasibility']:.2f}, "
+                                f"impact {other_kpis['impact_estimate']:.2f}."
+                            )
+                        }
+
+                    prob_a, _kpi_rows = ranking_metrics.compare_two_kpis(plan_json, other_json)
                     new_elo, new_other_elo = ranking_metrics.update_elo(new_elo, other_elo, prob_a)
                     conn.execute(text("UPDATE plan_metrics SET elo = :elo WHERE plan_id = :plan_id"), {
                         "elo": new_other_elo,

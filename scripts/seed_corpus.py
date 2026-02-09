@@ -27,12 +27,24 @@ if not examples:
     raise SystemExit("No examples found in examples.yml")
 
 rows = []
+base_dir = os.path.dirname(EXAMPLES_PATH)
 for rec in examples:
     plan_id = uuid.uuid4()
     title = rec.get("title") or "(untitled)"
     url = rec.get("url") or ""
     json_path = rec.get("json_path") or None
-    rows.append((plan_id, title, url, json_path))
+    json_data = None
+    if json_path:
+        resolved_path = json_path
+        if not os.path.isabs(resolved_path):
+            resolved_path = os.path.join(base_dir, json_path)
+        if os.path.exists(resolved_path):
+            try:
+                with open(resolved_path, "r", encoding="utf-8") as jf:
+                    json_data = json.load(jf)
+            except Exception:
+                json_data = None
+    rows.append((plan_id, title, url, json_path, json_data))
 
 conn = psycopg2.connect(DATABASE_URL)
 with conn:
@@ -40,7 +52,7 @@ with conn:
         execute_values(
             cur,
             """
-            INSERT INTO plan_corpus (id, title, url, json_path)
+            INSERT INTO plan_corpus (id, title, url, json_path, json_data)
             VALUES %s
             ON CONFLICT (id) DO NOTHING
             """,

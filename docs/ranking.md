@@ -20,16 +20,18 @@ PlanExe ranks generated plans using a two‑phase LLM evaluation to avoid gaming
 - `GET /api/export?limit=N` → top‑N export
 
 ## Data Tables
-- `plan_corpus`: plan metadata + embeddings
+- `plan_corpus`: plan metadata + embeddings + json_data (for dynamic KPI comparisons)
 - `plan_metrics`: KPI values + Elo
 - `rate_limit`: per‑API‑key rate limiting
 
 ## Setup
-1. Run migration: `mcp_cloud/migrations/2026_02_09_create_plan_metrics.sql`
+1. Run migrations:
+   - `mcp_cloud/migrations/2026_02_09_create_plan_metrics.sql`
+   - `mcp_cloud/migrations/2026_02_10_add_plan_json.sql`
 2. Seed corpus: `scripts/seed_corpus.py` (set `PLANEXE_WEB_EXAMPLES_PATH`)
 3. Set env:
-   - `VERTEX_PROJECT_ID`
-   - `GOOGLE_APPLICATION_CREDENTIALS_JSON`
+   - `OPENROUTER_API_KEY`
+   - `OPENAI_API_KEY`
    - `PLANEXE_API_KEY_SECRET`
 
 ## Notes
