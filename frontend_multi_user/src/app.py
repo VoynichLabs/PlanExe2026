@@ -998,14 +998,15 @@ class MyFlaskApp:
 
                 conn.execute(text(
                     """INSERT INTO plan_metrics
-                       (plan_id, novelty_score, prompt_quality, technical_completeness, feasibility, impact_estimate, elo, bucket_id)
-                       VALUES (:plan_id, :novelty, :prompt, :technical, :feasibility, :impact, 1500, :bucket_id)
+                       (plan_id, novelty_score, prompt_quality, technical_completeness, feasibility, impact_estimate, kpis, elo, bucket_id)
+                       VALUES (:plan_id, :novelty, :prompt, :technical, :feasibility, :impact, :kpis::jsonb, 1500, :bucket_id)
                        ON CONFLICT (plan_id) DO UPDATE SET
                          novelty_score = EXCLUDED.novelty_score,
                          prompt_quality = EXCLUDED.prompt_quality,
                          technical_completeness = EXCLUDED.technical_completeness,
                          feasibility = EXCLUDED.feasibility,
                          impact_estimate = EXCLUDED.impact_estimate,
+                         kpis = EXCLUDED.kpis,
                          bucket_id = EXCLUDED.bucket_id,
                          updated_at = NOW()"""
                 ), {
@@ -1015,6 +1016,7 @@ class MyFlaskApp:
                     "technical": kpis["technical_completeness"],
                     "feasibility": kpis["feasibility"],
                     "impact": kpis["impact_estimate"],
+                    "kpis": json.dumps(kpis),
                     "bucket_id": bucket_id,
                 })
 
@@ -1043,11 +1045,11 @@ class MyFlaskApp:
                     other_id = row[0]
                     other_elo = float(row[1] or 1500.0)
                     other_kpis = {
-                        "novelty_score": float(row[2] or 0.5),
-                        "prompt_quality": float(row[3] or 0.5),
-                        "technical_completeness": float(row[4] or 0.5),
-                        "feasibility": float(row[5] or 0.5),
-                        "impact_estimate": float(row[6] or 0.5),
+                        "novelty_score": int(row[2] or 3),
+                        "prompt_quality": int(row[3] or 3),
+                        "technical_completeness": int(row[4] or 3),
+                        "feasibility": int(row[5] or 3),
+                        "impact_estimate": int(row[6] or 3),
                     }
                     other_json = row[7] if len(row) > 7 else None
                     if isinstance(other_json, str):

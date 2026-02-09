@@ -21,7 +21,7 @@ PlanExe ranks generated plans using a two‑phase LLM evaluation to avoid gaming
 
 ## Data Tables
 - `plan_corpus`: plan metadata + embeddings + json_data (for dynamic KPI comparisons)
-- `plan_metrics`: KPI values + Elo
+- `plan_metrics`: KPI values (int 1‑5) + `kpis` JSONB + `overall_likert` + Elo
 - `rate_limit`: per‑API‑key rate limiting
 
 ## Setup

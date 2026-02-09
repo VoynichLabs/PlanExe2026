@@ -77,12 +77,28 @@ def _plan_summary(plan_json: Dict[str, Any]) -> str:
     return "\n".join(summary_parts) if summary_parts else "(no plan data)"
 
 
-def extract_raw_kpis(plan_json: dict, budget_cents: int) -> Dict[str, float]:
+def map_to_likert(value: float) -> int:
+    try:
+        v = float(value)
+    except Exception:
+        return 3
+    if v <= 2:
+        return 1
+    if v <= 4:
+        return 2
+    if v <= 6:
+        return 3
+    if v <= 8:
+        return 4
+    return 5
+
+
+def extract_raw_kpis(plan_json: dict, budget_cents: int) -> Dict[str, int]:
     prompt = plan_json.get("prompt", "")
     wbs = plan_json.get("wbs", {})
     estimated_cost = plan_json.get("estimated_cost_cents", 0)
 
-    kpi_prompt = f"""You are an evaluator. Given the PlanExe plan JSON metadata, return KPI scores as JSON with float values from 0.0 to 1.0.
+    kpi_prompt = f"""You are an evaluator. Return KPI scores as JSON with integer values 1-5 (Likert scale).
 
 Required keys:
 - novelty_score
@@ -109,10 +125,12 @@ Return ONLY valid JSON.
         raise
 
     required = ["novelty_score", "prompt_quality", "technical_completeness", "feasibility", "impact_estimate"]
+    normalized: Dict[str, int] = {}
     for key in required:
         if key not in kpis:
             raise ValueError(f"Missing KPI: {key}")
-    return kpis
+        normalized[key] = map_to_likert(kpis[key])
+    return normalized
 
 
 def compare_two_kpis(plan_a: Dict[str, Any], plan_b: Dict[str, Any]) -> Tuple[float, List[Dict[str, Any]]]:
