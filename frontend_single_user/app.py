@@ -12,7 +12,6 @@ import httpx
 import json
 import logging
 import os
-import psycopg2
 import sys
 import tempfile
 import threading
@@ -74,114 +73,6 @@ GRADIO_AUTH_PASSWORD = os.environ.get("PLANEXE_PASSWORD")
 GRADIO_AUTH = ("user", GRADIO_AUTH_PASSWORD) if GRADIO_AUTH_PASSWORD else None
 OPEN_DIR_BUTTON_INITIAL_VISIBILITY = CONFIG.visible_open_output_dir_button and bool(OPEN_DIR_SERVER_URL)
 
-# Database configuration for loading local examples
-POSTGRES_HOST = os.environ.get("PLANEXE_POSTGRES_HOST", "localhost")
-POSTGRES_PORT = os.environ.get("PLANEXE_POSTGRES_PORT", "5432")
-POSTGRES_DB = os.environ.get("PLANEXE_POSTGRES_DB", "planexe")
-POSTGRES_USER = os.environ.get("PLANEXE_POSTGRES_USER", "planexe")
-POSTGRES_PASSWORD = os.environ.get("PLANEXE_POSTGRES_PASSWORD", "planexe")
-
-def fetch_recent_local_plans_from_database(limit: int = 20) -> list:
-    """
-    Fetch recent completed plans from the local PostgreSQL database.
-    Returns a list of prompts from the most recent completed tasks.
-    """
-    local_examples = []
-    try:
-        conn = psycopg2.connect(
-            host=POSTGRES_HOST,
-            port=POSTGRES_PORT,
-            dbname=POSTGRES_DB,
-            user=POSTGRES_USER,
-            password=POSTGRES_PASSWORD,
-            connect_timeout=5
-        )
-        cursor = conn.cursor()
-
-        # Query for recent completed tasks
-        query = """
-            SELECT prompt
-            FROM task_item
-            WHERE state = 'completed'
-              AND prompt IS NOT NULL
-              AND prompt != ''
-            ORDER BY timestamp_created DESC
-            LIMIT %s
-        """
-        cursor.execute(query, (limit,))
-
-        rows = cursor.fetchall()
-        for row in rows:
-            local_examples.append([row[0]])  # Gradio examples format is [[prompt1], [prompt2], ...]
-
-        cursor.close()
-        conn.close()
-
-        logger.info(f"Loaded {len(local_examples)} recent plans from database")
-    except Exception as e:
-        logger.warning(f"Could not load recent plans from database: {e}")
-
-    return local_examples
-
-
-def fetch_recent_local_plans_from_filesystem(run_dir: Path, limit: int = 20) -> list:
-    """
-    Scan the local run directory for plan files and extract their prompts.
-    Looks for 001-2-plan.txt files in subdirectories.
-    Returns a list of prompts from the most recent local plan directories.
-    """
-    local_examples = []
-    try:
-        if not run_dir.exists():
-            logger.warning(f"Run directory does not exist: {run_dir}")
-            return local_examples
-
-        # Collect all directories with plan files
-        plan_dirs = []
-        for item in run_dir.iterdir():
-            if item.is_dir():
-                plan_file = item / "001-2-plan.txt"
-                if plan_file.exists():
-                    try:
-                        mtime = item.stat().st_mtime
-                        plan_dirs.append((item, plan_file, mtime))
-                    except Exception as e:
-                        logger.debug(f"Could not stat {item}: {e}")
-
-        # Sort by modification time (newest first)
-        plan_dirs.sort(key=lambda x: x[2], reverse=True)
-
-        # Read prompts from the most recent directories
-        for item, plan_file, _ in plan_dirs[:limit]:
-            try:
-                with open(plan_file, 'r', encoding='utf-8') as f:
-                    content = f.read().strip()
-                    # Extract just the plan text (after "Plan:" line)
-                    lines = content.split('\n')
-                    plan_text = []
-                    in_plan = False
-                    for line in lines:
-                        if line.startswith("Plan:"):
-                            in_plan = True
-                            continue
-                        if in_plan and line.strip():
-                            # Skip metadata lines like "Today's date:", "Project start"
-                            if not line.startswith("Today's date:") and not line.startswith("Project start"):
-                                plan_text.append(line)
-
-                    if plan_text:
-                        prompt = '\n'.join(plan_text).strip()
-                        if prompt:
-                            local_examples.append([prompt])
-            except Exception as e:
-                logger.debug(f"Could not read plan file {plan_file}: {e}")
-
-        logger.info(f"Loaded {len(local_examples)} recent plans from filesystem")
-    except Exception as e:
-        logger.warning(f"Could not scan local filesystem plans: {e}")
-
-    return local_examples
-
 # Load prompt catalog and examples.
 prompt_catalog = PromptCatalog()
 prompt_catalog.load_simple_plan_prompts()
@@ -193,23 +84,11 @@ if default_prompt_item:
 else:
     raise ValueError("DEFAULT_PROMPT_UUID prompt not found.")
 
-# Load examples: prioritize recent local plans, then append static examples
-gradio_examples = []
-
-# First, load recent local plans from filesystem (downloaded/local runs)
-filesystem_examples = fetch_recent_local_plans_from_filesystem(Path(os.environ.get("PLANEXE_RUN_DIR", "c:/Projects/PlanExe2026/run")), limit=10)
-gradio_examples.extend(filesystem_examples)
-
-# Second, load recent plans from database (cloud runs)
-database_examples = fetch_recent_local_plans_from_database(limit=10)
-gradio_examples.extend(database_examples)
-
-# Finally, append static examples from catalog
+# Show all prompts in the catalog as examples
 all_prompts = prompt_catalog.all()
+gradio_examples = []
 for prompt_item in all_prompts:
     gradio_examples.append([prompt_item.prompt])
-
-logger.info(f"Total examples loaded: {len(gradio_examples)} ({len(filesystem_examples)} filesystem + {len(database_examples)} database + {len(all_prompts)} static)")
 
 def fetch_run_files(run_id: str) -> tuple[Optional[list[str]], Optional[str]]:
     """
