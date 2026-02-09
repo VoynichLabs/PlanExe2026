@@ -4,6 +4,7 @@ Deploy mcp_cloud (PlanExe MCP cloud service) to Railway as an HTTP service.
 
 ```
 PLANEXE_POSTGRES_PASSWORD="${{shared.PLANEXE_POSTGRES_PASSWORD}}"
+PLANEXE_MCP_HTTP_HOST="0.0.0.0"
 ```
 
 ## Required Environment Variables
