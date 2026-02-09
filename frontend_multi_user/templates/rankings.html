@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Plan Rankings{% endblock %}
+
+{% block content %}
+<div class="container">
+  <h2>My Plan Rankings</h2>
+  <p class="text-muted">Your plans ranked by Elo score.</p>
+  <table class="table table-striped">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Plan</th>
+        <th>Elo</th>
+        <th>Novelty</th>
+        <th>Prompt Quality</th>
+        <th>Technical</th>
+        <th>Feasibility</th>
+        <th>Impact</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rankings %}
+      <tr>
+        <td>{{ loop.index }}</td>
+        <td><a href="{{ row.url }}" target="_blank">{{ row.title }}</a></td>
+        <td>{{ row.elo }}</td>
+        <td>{{ row.novelty_score }}</td>
+        <td>{{ row.prompt_quality }}</td>
+        <td>{{ row.technical_completeness }}</td>
+        <td>{{ row.feasibility }}</td>
+        <td>{{ row.impact_estimate }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

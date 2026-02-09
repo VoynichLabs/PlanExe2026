@@ -30,6 +30,7 @@ from urllib.error import URLError
 from flask import make_response
 import requests
 import stripe
+import metrics as ranking_metrics
 from worker_plan_api.generate_run_id import generate_run_id
 from worker_plan_api.start_time import StartTime
 from worker_plan_api.plan_file import PlanFile
@@ -568,6 +569,37 @@ class MyFlaskApp:
         self.db.session.commit()
         return raw_key
 
+    def _get_user_id_from_api_key(self, raw_key: str) -> Optional[str]:
+        api_key_secret = os.environ.get("PLANEXE_API_KEY_SECRET", "dev-api-key-secret")
+        key_hash = hashlib.sha256(f"{api_key_secret}:{raw_key}".encode("utf-8")).hexdigest()
+        api_key = UserApiKey.query.filter_by(key_hash=key_hash, revoked_at=None).first()
+        return str(api_key.user_id) if api_key else None
+
+    def _rate_limit_check(self, api_key: str, limit_per_minute: int = 5) -> bool:
+        """Return True if request allowed, False if rate-limited."""
+        with self.db.engine.begin() as conn:
+            row = conn.execute(text(
+                "SELECT last_ts, count FROM rate_limit WHERE api_key = :api_key"
+            ), {"api_key": api_key}).fetchone()
+            now = datetime.now(UTC)
+            if not row:
+                conn.execute(text(
+                    "INSERT INTO rate_limit (api_key, last_ts, count) VALUES (:api_key, :last_ts, :count)"
+                ), {"api_key": api_key, "last_ts": now, "count": 1})
+                return True
+            last_ts, count = row
+            if last_ts and (now - last_ts).total_seconds() > 60:
+                conn.execute(text(
+                    "UPDATE rate_limit SET last_ts = :last_ts, count = :count WHERE api_key = :api_key"
+                ), {"api_key": api_key, "last_ts": now, "count": 1})
+                return True
+            if count >= limit_per_minute:
+                return False
+            conn.execute(text(
+                "UPDATE rate_limit SET count = :count WHERE api_key = :api_key"
+            ), {"api_key": api_key, "count": count + 1})
+            return True
+
     def _apply_credit_delta(self, user: UserAccount, delta: int, reason: str, source: str, external_id: Optional[str] = None) -> None:
         user.credits_balance = max(0, (user.credits_balance or 0) + delta)
         ledger = CreditHistory(
@@ -903,6 +935,202 @@ class MyFlaskApp:
                     raw_payload=payment,
                 )
             return jsonify({"status": "ok"})
+
+        def _get_api_key_from_request() -> Optional[str]:
+            auth_header = request.headers.get("Authorization", "")
+            if auth_header.startswith("Bearer "):
+                return auth_header.split(" ", 1)[1].strip()
+            return request.headers.get("X-API-Key")
+
+        @self.app.route('/api/rank', methods=['POST'])
+        def api_rank_plan():
+            payload = request.get_json(silent=True) or {}
+            api_key = _get_api_key_from_request()
+            if not api_key:
+                return jsonify({"error": "missing api key"}), 401
+
+            user_id = self._get_user_id_from_api_key(api_key)
+            if not user_id:
+                return jsonify({"error": "invalid api key"}), 401
+
+            if not self._rate_limit_check(api_key, limit_per_minute=5):
+                return jsonify({"error": "rate limited"}), 429
+
+            plan_id = payload.get("plan_id")
+            plan_json = payload.get("plan_json")
+            budget_cents = int(payload.get("budget_cents", 0))
+            title = payload.get("title") or "(untitled)"
+            url = payload.get("url") or ""
+
+            if not plan_id or not plan_json:
+                return jsonify({"error": "plan_id and plan_json required"}), 400
+
+            try:
+                plan_uuid = uuid.UUID(plan_id)
+            except Exception:
+                return jsonify({"error": "invalid plan_id"}), 400
+
+            prompt = plan_json.get("prompt", "")
+            embedding = ranking_metrics.embed_prompt(prompt)
+            embedding_str = "[" + ",".join(f"{x:.6f}" for x in embedding) + "]"
+
+            kpis = ranking_metrics.extract_raw_kpis(plan_json, budget_cents)
+            bucket_id = int(plan_uuid.int % 100)
+
+            with self.db.engine.begin() as conn:
+                conn.execute(text(
+                    """INSERT INTO plan_corpus (id, title, url, owner_id, embedding)
+                       VALUES (:id, :title, :url, :owner_id, :embedding::vector)
+                       ON CONFLICT (id) DO UPDATE SET
+                         title = EXCLUDED.title,
+                         url = EXCLUDED.url,
+                         owner_id = EXCLUDED.owner_id,
+                         embedding = EXCLUDED.embedding"""
+                ), {
+                    "id": str(plan_uuid),
+                    "title": title,
+                    "url": url,
+                    "owner_id": user_id,
+                    "embedding": embedding_str,
+                })
+
+                conn.execute(text(
+                    """INSERT INTO plan_metrics
+                       (plan_id, novelty_score, prompt_quality, technical_completeness, feasibility, impact_estimate, elo, bucket_id)
+                       VALUES (:plan_id, :novelty, :prompt, :technical, :feasibility, :impact, 1500, :bucket_id)
+                       ON CONFLICT (plan_id) DO UPDATE SET
+                         novelty_score = EXCLUDED.novelty_score,
+                         prompt_quality = EXCLUDED.prompt_quality,
+                         technical_completeness = EXCLUDED.technical_completeness,
+                         feasibility = EXCLUDED.feasibility,
+                         impact_estimate = EXCLUDED.impact_estimate,
+                         bucket_id = EXCLUDED.bucket_id,
+                         updated_at = NOW()"""
+                ), {
+                    "plan_id": str(plan_uuid),
+                    "novelty": kpis["novelty_score"],
+                    "prompt": kpis["prompt_quality"],
+                    "technical": kpis["technical_completeness"],
+                    "feasibility": kpis["feasibility"],
+                    "impact": kpis["impact_estimate"],
+                    "bucket_id": bucket_id,
+                })
+
+                neighbors = conn.execute(text(
+                    """SELECT pc.id, pm.elo, pm.novelty_score, pm.prompt_quality, pm.technical_completeness,
+                              pm.feasibility, pm.impact_estimate
+                       FROM plan_corpus pc
+                       JOIN plan_metrics pm ON pm.plan_id = pc.id
+                       WHERE pc.id != :plan_id AND pc.embedding IS NOT NULL
+                       ORDER BY pc.embedding <-> :embedding::vector
+                       LIMIT 10"""
+                ), {"plan_id": str(plan_uuid), "embedding": embedding_str}).fetchall()
+
+                if not neighbors:
+                    neighbors = conn.execute(text(
+                        """SELECT pm.plan_id as id, pm.elo, pm.novelty_score, pm.prompt_quality, pm.technical_completeness,
+                                  pm.feasibility, pm.impact_estimate
+                           FROM plan_metrics pm
+                           WHERE pm.plan_id != :plan_id
+                           ORDER BY random() LIMIT 10"""
+                    ), {"plan_id": str(plan_uuid)}).fetchall()
+
+                new_elo = 1500.0
+                for row in neighbors:
+                    other_id = row[0]
+                    other_elo = float(row[1] or 1500.0)
+                    other_kpis = {
+                        "novelty_score": float(row[2] or 0.5),
+                        "prompt_quality": float(row[3] or 0.5),
+                        "technical_completeness": float(row[4] or 0.5),
+                        "feasibility": float(row[5] or 0.5),
+                        "impact_estimate": float(row[6] or 0.5),
+                    }
+                    prob_a = ranking_metrics.compare_two_kpis(kpis, other_kpis)
+                    new_elo, new_other_elo = ranking_metrics.update_elo(new_elo, other_elo, prob_a)
+                    conn.execute(text("UPDATE plan_metrics SET elo = :elo WHERE plan_id = :plan_id"), {
+                        "elo": new_other_elo,
+                        "plan_id": str(other_id),
+                    })
+
+                conn.execute(text("UPDATE plan_metrics SET elo = :elo WHERE plan_id = :plan_id"), {
+                    "elo": new_elo,
+                    "plan_id": str(plan_uuid),
+                })
+
+            return jsonify({"status": "ok", "plan_id": str(plan_uuid), "elo": new_elo, "kpis": kpis})
+
+        @self.app.route('/api/leaderboard', methods=['GET'])
+        def api_leaderboard():
+            api_key = _get_api_key_from_request()
+            if not api_key:
+                return jsonify({"error": "missing api key"}), 401
+            user_id = self._get_user_id_from_api_key(api_key)
+            if not user_id:
+                return jsonify({"error": "invalid api key"}), 401
+
+            limit = int(request.args.get("limit", 20))
+            with self.db.engine.begin() as conn:
+                rows = conn.execute(text(
+                    """SELECT pc.title, pc.url, pm.elo, pm.novelty_score, pm.prompt_quality,
+                              pm.technical_completeness, pm.feasibility, pm.impact_estimate
+                       FROM plan_metrics pm
+                       JOIN plan_corpus pc ON pc.id = pm.plan_id
+                       WHERE pc.owner_id = :owner_id
+                       ORDER BY pm.elo DESC
+                       LIMIT :limit"""
+                ), {"owner_id": user_id, "limit": limit}).fetchall()
+
+            return jsonify([{
+                "title": r[0],
+                "url": r[1],
+                "elo": r[2],
+                "novelty_score": r[3],
+                "prompt_quality": r[4],
+                "technical_completeness": r[5],
+                "feasibility": r[6],
+                "impact_estimate": r[7],
+            } for r in rows])
+
+        @self.app.route('/api/export', methods=['GET'])
+        def api_export():
+            limit = int(request.args.get("limit", 100))
+            with self.db.engine.begin() as conn:
+                rows = conn.execute(text(
+                    """SELECT pc.*, pm.* FROM plan_metrics pm
+                       JOIN plan_corpus pc ON pc.id = pm.plan_id
+                       ORDER BY pm.elo DESC
+                       LIMIT :limit"""
+                ), {"limit": limit}).fetchall()
+            return jsonify([dict(r._mapping) for r in rows])
+
+        @self.app.route('/rankings')
+        @login_required
+        def rankings():
+            user_id = str(current_user.id)
+            with self.db.engine.begin() as conn:
+                rows = conn.execute(text(
+                    """SELECT pc.title, pc.url, pm.elo, pm.novelty_score, pm.prompt_quality,
+                              pm.technical_completeness, pm.feasibility, pm.impact_estimate
+                       FROM plan_metrics pm
+                       JOIN plan_corpus pc ON pc.id = pm.plan_id
+                       WHERE pc.owner_id = :owner_id
+                       ORDER BY pm.elo DESC"""
+                ), {"owner_id": user_id}).fetchall()
+            rankings = [
+                {
+                    "title": r[0],
+                    "url": r[1],
+                    "elo": r[2],
+                    "novelty_score": r[3],
+                    "prompt_quality": r[4],
+                    "technical_completeness": r[5],
+                    "feasibility": r[6],
+                    "impact_estimate": r[7],
+                }
+                for r in rows
+            ]
+            return render_template('rankings.html', rankings=rankings)
 
         @self.app.route('/ping')
         @login_required
