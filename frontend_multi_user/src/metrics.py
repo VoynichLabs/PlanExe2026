@@ -77,30 +77,16 @@ def _plan_summary(plan_json: Dict[str, Any]) -> str:
     return "\n".join(summary_parts) if summary_parts else "(no plan data)"
 
 
-def map_to_likert(value: float) -> int:
-    try:
-        v = float(value)
-    except Exception:
-        return 3
-    if v <= 2:
-        return 1
-    if v <= 4:
-        return 2
-    if v <= 6:
-        return 3
-    if v <= 8:
-        return 4
-    return 5
-
-
 def extract_raw_kpis(plan_json: dict, budget_cents: int) -> Dict[str, int]:
     prompt = plan_json.get("prompt", "")
     wbs = plan_json.get("wbs", {})
     estimated_cost = plan_json.get("estimated_cost_cents", 0)
 
-    kpi_prompt = f"""You are an evaluator. Return KPI scores as JSON with integer values 1-5 (Likert scale).
+    kpi_prompt = f"""You are an evaluator. Return KPI scores as JSON with integer values in the range 1-5 (Likert scale).
 
-Required keys:
+CRITICAL: Each score must be a single integer from 1 to 5 inclusive. Do not use decimals or values outside this range.
+
+Required keys (each must be an integer 1-5):
 - novelty_score
 - prompt_quality
 - technical_completeness
@@ -129,7 +115,13 @@ Return ONLY valid JSON.
     for key in required:
         if key not in kpis:
             raise ValueError(f"Missing KPI: {key}")
-        normalized[key] = map_to_likert(kpis[key])
+        # Clamp to 1-5 range (fallback if LLM returns out-of-range value)
+        try:
+            value = int(round(float(kpis[key])))
+            normalized[key] = max(1, min(5, value))
+        except (ValueError, TypeError):
+            logger.warning(f"Invalid KPI value for {key}: {kpis[key]}, using default 3")
+            normalized[key] = 3
     return normalized
 
 
