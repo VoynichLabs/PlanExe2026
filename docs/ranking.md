@@ -8,7 +8,8 @@ PlanExe ranks generated plans using a two‑phase LLM evaluation to avoid gaming
 3. **Elo update** for new plan and sampled neighbors
 
 ## Defaults
-- LLM: **Gemini‑2.0‑flash‑001**
+- LLM: **Gemini‑2.0‑flash‑001 via OpenRouter** (`OPENROUTER_API_KEY`)
+- Embeddings: **OpenAI embeddings** (`OPENAI_API_KEY`)
 - Vector store: **pgvector** (Postgres extension)
 - Rate limit: **5 req/min per API key**
 - Corpus source: PlanExe‑web `_data/examples.yml`

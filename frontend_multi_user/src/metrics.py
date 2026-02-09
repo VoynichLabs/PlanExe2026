@@ -1,70 +1,45 @@
 import json
 import logging
 import os
-from typing import Dict, Any
+from typing import Dict
 
 import requests
-from google.oauth2 import service_account
-from google.auth.transport.requests import Request as GoogleRequest
 
 logger = logging.getLogger(__name__)
 
-VERTEX_LOCATION = os.environ.get("VERTEX_LOCATION", "us-central1")
-VERTEX_PROJECT_ID = os.environ.get("VERTEX_PROJECT_ID")
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash-001")
-EMBED_MODEL = os.environ.get("EMBED_MODEL", "text-embedding-004")
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
+OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "google/gemini-2.0-flash-001")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+EMBED_MODEL = os.environ.get("EMBED_MODEL", "text-embedding-3-small")
 
 
-def _get_service_account_credentials():
-    json_blob = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS_JSON")
-    json_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
-    if json_blob:
-        info = json.loads(json_blob)
-        return service_account.Credentials.from_service_account_info(info, scopes=["https://www.googleapis.com/auth/cloud-platform"])
-    if json_path:
-        return service_account.Credentials.from_service_account_file(json_path, scopes=["https://www.googleapis.com/auth/cloud-platform"])
-    raise RuntimeError("Missing Google credentials: set GOOGLE_APPLICATION_CREDENTIALS_JSON or GOOGLE_APPLICATION_CREDENTIALS")
-
-
-def _get_access_token() -> str:
-    creds = _get_service_account_credentials()
-    creds.refresh(GoogleRequest())
-    return creds.token
-
-
-def _vertex_generate(prompt: str) -> dict:
-    if not VERTEX_PROJECT_ID:
-        raise RuntimeError("VERTEX_PROJECT_ID not set")
-
-    url = f"https://{VERTEX_LOCATION}-aiplatform.googleapis.com/v1/projects/{VERTEX_PROJECT_ID}/locations/{VERTEX_LOCATION}/publishers/google/models/{GEMINI_MODEL}:generateContent"
-    token = _get_access_token()
+def _openrouter_chat(prompt: str) -> str:
+    if not OPENROUTER_API_KEY:
+        raise RuntimeError("OPENROUTER_API_KEY not set")
+    url = "https://openrouter.ai/api/v1/chat/completions"
     payload = {
-        "contents": [
-            {"role": "user", "parts": [{"text": prompt}]}
+        "model": OPENROUTER_MODEL,
+        "messages": [
+            {"role": "user", "content": prompt}
         ],
-        "generationConfig": {
-            "response_mime_type": "application/json",
-            "temperature": 0.2,
-        }
+        "temperature": 0.2,
+        "max_tokens": 2048
     }
-    resp = requests.post(url, headers={"Authorization": f"Bearer {token}"}, json=payload, timeout=30)
+    resp = requests.post(url, headers={"Authorization": f"Bearer {OPENROUTER_API_KEY}"}, json=payload, timeout=60)
     resp.raise_for_status()
     data = resp.json()
-    return data
+    return data["choices"][0]["message"]["content"]
 
 
-def _vertex_embed(text: str) -> list[float]:
-    if not VERTEX_PROJECT_ID:
-        raise RuntimeError("VERTEX_PROJECT_ID not set")
-    url = f"https://{VERTEX_LOCATION}-aiplatform.googleapis.com/v1/projects/{VERTEX_PROJECT_ID}/locations/{VERTEX_LOCATION}/publishers/google/models/{EMBED_MODEL}:predict"
-    token = _get_access_token()
-    payload = {
-        "instances": [{"content": text}]
-    }
-    resp = requests.post(url, headers={"Authorization": f"Bearer {token}"}, json=payload, timeout=30)
+def _openai_embed(text: str) -> list[float]:
+    if not OPENAI_API_KEY:
+        raise RuntimeError("OPENAI_API_KEY not set")
+    url = "https://api.openai.com/v1/embeddings"
+    payload = {"model": EMBED_MODEL, "input": text}
+    resp = requests.post(url, headers={"Authorization": f"Bearer {OPENAI_API_KEY}"}, json=payload, timeout=60)
     resp.raise_for_status()
     data = resp.json()
-    embedding = data.get("predictions", [{}])[0].get("embeddings", {}).get("values")
+    embedding = data.get("data", [{}])[0].get("embedding")
     if not embedding:
         raise RuntimeError("Embedding response missing values")
     return embedding
@@ -94,8 +69,7 @@ Plan metadata:
 Return ONLY valid JSON.
 """
 
-    data = _vertex_generate(kpi_prompt)
-    text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "{}")
+    text = _openrouter_chat(kpi_prompt)
     try:
         kpis = json.loads(text)
     except Exception as exc:
@@ -128,8 +102,7 @@ Plan B KPIs:
 Respond with one term: strongly prefer A | weakly prefer A | neutral | weakly prefer B | strongly prefer B
 """
 
-    data = _vertex_generate(prompt)
-    text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "").strip().lower()
+    text = _openrouter_chat(prompt).strip().lower()
     mapping = {
         "strongly prefer a": 0.9,
         "weakly prefer a": 0.7,
@@ -149,4 +122,4 @@ def update_elo(elo_a: float, elo_b: float, prob_a: float, k: float = 32.0) -> tu
 
 
 def embed_prompt(prompt: str) -> list[float]:
-    return _vertex_embed(prompt)
+    return _openai_embed(prompt)
