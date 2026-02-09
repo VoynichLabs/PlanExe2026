@@ -31,6 +31,7 @@ from flask import make_response
 import requests
 import stripe
 import metrics as ranking_metrics
+import validation
 from worker_plan_api.generate_run_id import generate_run_id
 from worker_plan_api.start_time import StartTime
 from worker_plan_api.plan_file import PlanFile
@@ -977,6 +978,25 @@ class MyFlaskApp:
 
             if not plan_id or not plan_json:
                 return jsonify({"error": "plan_id and plan_json required"}), 400
+
+            # Input validation
+            try:
+                # Validate plan_json structure and size
+                validation.validate_plan_json(plan_json, max_size_bytes=1048576)
+                
+                # Validate and sanitize title
+                title = validation.validate_title(title)
+                
+                # Validate and sanitize URL
+                url = validation.validate_url(url)
+                
+                # Validate and sanitize prompt from plan_json
+                if "prompt" in plan_json:
+                    plan_json["prompt"] = validation.validate_prompt(plan_json["prompt"])
+                
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Validation error in /api/rank: {e}")
+                return jsonify({"error": f"Validation failed: {str(e)}"}), 400
 
             try:
                 plan_uuid = uuid.UUID(plan_id)
