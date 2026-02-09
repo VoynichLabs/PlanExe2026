@@ -53,4 +53,37 @@
             {% endif %}
         </form>
     </div>
+
+    <div class="card">
+        <h4>My plans</h4>
+        {% if plans and plans|length > 0 %}
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Plan</th>
+                    <th>Elo</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for plan in plans %}
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    <td>
+                        {% if plan.url %}
+                            <a href="{{ plan.url }}" target="_blank">{{ plan.title }}</a>
+                        {% else %}
+                            {{ plan.title }}
+                        {% endif %}
+                    </td>
+                    <td>{{ plan.elo }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <p><a href="/rankings">View detailed rankings</a></p>
+        {% else %}
+        <p class="text-muted">No ranked plans yet.</p>
+        {% endif %}
+    </div>
 {% endblock %}

@@ -795,6 +795,18 @@ class MyFlaskApp:
                 return redirect(url_for('account'))
 
             active_key = UserApiKey.query.filter_by(user_id=user.id, revoked_at=None).first()
+            with self.db.engine.begin() as conn:
+                plan_rows = conn.execute(text(
+                    """SELECT pc.title, pc.url, pm.elo
+                       FROM plan_metrics pm
+                       JOIN plan_corpus pc ON pc.id = pm.plan_id
+                       WHERE pc.owner_id = :owner_id
+                       ORDER BY pm.elo DESC"""
+                ), {"owner_id": str(user.id)}).fetchall()
+            plans = [
+                {"title": r[0], "url": r[1], "elo": r[2]}
+                for r in plan_rows
+            ]
             return render_template(
                 'account.html',
                 user=user,
@@ -802,6 +814,7 @@ class MyFlaskApp:
                 new_api_key=new_api_key,
                 stripe_enabled=bool(os.environ.get("PLANEXE_STRIPE_SECRET_KEY")),
                 telegram_enabled=bool(os.environ.get("PLANEXE_TELEGRAM_BOT_TOKEN")),
+                plans=plans,
             )
 
         @self.app.route('/billing/stripe/checkout', methods=['POST'])
