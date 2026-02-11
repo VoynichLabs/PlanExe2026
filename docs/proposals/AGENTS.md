@@ -13,6 +13,68 @@ Below is the distilled guidance based on the current proposals in this folder.
 - **Risks with mitigations**: They name real failure modes and how to reduce them.
 - **Examples or diagrams**: When relevant, they include a snippet, architecture diagram, or formula.
 
+## Quality, Feasibility, Realism (Must Address)
+
+Every proposal should explicitly cover these three dimensions:
+
+### Quality
+
+- Define what “good output” looks like and how it is verified.
+- Include objective checks (schemas, tests, validation rules).
+- Specify auditability (logs, evidence, reproducibility).
+
+### Feasibility
+
+- Explain what is feasible **now** vs **later**.
+- Identify hard dependencies (data, tools, approvals).
+- Include a staged rollout plan to reduce risk.
+
+### Realism
+
+- Acknowledge real-world constraints (time, budget, humans, legal/regulatory).
+- Show where assumptions are weak and how to validate them.
+- Avoid “fully autonomous” claims unless bounded by strict gates.
+
+## Batch Improvement Process (Low-Quality Proposals)
+
+When improving proposals in batches, use a consistent selection and upgrade process.
+
+### How to Identify a Batch of 3 Low-Quality Proposals
+
+Look for documents with these traits:
+
+- **Thin content**: very short proposals, missing core sections.
+- **Under-specified**: no architecture/workflow, no schemas, no examples.
+- **Weak feasibility**: no staging, no dependencies, no gates.
+- **Unclear success**: missing metrics or outcomes.
+- **No risks**: risk section absent or generic.
+
+Selection steps:
+
+1. Rank proposals by word count and skim the shortest.
+2. Check for missing required sections (Pitch/Problem/Proposal/Metrics/Risks).
+3. Pick the 3 with the most missing structure and weakest specificity.
+
+### How to Improve Their Quality and Detail
+
+For each selected proposal:
+
+1. **Add structure**: ensure required sections exist.
+2. **Add architecture or workflow**: show how it works end-to-end.
+3. **Add concrete artifacts**: schema, API, formulas, or sample outputs.
+4. **Add feasibility**: staged rollout and explicit dependencies.
+5. **Add metrics and risks**: measurable success + realistic failure modes.
+
+Target outcome: the proposal should read like a small technical spec, not an idea sketch.
+
+### Suggestion for Authors
+
+When you are working on proposals, periodically run this batch process:
+
+- Pick the three lowest-quality drafts.
+- Expand them using the same structure as the best proposals.
+- Repeat until all proposals meet the quality bar.
+
 ## Naming and Title
 - **Filename**: keep the numeric prefix for ordering, e.g. `27-multi-angle-topic-verification-engine.md`.
 - **Title**: do **not** include the number in the H1.
