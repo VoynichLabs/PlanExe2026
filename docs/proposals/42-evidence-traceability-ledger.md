@@ -194,3 +194,73 @@ A specialized view for investors that hides the prose and focuses on the `Claim 
 1.  **Blockchain Anchoring:** Hash ledger entries to a public chain for tamper-proof history.
 2.  **Automated Crawler:** Agent that periodically re-checks URLs for 404s or content changes.
 3.  **Citation Graph:** Visualize how one piece of evidence supports multiple claims across different plans (e.g., a shared market report).
+
+## Detailed Implementation Plan
+
+### Phase A — Claims Pipeline Foundation (2–3 weeks)
+
+1. Add section-aware parser for plan markdown/JSON artifacts.
+2. Implement claim extraction with stable claim IDs:
+   - hash = normalized claim text + location_ref + plan_version
+3. Create confidence classifier for extracted claims:
+   - factual numeric
+   - factual non-numeric
+   - normative/opinion (excluded from strict ledger)
+
+### Phase B — Evidence Ingestion + Scoring (2–3 weeks)
+
+1. Build evidence adapters:
+   - URL fetch + snapshot hash
+   - document upload + OCR extraction
+   - structured source connectors (registry/DB)
+
+2. Implement verification-level scoring policy:
+   - Level 1: weak/secondary
+   - Level 2: credible but indirect
+   - Level 3: primary authoritative evidence
+
+3. Introduce freshness profile by evidence type with default half-life values.
+
+### Phase C — Ledger Integrity + Audit (2 weeks)
+
+1. Append-only `ledger_entries` with immutable versioning.
+2. Add digital signature of report bundle and ledger digest.
+3. Implement dispute flow:
+   - mark `disputed`
+   - assign reviewer
+   - record resolution actions
+
+### Phase D — Product Integration (2 weeks)
+
+1. Add inline plan UI badges per claim:
+   - verified / stale / missing / disputed
+2. Add investor audit export endpoint:
+   - summary + full trace tables + signatures
+3. Add policy gate:
+   - block “investor-ready” status if verification coverage below threshold
+
+### Suggested quality thresholds
+
+- >=80% claims must have evidence link
+- >=60% claims must be Level 2+
+- 0 critical claims in `missing` or `disputed` state
+
+### Data model hardening
+
+- Add `plan_version` to claims and ledger rows
+- Add `source_fetch_status` and `source_http_code`
+- Add `evidence_expiry_at` for freshness checks
+
+### Operational safeguards
+
+- Cache source snapshots to avoid link rot dependence
+- Rate-limit external crawlers
+- PII redaction on uploaded documents before indexing
+
+### Validation checklist
+
+- Claim extraction precision/recall benchmarks
+- Deterministic claim IDs across reruns
+- Tamper detection test via signature mismatch
+- Freshness state transition tests
+- Audit export completeness checks

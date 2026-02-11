@@ -173,3 +173,79 @@ When a `Red` alert fires, a "Re-Plan" button appears.
 ## Future Enhancements
 1.  **Predictive Drift:** Use ML time-series forecasting (Prophet/Arima) to alert *before* the breach happens.
 2.  **News Sentiment:** Ingest news articles to detect "Qualitative Drift" (e.g., "Political instability in supplier region").
+
+## Detailed Implementation Plan
+
+### Phase A — Assumption Registry Normalization (2 weeks)
+
+1. Parse plan artifacts to extract assumptions into typed schema:
+   - financial
+   - schedule
+   - supply/procurement
+   - regulatory
+   - operational capacity
+
+2. Require each assumption to define:
+   - baseline value
+   - tolerance band
+   - data source mapping
+   - sensitivity factor
+
+3. Add assumption ownership metadata for accountability.
+
+### Phase B — Data Connector Layer (2–3 weeks)
+
+1. Implement connector framework with retry/backoff and health checks.
+2. Build initial connectors for:
+   - FX and rates
+   - commodity prices
+   - inflation benchmarks
+   - internal project telemetry
+
+3. Persist raw observations and normalized values separately.
+
+### Phase C — Drift Detection + Alerting (2 weeks)
+
+1. Compute per-assumption drift:
+   - absolute drift
+   - percent drift
+   - trend slope over configurable window
+
+2. Add composite drift index weighted by sensitivity.
+3. Implement escalation policy:
+   - green/yellow/red
+   - notification channels
+   - required action SLA by severity
+
+### Phase D — Re-Planning Integration (2 weeks)
+
+1. On critical drift breach, trigger re-plan suggestion packet.
+2. Provide impact estimate:
+   - expected schedule delta
+   - expected budget delta
+   - confidence interval
+
+3. Optional auto-replan in simulation mode for preview before approval.
+
+### Data model extensions
+
+- `assumption_sources`
+- `assumption_observations`
+- `drift_alerts`
+- `drift_actions`
+
+Include `observed_at`, `ingested_at`, and `source_latency_ms` for diagnostics.
+
+### Governance controls
+
+- Manual waiver support with expiration date
+- Audit trail for waived critical alerts
+- Mandatory signoff on persistent red alerts
+
+### Validation checklist
+
+- Drift accuracy on synthetic datasets with known shifts
+- Connector reliability under API outages
+- Alert precision (avoid noisy false positives)
+- Correct policy escalation routing
+- Replan trigger correctness and reproducibility

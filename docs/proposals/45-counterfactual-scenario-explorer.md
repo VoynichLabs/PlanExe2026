@@ -111,3 +111,71 @@ The user can iterate by adjusting plan parameters (e.g., "Add 2 more engineers")
 ## Future Enhancements
 1.  **AI Recommendations:** "If you split Task B into two parallel tasks, your P90 duration drops by 15 days."
 2.  **Historical Training:** Calibrate distributions based on actual past project data (e.g., "Software projects usually slip 30%, not 10%").
+
+## Detailed Implementation Plan
+
+### Phase A — Scenario DSL and Input Model (2 weeks)
+
+1. Define a scenario definition language (DSL):
+   - variable overrides
+   - distribution overrides
+   - deterministic shocks
+   - policy constraints
+
+2. Add scenario library:
+   - optimistic
+   - pessimistic
+   - black swan
+   - inflationary
+   - delay spiral
+
+3. Validate scenario compatibility with plan domain.
+
+### Phase B — Counterfactual Engine (2–3 weeks)
+
+1. Build engine to clone baseline plan state and apply scenario transforms.
+2. Recompute schedule, cost, and risk metrics per scenario.
+3. Run Monte Carlo for each scenario profile.
+
+4. Store output distributions and key drivers.
+
+### Phase C — Comparative Analytics Layer (2 weeks)
+
+1. Compute deltas vs baseline:
+   - schedule delta distribution
+   - cost delta distribution
+   - probability of failing hard constraints
+
+2. Generate resilience score and explainability outputs:
+   - top 5 sensitivity drivers
+   - counterfactual interventions ranked by impact
+
+3. Add recommendation generator constrained by feasibility and capacity.
+
+### Phase D — Interactive UX + API (2 weeks)
+
+1. Add scenario explorer UI with matrix/heatmap + scatter cloud.
+2. Add parameter sliders with guardrails.
+3. Expose APIs:
+   - create scenario
+   - run analysis
+   - retrieve comparative report
+
+### Data model additions
+
+- `scenario_definitions` (scenario_id, plan_id, dsl_json)
+- `scenario_runs` (scenario_id, run_id, metrics_json)
+- `scenario_comparisons` (baseline_run_id, scenario_run_id, deltas_json)
+
+### Operational safeguards
+
+- async queue for heavy scenario batches
+- seed control for reproducibility
+- max scenario complexity limits to avoid runaway compute
+
+### Validation checklist
+
+- deterministic baseline replay
+- scenario transform correctness tests
+- resilience score monotonicity sanity checks
+- UI interpretability tests with PMs and analysts
