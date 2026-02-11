@@ -1,6 +1,6 @@
 ---
-title: "Three-Hypotheses Engine for Unsolved Challenges"
-date: 2026-02-10
+title: Three-Hypotheses Engine: Technical Documentation
+date: 2026-02-11
 status: proposal
 author: PlanExe Team
 ---
@@ -8,86 +8,117 @@ author: PlanExe Team
 # Three-Hypotheses Engine for Unsolved Challenges
 
 **Author:** PlanExe Team  
-**Date:** 2026-02-10  
+**Date:** 2026-02-11  
 **Status:** Proposal  
-**Tags:** `hypotheses`, `r-and-d`, `uncertainty`, `experimentation`, `planning`
+**Audience:** R&D Leads, Innovation Managers  
 
-## Pitch
-When the system finds an unsolved challenge, require generation of exactly three plausible hypotheses to approach a solution, then rank them by evidence and risk.
+---
 
-## Why
-Plans stall when teams identify hard problems but do not structure solution exploration. A strict three-hypothesis framework forces breadth without exploding scope.
+## Overview
+The **Three-Hypotheses Engine** formalizes the "Discovery Phase" of a plan. When a team encounters an unsolved technical challenge (a "Known Unknown"), the system enforces a structured approach: generate exactly three viable hypotheses, design experiments to test them, and track progress until one succeeds or all fail.
 
-## Problem
+It prevents "Tunnel Vision" (betting everything on one unproven idea) and "Analysis Paralysis" (endless research without action).
 
-- Unresolved technical gaps are treated as vague risks.
-- Teams jump to a single approach without alternatives.
-- R&D spending is not staged or governed by evidence.
+## Core Problem
+Innovation is chaotic. Teams often pursue a single "pet theory" for months, only to fail. They rarely define *up front* what constitutes success or failure, leading to "Zombie Projects" that consume resources but produce no value.
 
-## Proposed Solution
-For each unresolved challenge:
+## System Architecture
 
-1. Produce exactly three hypotheses (H1/H2/H3).
-2. Define a test protocol for each hypothesis.
-3. Estimate cost, time, and risk profile per hypothesis.
-4. Recommend a portfolio strategy (single-track vs parallel trials).
+### 1. Challenge Definition
+The user defines the *Problem Statement* (not the solution).
+*   *Example:* "We need concrete that cures at -30°C."
 
-## Hypothesis Card Template
+### 2. Hypothesis Generator (H1, H2, H3)
+The system (or user) proposes 3 distinct approaches. Each hypothesis is a "Bet".
+*   **H1 (The Favorite):** High probability, moderate cost.
+*   **H2 (The Backup):** Proven tech, higher cost/lower performance.
+*   **H3 (The Moonshot):** Low probability, game-changing payoff.
 
-Each hypothesis includes:
+### 3. Experiment Desiuge
+For each hypothesis, defining the *Test Protocol*:
+*   **Variable:** What are we changing?
+*   **Metric:** What are we measuring?
+*   **Success Criteria:** What number means "It works"?
+*   **Kill Criteria:** What number means "Abandon ship"?
 
-- Assumptions
-- Required experiments
-- Failure criteria
-- Expected evidence outputs
-- Estimated cost and timeline
+### 4. The Lifecycle Engine
+A state machine that tracks each hypothesis through its stages: `Proposed` -> `Approved` -> `Testing` -> `Validated` OR `Refuted`.
 
-## Example (Cold-Climate Concrete)
+---
 
-- **H1:** Admixture chemistry adaptation for low-temp hydration kinetics
-- **H2:** Modular heated formwork + controlled curing micro-environments
-- **H3:** Alternative material systems with reduced hydration sensitivity
+## The "EVI" Formula (Expected Value of Information)
 
-## Required Outputs
+We prioritize experiments based on EVI.
 
-- Hypothesis cards (H1/H2/H3)
-- Stage-gate plan for kill/continue decisions
-- Expected Value of Information (EVI) by hypothesis
+$$EVI = (P_{success} \times Value_{success}) - Cost_{experiment}$$
 
-## Output Schema
+Where:
+-   $P_{success}$: Probability the hypothesis is true (Estimated).
+-   $Value_{success}$: The Net Present Value (NPV) of the solution if it works.
+-   $Cost_{experiment}$: The cost to run the test.
+
+**Algorithm:**
+1.  Calculate EVI for H1, H2, H3.
+2.  If `EVI(H1) >> EVI(H2)`, run H1 first (Serial Strategy).
+3.  If `EVI(H1) ≈ EVI(H2)`, run both (Parallel Strategy).
+
+---
+
+## Output Schema (JSON)
+
+The structure of a Challenge object:
 
 ```json
 {
-  "challenge": "cold_climate_concrete",
+  "challenge_id": "chal_777",
+  "problem_statement": "Cold-weather concrete curing",
+  "status": "active",
   "hypotheses": [
-    {"id": "H1", "risk": "medium", "evi": 0.64},
-    {"id": "H2", "risk": "high", "evi": 0.52},
-    {"id": "H3", "risk": "medium", "evi": 0.71}
+    {
+      "id": "H1",
+      "title": "Chemical Admixture",
+      "p_success": 0.6,
+      "cost_test": 5000,
+      "value_success": 1000000,
+      "evi": 595000,
+      "state": "testing", 
+      "experiments": [
+        {
+          "id": "exp_1",
+          "metric": "cure_time_hours",
+          "target": "< 24",
+          "result": null
+        }
+      ]
+    },
+    {
+      "id": "H2",
+      "title": "Heated Formwork",
+      "p_success": 0.9,
+      "cost_test": 50000,
+      "value_success": 800000, # Lower value due to higher operational cost
+      "evi": 670000, 
+      "state": "queued"
+    }
   ],
-  "recommended_strategy": "parallel_trial"
+  "strategy": "parallel" # Run H1 and H2 because both have high EVI
 }
 ```
 
-## Integration Points
+---
 
-- Feeds hypothesis success probabilities into Monte Carlo models.
-- Updates plan success probability after each experiment cycle.
-- Links to frontier research gap mapper.
+## User Interface: "The Experiment Dashboard"
 
-## Success Metrics
+A Kanban board with a twist. Columns are:
+1.  **Hypotheses:** The 3 contenders.
+2.  **In Flight:** Active experiments.
+3.  **The Pivot Point:** Where decisions happen.
+4.  **Graveyard:** Failed hypotheses (with "Post-Mortem" attached).
+5.  **Winner's Circle:** The validated solution.
 
-- Time to first validated path for frontier challenges.
-- Reduction in dead-end R&D spend.
-- Improved confidence bounds after hypothesis testing.
-
-## Risks
-
-- Hypotheses may not be meaningfully distinct.
-- Over-parallelization increases cost.
-- EVI estimates depend on weak priors.
+### The "Kill Switch"
+If an experiment hits its "Kill Criteria" (e.g., "Cost > $100/unit"), the system automatically flags the hypothesis as `Refuted` and recommends moving resources to the next one.
 
 ## Future Enhancements
-
-- Automated literature scan to seed hypotheses.
-- Expert panel review of hypothesis set.
-- Learning-based hypothesis ranking from outcomes.
+1.  **Automated Literature Review:** Agents that scan arXiv/Patents to suggest H1/H2/H3.
+2.  **Bayesian Updating:** Automatically update $P_{success}$ based on partial experiment results.

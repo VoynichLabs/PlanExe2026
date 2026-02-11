@@ -1,5 +1,5 @@
 ---
-title: Investor-Grade Audit Pack Generator
+title: Investor-Grade Audit Pack Generator: Technical Documentation
 date: 2026-02-11
 status: proposal
 author: PlanExe Team
@@ -7,76 +7,143 @@ author: PlanExe Team
 
 # Investor-Grade Audit Pack Generator
 
-## Pitch
-Generate a standardized, investor-grade audit pack that bundles evidence, verification logs, risk gates, and financial stress tests into a single reviewable artifact.
+**Author:** PlanExe Team  
+**Date:** 2026-02-11  
+**Status:** Proposal  
+**Audience:** Developers, Investment Analysts  
 
-## Why
-Investors spend time re-validating plans. A structured audit pack reduces diligence time and increases trust.
+---
 
-## Problem
+## Overview
+The **Investor-Grade Audit Pack Generator** automates the final mile of deal preparation. It compiles verified evidence, financial models, risk registers, and governance logs into a standardized, cryptographically-signed artifact (PDF/HTML) suitable for institutional due diligence.
 
-- Evidence is scattered across artifacts.
-- Review outputs are inconsistent between plans.
-- Verification and risk logs are hard to compile.
-- Sensitive data is often mixed with public-facing data.
+Instead of a scattered collection of Google Docs and Excel sheets, the Audit Pack is a single source of truth.
 
-## Proposed Solution
-Create a generator that:
+## Key Features
+1.  **Redaction Engine:** Automatically hides sensitive data (e.g., specific salaries, trade secrets) based on the recipient's clearance level.
+2.  **Versioning:** "Snapshot" a plan at a specific point in time (e.g., "Series A Pack - v1.0").
+3.  **Digital Signature:** Signs the pack to prove it hasn't been tampered with since generation.
 
-1. Pulls verified evidence and claim ledger.
-2. Summarizes verification outcomes and flags.
-3. Includes Monte Carlo risk and cashflow stress outputs.
-4. Exports a standardized PDF/HTML pack with redaction controls.
+## System Architecture
 
-## Pack Contents
+### 1. Data Aggregation
+The generator pulls data from multiple internal systems:
+-   **Plan Content:** The narrative text.
+-   **Evidence Ledger:** The verification status of claims.
+-   **Financial Engine:** The 5-year pro-forma model.
+-   **Risk Register:** The Monte Carlo simulation results.
 
-- Executive summary
-- Claim-to-evidence ledger
-- Verification grades and expert notes
-- Risk and failure propagation analysis
-- Financial stress testing outputs
-- Governance and approval log
-- Redaction summary and data sensitivity notes
+### 2. Redaction Layer
+Before generation, the `RedactionEngine` filters the data.
+-   **Tags:** Fields are tagged as `public`, `investor_only`, or `internal_confidential`.
+-   **Roles:** Recipients are assigned roles (e.g., `analyst`, `partner`).
+-   **Logic:** If `role.clearance < field.sensitivity`, the field is replaced with `[REDACTED]`.
 
-## Redaction and Sensitivity Layer
+### 3. Artifact Generation
+-   **HTML:** Renders a responsive, interactive report using Jinja2 templates.
+-   **PDF:** Converts the HTML to a high-fidelity PDF using `WeasyPrint` or similar.
+-   **ZIP:** Bundles the PDF with raw data files (CSV, JSON) for analysts who want to run their own models.
 
-- Mark data fields as `public`, `investor_only`, or `confidential`.
-- Apply automatic redaction for confidential fields.
-- Generate a data sensitivity appendix.
+---
 
-## Output Schema
+## Output Schema (JSON)
+
+The core data structure passed to the renderer:
 
 ```json
 {
-  "pack_id": "audit_091",
-  "plan_id": "plan_233",
-  "sections": ["summary", "evidence", "risk", "finance"],
-  "status": "ready_for_investor",
-  "redaction_level": "investor_only"
+  "pack_id": "pack_2026_02_11_abc",
+  "plan_id": "plan_123",
+  "generated_at": "2026-02-11T16:00:00Z",
+  "recipient": "Sequoia Capital",
+  "clearance_level": "investor_only",
+  "sections": [
+    {
+      "title": "Executive Summary",
+      "content": "..."
+    },
+    {
+      "title": "Financial Model",
+      "data": {
+        "revenue_y1": 1000000,
+        "revenue_y2": 5000000,
+        "ebitda_margin": "[REDACTED]" 
+      }
+    }
+  ],
+  "signature": "sha256:..."
 }
 ```
 
-## Integration Points
+---
 
-- Pulls from evidence ledger and verification workflow.
-- Includes outputs from Monte Carlo engines.
-- Used in investor matching and escalation.
+## Redaction Logic
 
-## Success Metrics
+We use a simplistic but robust tagging system.
 
-- Reduction in diligence time per plan.
-- Higher investor confidence scores.
-- Increased conversion from review to funding.
-- Reduction in data leakage incidents.
+| Tag | Visibility | Example |
+| :--- | :--- | :--- |
+| `public` | Everyone | Product description, Market size |
+| `investor_only` | NDA Signed | High-level financials, Roadmap |
+| `internal_confidential` | Founders | Cap table details, Employee salaries |
 
-## Risks
+**Algorithm:**
+```python
+def redact(data: dict, clearance: str) -> dict:
+    if clearance == 'internal_confidential':
+        return data  # Show everything
+    
+    sanitized = {}
+    for key, value in data.items():
+        tag = get_tag(key)
+        if can_view(clearance, tag):
+            sanitized[key] = value
+        else:
+            sanitized[key] = "[REDACTED]"
+    return sanitized
+```
 
-- Pack could be outdated if data is stale.
-- Over-standardization may hide nuance.
-- Sensitive data exposure without redaction.
+---
+
+## API Reference
+
+### `POST /api/audit/generate`
+Create a new audit pack.
+
+**Request:**
+```json
+{
+  "plan_id": "plan_123",
+  "recipient_name": "Acme VC",
+  "clearance_level": "investor_only",
+  "format": "pdf" 
+}
+```
+
+**Response:**
+```json
+{
+  "pack_id": "pack_456",
+  "download_url": "https://planexe.org/api/audit/download/pack_456.pdf",
+  "expires_at": "2026-02-18T16:00:00Z"
+}
+```
+
+### `GET /api/audit/verify/{signature}`
+Verify the integrity of a pack.
+
+**Response:**
+```json
+{
+  "valid": true,
+  "generated_at": "2026-02-11",
+  "plan_hash": "sha256:..."
+}
+```
+
+---
 
 ## Future Enhancements
-
-- Investor-specific pack customization.
-- Continuous updates during execution.
-- API access for automated diligence ingestion.
+1.  **Watermarking:** Dynamic watermarks with the recipient's email on every page of the PDF.
+2.  **Data Room Integration:** Auto-upload to Carta, DocSend, or specialized VDRs.
+3.  **Interactive Models:** Embed "Live Excel" components in the HTML version, allowing investors to tweak assumptions (within bounds).
