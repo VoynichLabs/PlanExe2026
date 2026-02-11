@@ -201,3 +201,24 @@ Suggested summary payload extension:
 - Statistical sanity tests (mean/variance bounds).
 - Integration tests for API + report rendering.
 - Backtest acceptance criteria per domain.
+
+## Detailed Implementation Plan (Compute + Reliability)
+
+### Compute Strategy
+- Interactive mode: 1,000 runs for quick feedback
+- Batch mode: 10,000+ runs for decision-grade outputs
+- Queue heavy runs with cancellation support
+
+### Reliability Controls
+- Seeded reproducibility for audit
+- Input validation for distribution parameter sanity
+- Guardrails against invalid dependency graphs
+
+### Explainability
+- Output top driver contributions per percentile shift
+- Include “what changed this outcome” narrative snippets
+
+### SLOs
+- P95 interactive response < 8s (1k runs)
+- Batch completion < 2 min for standard plan size
+

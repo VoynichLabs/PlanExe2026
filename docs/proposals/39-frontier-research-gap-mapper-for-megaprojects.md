@@ -155,3 +155,23 @@ System output should include:
 - Expert review agreement on maturity labels.
 - Correlation between frontier index and downstream execution risk.
 - Reduction in technically premature bids.
+
+## Detailed Implementation Plan (R&D Programization)
+
+### Frontier Detection Ops
+- Build challenge classifiers for materials, environment, logistics, and policy domains.
+- Attach evidence references for each frontier label.
+
+### Research Program Builder
+- Convert frontier gaps into staged R&D tracks with gates:
+  - feasibility proof
+  - pilot validation
+  - scale readiness
+
+### Bid Integration
+- Add bidability penalty for unresolved critical frontier gaps.
+- Surface required pre-bid R&D budget/time in executive summary.
+
+### Validation
+- Compare mapper outputs with expert panel assessments.
+

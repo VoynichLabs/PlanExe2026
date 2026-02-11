@@ -173,3 +173,22 @@ Run multi-step simulations to reveal cascades:
 - Synthetic graph tests with known cascades.
 - Stability tests for edge-weight perturbation.
 - Human review of top-10 pathways for interpretability.
+
+## Detailed Implementation Plan (Graph Operations)
+
+### Graph Build Pipeline
+1. Extract nodes from tasks, risks, resources.
+2. Infer edges from dependencies and causal templates.
+3. Score edge confidence and impact weight.
+
+### Runtime
+- Run cascade simulation alongside baseline Monte Carlo.
+- Persist top failure chains and intervention candidates.
+
+### Mitigation Planner
+- Compute marginal risk reduction for each intervention.
+- Recommend portfolio under mitigation budget constraint.
+
+### Governance
+- Require review for interventions with high operational disruption.
+

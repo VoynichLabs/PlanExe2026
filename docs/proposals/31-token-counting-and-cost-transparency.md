@@ -201,3 +201,23 @@ Critical implementation detail:
 - Golden tests with canned raw provider responses
 - Billing reconciliation tests against provider invoices
 - Backfill script for historical runs where data exists
+
+## Detailed Implementation Plan (Operational Rollout)
+
+### Deployment Path
+1. Ship instrumentation behind `TOKEN_ACCOUNTING_ENABLED` feature flag.
+2. Enable in staging first; reconcile with provider dashboards for 1 week.
+3. Roll out to production with alerting on missing usage payloads.
+
+### Cost Reconciliation Workflow
+- Daily batch compares internal aggregated cost to provider invoice API.
+- If variance >2%, emit finance alert and lock optimization recommendations until corrected.
+
+### Observability
+- Metrics: `token_usage_capture_rate`, `usage_parse_failures`, `cost_variance_pct`.
+- Dashboards by provider/model/stage.
+
+### Ownership Model
+- Platform team owns parser + pricing catalog.
+- Product team owns user-facing reports and budget controls.
+

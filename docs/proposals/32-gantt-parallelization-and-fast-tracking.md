@@ -199,3 +199,25 @@ Add sections to plan output:
 - Regression tests on common project patterns
 - Stress tests for 1k+ task plans
 - User acceptance tests on readability of baseline vs accelerated outputs
+
+## Detailed Implementation Plan (Execution Strategy)
+
+### Scheduling Strategy Modes
+- `conservative`: minimal overlap, low rework risk
+- `balanced`: moderate overlap, default mode
+- `aggressive`: max overlap with explicit risk acceptance
+
+### Critical Path Compression Playbook
+1. Detect top 3 blockers by criticality impact.
+2. Apply split/overlap operators.
+3. Recompute with resource constraints.
+4. Accept plan only if risk-adjusted gain remains positive.
+
+### Governance
+- Require human approval when aggressive mode exceeds rework threshold.
+- Log all schedule transformations for audit.
+
+### KPI Targets
+- >=15% median duration reduction in balanced mode
+- <=10% increase in predicted rework cost
+

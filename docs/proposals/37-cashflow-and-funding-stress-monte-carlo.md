@@ -165,3 +165,24 @@ Add a dedicated report section:
 - Reconcile baseline simulation with deterministic cashflow model.
 - Verify multi-currency translation consistency.
 - Backtest against historical liquidity incidents where available.
+
+## Detailed Implementation Plan (Treasury Readiness)
+
+### Treasury Simulation Features
+- Dynamic cash floor policy per project stage
+- Payment delay distributions by counterparty type
+- Optional emergency facility simulation
+
+### Decision Outputs
+- Minimum reserve recommendation
+- Funding bridge trigger points
+- Suggested payment milestone re-shaping
+
+### Alerting
+- Critical alert when insolvency probability exceeds configured threshold
+- Daily digest for plans in warning zone
+
+### Validation
+- Replay historical near-insolvency projects for calibration
+- Stress test with correlated shock scenarios
+
