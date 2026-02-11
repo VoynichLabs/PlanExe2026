@@ -355,3 +355,95 @@ Use this checklist to classify each task into Tier 1/2/3. If any Tier 3 conditio
 4. Evidence validator and risk gate layer.
 5. Adaptive re-planning and reporting.
 6. Pilot on a real plan with human oversight.
+
+## Detailed Implementation Plan
+
+### Phase A — Execution Core (3–4 weeks)
+
+1. Build canonical execution graph model in code:
+   - task node
+   - dependency edge
+   - execution state machine
+   - risk class and verification requirements
+
+2. Implement orchestrator service with deterministic scheduling:
+   - queueing
+   - dependency resolution
+   - retries
+   - timeout + cancellation semantics
+
+3. Add durable event stream:
+   - all state transitions append-only
+   - idempotent event handlers
+
+### Phase B — Capability and Assignment Layer (2–3 weeks)
+
+1. Define capability contract schema for agents/humans:
+   - capability id
+   - confidence profile
+   - availability window
+   - trust tier
+
+2. Implement assignment policy engine:
+   - AI-first for low-risk tasks
+   - human-first for legal/regulatory/irreversible actions
+   - hybrid path for AI-prep + human decision
+
+3. Add capacity-aware scoring:
+   - minimize queue aging
+   - avoid overloading constrained human roles
+
+### Phase C — Validation + Governance (2 weeks)
+
+1. Add evidence validator gate before task completion.
+2. Add policy gate before high-impact task execution.
+3. Implement emergency kill-switch + rollback to last stable milestone snapshot.
+
+### Phase D — Adaptive Re-Planning (2–3 weeks)
+
+1. Detect deviation triggers:
+   - cost/schedule threshold breach
+   - failed dependencies
+   - assumption drift from external signals
+
+2. Re-plan workflow:
+   - clone active graph state
+   - regenerate local schedule around affected subgraph
+   - preserve completed task evidence and audit lineage
+
+3. Publish delta artifacts:
+   - baseline vs current timeline
+   - budget delta
+   - decision rationale log
+
+### Data model additions
+
+- `execution_tasks`
+- `execution_events`
+- `assignment_decisions`
+- `policy_gate_results`
+- `replan_snapshots`
+
+All tables should be indexed by `plan_id`, `run_id`, and `task_id` for audit and replay.
+
+### API additions (suggested)
+
+- `POST /api/execution/start/{plan_id}`
+- `GET /api/execution/status/{run_id}`
+- `POST /api/execution/replan/{run_id}`
+- `POST /api/execution/stop/{run_id}`
+
+### Rollout safety controls
+
+- Start with “coordination-only mode” (humans execute all tasks)
+- Enable autonomous execution for Tier 1 tasks only
+- Require opt-in per workspace for Tier 2
+- Keep Tier 3 permanently human-led unless explicit governance override
+
+### Validation checklist
+
+- Event consistency under retries/restarts
+- Correct dependency execution ordering
+- No policy-gated task executes without approval
+- Rollback replay determinism
+- Human handoff SLA conformance

@@ -147,3 +147,73 @@ Verify the integrity of a pack.
 1.  **Watermarking:** Dynamic watermarks with the recipient's email on every page of the PDF.
 2.  **Data Room Integration:** Auto-upload to Carta, DocSend, or specialized VDRs.
 3.  **Interactive Models:** Embed "Live Excel" components in the HTML version, allowing investors to tweak assumptions (within bounds).
+
+## Detailed Implementation Plan
+
+### Phase A — Artifact Contract and Templates (2 weeks)
+
+1. Define canonical pack schema with required sections:
+   - executive summary
+   - evidence ledger snapshot
+   - financial model summaries
+   - risk and scenario outcomes
+   - governance and decision logs
+
+2. Build template system (HTML + PDF) with strict section ordering.
+3. Add pack versioning semantics (`vMajor.Minor.Patch`).
+
+### Phase B — Data Aggregation Layer (2–3 weeks)
+
+1. Implement aggregation service pulling from:
+   - plan artifacts
+   - evidence ledger
+   - finance modules
+   - risk simulation outputs
+
+2. Add data completeness checks:
+   - missing required section blocks pack generation
+   - partial data surfaced with explicit caveats
+
+3. Capture source hashes for every included section.
+
+### Phase C — Redaction + Access Control (2 weeks)
+
+1. Build role-based redaction policy engine.
+2. Support recipient-specific variants with immutable redaction logs.
+3. Add expiration and revocation controls for downloadable packs.
+
+### Phase D — Signatures + Delivery (2 weeks)
+
+1. Generate cryptographic pack digest and signature metadata.
+2. Add verification endpoint for external auditors.
+3. Integrate delivery channels:
+   - direct download links
+   - optional data-room push adapters
+
+### Pack quality gate
+
+Before marking pack as investor-ready:
+- required sections complete
+- evidence coverage threshold met
+- financial model freshness within SLA
+- risk section generated from latest simulation run
+
+### Data model additions
+
+- `audit_packs` (pack_id, plan_id, version, status, signature_hash)
+- `audit_pack_sections` (pack_id, section_name, source_hash, completeness)
+- `audit_pack_access` (pack_id, recipient, clearance, expires_at)
+
+### Operational safeguards
+
+- tamper-evident storage of generated artifacts
+- watermarking for leak attribution
+- regeneration lock to prevent stale concurrent pack versions
+
+### Validation checklist
+
+- deterministic rendering from same inputs
+- redaction correctness by role
+- signature verification pass/fail tests
+- section completeness gate enforcement
+- external usability testing with investor analysts
