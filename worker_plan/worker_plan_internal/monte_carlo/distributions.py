@@ -192,3 +192,25 @@ class RiskEventSampler:
         
         else:
             raise ValueError(f"Unknown impact_type: {impact_type}")
+
+
+# Module-level convenience functions for direct import
+def sample_triangular(min_val, likely_val, max_val, size=1, random_state=None):
+    """Module-level wrapper for triangular sampling."""
+    if random_state is not None:
+        np.random.seed(random_state)
+    return DurationSampler.sample_triangular(min_val, likely_val, max_val, size=size)
+
+
+def sample_pert(min_val, likely_val, max_val, size=1, alpha=4, random_state=None):
+    """Module-level wrapper for PERT sampling."""
+    if random_state is not None:
+        np.random.seed(random_state)
+    return DurationSampler.sample_pert(min_val, likely_val, max_val, size=size, alpha=alpha)
+
+
+def sample_lognormal(mu, sigma, size=1, random_state=None):
+    """Module-level wrapper for lognormal sampling (log-space parametrization)."""
+    if random_state is not None:
+        np.random.seed(random_state)
+    return lognorm.rvs(s=sigma, scale=np.exp(mu), size=size)

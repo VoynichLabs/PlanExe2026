@@ -20,7 +20,7 @@ SRP/DRY CHECK:
 import numpy as np
 from scipy import stats
 from typing import Union, Optional, Callable, Literal
-from worker_plan_internal.monte_carlo.distributions import (
+from .distributions import (
     sample_triangular,
     sample_lognormal,
 )

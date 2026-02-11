@@ -17,8 +17,8 @@ CONSTRAINTS:
 """
 
 import numpy as np
-from distributions import DurationSampler, CostSampler, RiskEventSampler
-from config import NUM_RUNS, RANDOM_SEED, SUCCESS_DEADLINE_BUFFER_DAYS, SUCCESS_BUDGET_TOLERANCE, SUCCESS_CRITICAL_RISK_LIMIT, PERCENTILES
+from .distributions import DurationSampler, CostSampler, RiskEventSampler
+from .config import NUM_RUNS, RANDOM_SEED, SUCCESS_DEADLINE_BUFFER_DAYS, SUCCESS_BUDGET_TOLERANCE, SUCCESS_CRITICAL_RISK_LIMIT, PERCENTILES
 
 
 class MonteCarloSimulation:
@@ -232,7 +232,7 @@ class MonteCarloSimulation:
         Returns:
             String: "GO", "RE-SCOPE", or "NO-GO"
         """
-        from config import GO_THRESHOLD, NO_GO_THRESHOLD, RE_SCOPE_THRESHOLD
+        from .config import GO_THRESHOLD, NO_GO_THRESHOLD, RE_SCOPE_THRESHOLD
         
         if success_probability >= GO_THRESHOLD:
             return "GO"
