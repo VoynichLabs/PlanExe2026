@@ -96,3 +96,30 @@ Create a formal adaptation lifecycle with stages:
 - Automated adaptation suggestions.
 - Cross-plugin dependency mapping.
 - Adaptation impact scoring.
+
+## Detailed Implementation Plan
+
+### Phase A — Near-Match Retrieval
+
+1. Retrieve top-k plugins by capability similarity.
+2. Compute fit score against target contract.
+3. Select adaptation candidate above threshold.
+
+### Phase B — Adaptation Pipeline
+
+1. Branch plugin version for adaptation.
+2. Apply scoped modifications with test inheritance.
+3. Validate backward compatibility and performance.
+
+### Phase C — Promotion and Rollback
+
+1. Canary adapted versions in limited traffic.
+2. Auto-promote on success criteria.
+3. Auto-rollback on regression signals.
+
+### Validation Checklist
+
+- Adaptation success vs full re-synthesis
+- Regression incidence after promotion
+- Rollback mean time to recovery
+

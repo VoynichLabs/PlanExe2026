@@ -224,3 +224,30 @@ Below are three example project archetypes and the specific hypothesis checks th
 ## Why This Matters
 
 This proposal shifts fundraising from persuasion-first to evidence-first. It helps credible, high-upside plans get surfaced even when founders are not exceptional marketers, improving capital allocation efficiency for everyone.
+
+## Detailed Implementation Plan
+
+### Phase A — Thesis Schema and Intake
+
+1. Define investor thesis schema (sector, ticket size, geography, stage, constraints).
+2. Ingest and normalize investor profile records.
+3. Add confidence labels for inferred thesis signals.
+
+### Phase B — Matching Engine
+
+1. Compute thesis-plan alignment with weighted feature scoring.
+2. Add exclusion filters (hard constraints).
+3. Produce explainable match reasons and mismatch flags.
+
+### Phase C — Feedback Loop
+
+1. Capture investor response outcomes.
+2. Tune matching weights with outcome data.
+3. Add cold-start defaults by investor archetype.
+
+### Validation Checklist
+
+- Precision of top matches
+- Response-rate uplift vs baseline outreach
+- Explainability quality review
+

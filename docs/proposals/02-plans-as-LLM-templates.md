@@ -184,3 +184,33 @@ CREATE TABLE plan_templates (
 - Jinja2 documentation: https://jinja.palletsprojects.com/
 
 - Similar pattern: Terraform modules, Helm charts, AWS CloudFormation templates
+
+## Detailed Implementation Plan
+
+### Phase A — Template Spec
+
+1. Define template schema with:
+   - variables
+   - defaults
+   - required constraints
+   - output contract
+2. Add validation to reject unresolved variables at render time.
+
+### Phase B — Render Pipeline
+
+1. Convert plan sections into parameterized templates.
+2. Support profile-specific render presets (investor, technical, compliance).
+3. Add preview endpoint to inspect rendered output before execution.
+
+### Phase C — Governance
+
+1. Version templates and freeze approved revisions.
+2. Add compatibility checker between template versions and old plans.
+3. Log rendered parameter values for auditability.
+
+### Validation Checklist
+
+- No unresolved placeholders in final render
+- Backward compatibility checks pass
+- Render latency within interactive SLA
+

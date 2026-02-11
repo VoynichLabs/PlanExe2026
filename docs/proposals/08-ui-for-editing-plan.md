@@ -81,3 +81,30 @@ Limitations:
 - As execution reveals surprises, incorporate them into the existing plan.
 
 - Maintain topological ordering so downstream parts update correctly.
+
+## Detailed Implementation Plan
+
+### Phase A — Editor Data Model
+
+1. Define editable plan document schema and version nodes.
+2. Add section-level locking and optimistic concurrency controls.
+3. Persist edit history with reversible diffs.
+
+### Phase B — Collaboration UX
+
+1. Build section editor with structured side panels (assumptions, risks, costs).
+2. Add inline validation and warning badges.
+3. Add comparison view for baseline vs edited variants.
+
+### Phase C — Workflow Integration
+
+1. Trigger downstream recalculations on critical edits.
+2. Add approval flow for high-impact changes.
+3. Sync edits to audit pack and evidence ledger references.
+
+### Validation Checklist
+
+- Conflict resolution correctness
+- Edit-to-recompute latency
+- Usability score in editor sessions
+

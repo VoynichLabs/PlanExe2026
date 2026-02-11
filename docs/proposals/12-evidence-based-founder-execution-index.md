@@ -204,3 +204,30 @@ Create a **Founder Execution Index (FEI)** calculated from measurable evidence:
 ## Why This Matters
 
 A transparent execution index gives investors a stronger ROI signal and gives disciplined builders a fairer path to capital, independent of pitch theatrics.
+
+## Detailed Implementation Plan
+
+### Phase A — Signal Definition
+
+1. Define founder execution signals (delivery cadence, milestone completion, evidence quality).
+2. Add normalization across project sizes and stages.
+3. Set anti-manipulation controls for self-reported metrics.
+
+### Phase B — Index Calculation
+
+1. Compute composite index with transparent weights.
+2. Attach confidence intervals based on data completeness.
+3. Version index formulas for auditability.
+
+### Phase C — Product Surfaces
+
+1. Show index trendline over time.
+2. Expose driver-level breakdown for coaching actions.
+3. Feed index into investor matching and readiness gates.
+
+### Validation Checklist
+
+- Correlation with independent execution outcomes
+- Stability under sparse data
+- Resistance to metric gaming
+
