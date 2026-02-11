@@ -13,7 +13,11 @@
         <h4>API key</h4>
         {% if new_api_key %}
             <p><strong>New key (shown once):</strong></p>
-            <code>{{ new_api_key }}</code>
+            <code id="new-api-key">{{ new_api_key }}</code>
+            <div style="margin-top: 10px;">
+                <button type="button" class="btn btn-primary" id="copy-api-key">Copy to clipboard</button>
+                <span id="copy-api-key-status" style="margin-left: 10px; color: var(--color-text-secondary);"></span>
+            </div>
         {% elif active_key %}
             <p><strong>Active key prefix:</strong> {{ active_key.key_prefix }}</p>
             <p>Use the full key you saved when it was created.</p>
@@ -27,6 +31,59 @@
             <button class="btn btn-default">Generate new API key</button>
         </form>
     </div>
+    {% if new_api_key %}
+    <script>
+        (function () {
+            var button = document.getElementById("copy-api-key");
+            var keyEl = document.getElementById("new-api-key");
+            var statusEl = document.getElementById("copy-api-key-status");
+            if (!button || !keyEl || !statusEl) {
+                return;
+            }
+
+            function setStatus(message) {
+                statusEl.textContent = message;
+                if (message) {
+                    setTimeout(function () {
+                        statusEl.textContent = "";
+                    }, 3000);
+                }
+            }
+
+            button.addEventListener("click", function () {
+                var text = keyEl.textContent.trim();
+                if (!text) {
+                    setStatus("Nothing to copy");
+                    return;
+                }
+
+                if (navigator.clipboard && window.isSecureContext) {
+                    navigator.clipboard.writeText(text).then(function () {
+                        setStatus("Copied");
+                    }).catch(function () {
+                        setStatus("Copy failed");
+                    });
+                    return;
+                }
+
+                var textarea = document.createElement("textarea");
+                textarea.value = text;
+                textarea.setAttribute("readonly", "");
+                textarea.style.position = "absolute";
+                textarea.style.left = "-9999px";
+                document.body.appendChild(textarea);
+                textarea.select();
+                try {
+                    document.execCommand("copy");
+                    setStatus("Copied");
+                } catch (err) {
+                    setStatus("Copy failed");
+                }
+                document.body.removeChild(textarea);
+            });
+        })();
+    </script>
+    {% endif %}
 
     <div class="card">
         <h4>Buy credits</h4>
