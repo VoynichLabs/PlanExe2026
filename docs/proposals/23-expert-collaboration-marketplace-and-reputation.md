@@ -119,3 +119,49 @@ ReputationScore =
 - Cross-platform credential verification.
 - Expert cohort benchmarking.
 - Automated conflict-of-interest detection.
+
+## Detailed Implementation Plan
+
+### Phase A — Profile Verification + Marketplace Core (2–3 weeks)
+
+1. Build verified expert profiles with credential proofs and specialty tags.
+2. Add request posting flow from plans to expert marketplace.
+3. Implement matching filters (domain, region, availability, budget).
+
+### Phase B — Reputation Graph (2 weeks)
+
+1. Define reputation signals:
+   - review quality
+   - timeliness
+   - outcome alignment
+   - conflict disclosures
+2. Build weighted graph model that resists simple star-rating manipulation.
+3. Add decay and recency weighting.
+
+### Phase C — Collaboration Workspace (2 weeks)
+
+1. Add section-level review threads mapped to plan nodes.
+2. Add structured recommendation objects (risk, impact, confidence, action).
+3. Add moderation + dispute handling for contested reviews.
+
+### Phase D — Trust and Abuse Controls (1–2 weeks)
+
+1. Add anti-gaming heuristics (reciprocal rating rings, suspicious velocity).
+2. Add blind secondary review for high-stakes plans.
+3. Add review audit trails and moderation reports.
+
+### Data model additions
+
+- `expert_market_requests`
+- `expert_matches`
+- `expert_reviews`
+- `expert_reputation_events`
+- `expert_disputes`
+
+### Validation checklist
+
+- Match quality vs manual benchmark
+- Time-to-match and completion rates
+- Reputation stability under adversarial test scenarios
+- User trust score improvement over baseline
+

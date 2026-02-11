@@ -115,3 +115,48 @@ Opportunity Intake
 - Adaptive prioritization based on historical win rates.
 - Dynamic scaling of worker pools.
 - Real-time dashboard of throughput, quality, and outcomes.
+
+## Detailed Implementation Plan
+
+### Phase A — Queue Architecture and Throughput Controls (2 weeks)
+
+1. Define four queue stages:
+   - intake
+   - generation
+   - selection
+   - packaging
+2. Add quotas by domain/region and urgency tier.
+3. Add backpressure and degrade-to-sketch mode under overload.
+
+### Phase B — Worker Orchestration (2–3 weeks)
+
+1. Build worker pools with stage-specific resource classes.
+2. Add retry policies and dead-letter queues.
+3. Add SLA timers by opportunity type.
+
+### Phase C — Quality and Cost Governance (2 weeks)
+
+1. Add quality gates before promotion between stages.
+2. Add per-stage cost budgets and run caps.
+3. Add escalation to deep-review only for shortlisted items.
+
+### Phase D — Bid Package Assembly (2 weeks)
+
+1. Generate standardized bid bundle artifacts.
+2. Add package completeness checks.
+3. Add handoff integrations for submission systems.
+
+### Data model additions
+
+- `bid_factory_runs`
+- `bid_factory_queue_items`
+- `bid_quality_gates`
+- `bid_packages`
+
+### Validation checklist
+
+- Sustained plans/day throughput
+- Cost per usable package
+- Queue latency and starvation checks
+- Package completeness pass rate
+

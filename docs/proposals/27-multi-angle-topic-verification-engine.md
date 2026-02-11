@@ -136,3 +136,49 @@ A radar chart showing the confidence score for a topic across all axes.
 ## Future Enhancements
 1.  **Lens Marketplace:** Allow third-party experts to plug in as a "Verifier Lens" (e.g., a "Cybersecurity Lens" provided by a security firm).
 2.  **Historical Calibration:** "The Legal Lens is too pessimistic; adjust its weight down by 10%."
+
+## Detailed Implementation Plan
+
+### Phase A — Verification Rulebook (1–2 weeks)
+
+1. Define verification dimensions and pass/fail criteria:
+   - technical
+   - legal/regulatory
+   - financial
+   - geopolitical
+   - reputational
+2. Set evidence minimums per dimension.
+3. Define final classification rules (`verified_strong`, etc.).
+
+### Phase B — Triangulation Engine (2 weeks)
+
+1. Enforce minimum independent source count.
+2. Compute contradiction score across sources.
+3. Flag claims requiring manual review when contradiction threshold exceeded.
+
+### Phase C — Domain Modules (2–3 weeks)
+
+1. Build pluggable validators per domain.
+2. Add jurisdiction-aware legal checks where applicable.
+3. Add counterparty legitimacy checks for issuers/partners.
+
+### Phase D — Decision and Explainability Layer (1 week)
+
+1. Output decision class with rationale and unresolved evidence gaps.
+2. Attach confidence per dimension.
+3. Emit machine-readable gate decision for downstream planning queue.
+
+### Data model additions
+
+- `verification_cases`
+- `verification_evidence`
+- `verification_contradictions`
+- `verification_decisions`
+
+### Validation checklist
+
+- False-positive reduction
+- Reviewer agreement on final classes
+- Evidence completeness by dimension
+- Throughput at target event volume
+
