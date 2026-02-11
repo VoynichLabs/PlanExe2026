@@ -222,3 +222,24 @@ When violated, annotate with corrective recommendations.
 - Stability across reruns with same inputs
 - Human reviewer agreement on plausibility
 - Delta to bottom-up within target tolerance bands
+
+## Detailed Implementation Plan (Model Governance)
+
+### Benchmark Lifecycle
+1. Ingest benchmark sources weekly.
+2. Version benchmark snapshots.
+3. Track drift in benchmark medians and ranges.
+
+### Estimation Safety Rules
+- Always emit ranges (never single-point only).
+- Down-rank confidence when source freshness exceeds SLA.
+- Flag plans with assumptions outside benchmark confidence intervals.
+
+### Review Loop
+- Finance reviewer can override assumptions with justification.
+- Overrides are logged and fed into calibration analytics.
+
+### Calibration KPI
+- Mean absolute percentage error vs realized outcomes
+- Target: trend down quarter-over-quarter
+

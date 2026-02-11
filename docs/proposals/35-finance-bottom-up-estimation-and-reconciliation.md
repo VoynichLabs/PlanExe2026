@@ -220,3 +220,24 @@ Produce a finance bundle:
 - Reproducibility under fixed assumptions
 - Reviewer confidence uplift after reconciliation
 - Reduced forecast error on executed projects
+
+## Detailed Implementation Plan (Convergence Operations)
+
+### Convergence Workflow
+1. Generate bottom-up ledger from WBS/CBS.
+2. Pull top-down baseline from proposal 34 module.
+3. Compute variance by category and timeline bucket.
+4. Trigger correction cycle until convergence status reaches green/yellow threshold.
+
+### Action Prioritization
+- Rank correction actions by expected variance reduction per effort unit.
+- Recommend max 5 actions per cycle to avoid analysis overload.
+
+### Signoff Policy
+- Red variance blocks investor-ready status.
+- Yellow requires explicit financial waiver.
+- Green auto-advances to packaging phase.
+
+### Learning Loop
+- Persist convergence trajectories to improve future default assumptions.
+

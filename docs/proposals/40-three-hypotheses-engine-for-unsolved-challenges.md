@@ -191,3 +191,24 @@ After each experiment result:
 - Time-to-first-validated-hypothesis trend.
 - Reduction in dead-end R&D spend.
 - Post-hoc accuracy of EVI-based prioritization.
+
+## Detailed Implementation Plan (Experiment Governance)
+
+### Hypothesis Portfolio Rules
+- Force diversity across H1/H2/H3 approaches.
+- Disallow near-duplicate hypotheses unless justified.
+
+### Experiment Program Control
+- Every hypothesis must have explicit kill criteria.
+- Budget caps enforced per experiment lane.
+- Stop-loss automation when outcomes violate thresholds.
+
+### Decision Cadence
+- Weekly hypothesis review board
+- Auto-update posterior probabilities after each result batch
+- Re-rank hypothesis queue by updated EVI
+
+### Outcome Tracking
+- Measure time-to-first-validated-path
+- Track dead-end spend ratio and reduction over time
+

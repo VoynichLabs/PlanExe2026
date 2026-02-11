@@ -239,3 +239,24 @@ Generate:
 - Consistency: repeated runs produce stable mappings
 - Auditability: every line has source + assumption
 - Usability: finance users can edit/approve CBS quickly
+
+## Detailed Implementation Plan (Finance Integration)
+
+### Domain Template Strategy
+- Start with 5 templates: software, infra, manufacturing, nonprofit, public sector.
+- Fallback to generic taxonomy when domain confidence < threshold.
+
+### Editing Workflow
+1. Auto-generate CBS draft.
+2. User reviews low-confidence lines first.
+3. Finance reviewer signs off final CBS baseline.
+
+### Change Control
+- Every CBS edit creates a diff record with rationale.
+- Lock finalized CBS version for downstream reconciliation.
+
+### Export Targets
+- CSV for analysts
+- XLSX for procurement/accounting
+- JSON for API consumers
+
