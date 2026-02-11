@@ -144,3 +144,102 @@ Plans may involve multiple currencies (e.g., cross-border bridge projects). The 
 - Automated sourcing of sector benchmarks.
 - Dynamic calibration from historical PlanExe outcomes.
 - Integrate sensitivity analysis and scenario shock testing.
+
+## Detailed Implementation Plan
+
+### 1) Build a benchmark intelligence layer
+
+Create a benchmark catalog service keyed by:
+- domain
+- business model
+- geography
+- project scale
+- maturity stage
+
+Each benchmark entry includes:
+- value range (P10/P50/P90)
+- source and freshness
+- confidence and applicability notes
+
+### 2) Plan classification pipeline
+
+Before estimation:
+1. classify plan domain/model
+2. detect geography and currency context
+3. infer scale band (small/medium/large)
+
+Classification drives benchmark retrieval and confidence scoring.
+
+### 3) Top-down estimate engine
+
+Compute revenue/cost envelopes from benchmark priors:
+- market sizing assumptions (TAM/SAM/SOM)
+- penetration trajectory
+- ratio-driven opex/capex
+
+Output three scenarios:
+- conservative
+- base
+- aggressive
+
+and include explicit assumptions per scenario.
+
+### 4) Confidence computation
+
+Confidence should be model-based, not narrative:
+- data completeness score
+- benchmark relevance score
+- volatility score for domain/region
+
+`confidence_index = completeness * relevance * (1 - volatility_penalty)`
+
+### 5) Guardrail rules
+
+Add hard checks:
+- growth rates outside realistic domain ranges
+- gross margins incompatible with business model
+- capex intensity outlier flags
+
+When violated, annotate with corrective recommendations.
+
+### 6) Integration and outputs
+
+- Save top-down artifact as structured JSON
+- Generate markdown narrative for plan report
+- Feed into reconciliation module (Proposal 35)
+- Feed risk engine with high-variance assumptions
+
+### 7) Rollout phases
+
+- Phase A: static benchmark tables + deterministic formulas
+- Phase B: dynamic benchmark retrieval + confidence scoring
+- Phase C: sensitivity analysis (1-way + multi-factor)
+- Phase D: automatic calibration from completed project outcomes
+
+### 8) Validation checklist
+
+- Benchmark coverage by domain/model
+- Stability across reruns with same inputs
+- Human reviewer agreement on plausibility
+- Delta to bottom-up within target tolerance bands
+
+## Detailed Implementation Plan (Model Governance)
+
+### Benchmark Lifecycle
+1. Ingest benchmark sources weekly.
+2. Version benchmark snapshots.
+3. Track drift in benchmark medians and ranges.
+
+### Estimation Safety Rules
+- Always emit ranges (never single-point only).
+- Down-rank confidence when source freshness exceeds SLA.
+- Flag plans with assumptions outside benchmark confidence intervals.
+
+### Review Loop
+- Finance reviewer can override assumptions with justification.
+- Overrides are logged and fed into calibration analytics.
+
+### Calibration KPI
+- Mean absolute percentage error vs realized outcomes
+- Target: trend down quarter-over-quarter
+

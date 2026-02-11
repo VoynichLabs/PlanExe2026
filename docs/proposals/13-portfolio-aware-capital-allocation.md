@@ -135,3 +135,30 @@ For each investor:
 ## Why This Matters
 
 Investors care about total portfolio outcomes, not isolated deal quality. Portfolio-aware matching improves capital allocation quality and makes ROI predictions more actionable.
+
+## Detailed Implementation Plan
+
+### Phase A — Portfolio Model
+
+1. Define portfolio objective functions (return, risk, diversification).
+2. Add constraint model (sector caps, stage caps, geographic limits).
+3. Ingest candidate plan opportunities as allocatable units.
+
+### Phase B — Allocation Solver
+
+1. Implement optimizer (heuristic + optional convex optimization mode).
+2. Support scenario-based allocation stress tests.
+3. Output recommended allocations with rationale and alternatives.
+
+### Phase C — Monitoring and Rebalancing
+
+1. Track realized vs expected performance.
+2. Trigger rebalance suggestions on drift.
+3. Log decision history for governance review.
+
+### Validation Checklist
+
+- Constraint satisfaction rate
+- Risk-adjusted return vs baseline policy
+- Rebalance action quality over time
+

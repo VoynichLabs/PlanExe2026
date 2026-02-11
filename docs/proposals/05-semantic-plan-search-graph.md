@@ -359,3 +359,30 @@ redis.setex(cache_key, 3600, json.dumps(results))  # 1h TTL
 - sentence-transformers: https://www.sbert.net/
 
 - Semantic search best practices: https://www.pinecone.io/learn/semantic-search/
+
+## Detailed Implementation Plan
+
+### Phase A — Index Foundation
+
+1. Build embedding pipeline for plan sections and metadata.
+2. Store vectors in pgvector with namespace partitioning.
+3. Define hybrid retrieval (semantic + keyword + metadata filters).
+
+### Phase B — Graph Layer
+
+1. Create plan similarity edges with confidence scores.
+2. Add relation types (similar-risk, similar-finance, similar-domain).
+3. Expose neighborhood exploration APIs.
+
+### Phase C — Ranking and Feedback
+
+1. Rank results with blended score (similarity + quality + freshness).
+2. Capture click/selection feedback to tune ranking.
+3. Add dedup and near-duplicate suppression.
+
+### Validation Checklist
+
+- Retrieval precision@k
+- Latency under index growth
+- Duplicate suppression effectiveness
+

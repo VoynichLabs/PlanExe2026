@@ -106,3 +106,63 @@ The Readiness Score is connected to other PlanExe modules:
 ## Future Enhancements
 1.  **AI Gap Filling:** "You are missing a GDPR policy. Here is a draft based on similar plans."
 2.  **Sector Benchmarks:** Compare readiness against industry averages (e.g., "Your hiring plan is 20% slower than peer startups").
+
+## Detailed Implementation Plan
+
+### Phase A — Score Contract and Baseline Rules (1–2 weeks)
+
+1. Define immutable score schema:
+   - overall score
+   - dimension scores
+   - evidence references
+   - gating decision
+
+2. Lock scoring weights in a versioned config file.
+3. Add deterministic fallback behavior when validator data is missing.
+
+### Phase B — Validator Adapters (2–3 weeks)
+
+1. Build adapters for each readiness dimension:
+   - evidence coverage
+   - resource capacity
+   - risk mitigation completeness
+   - dependency maturity
+   - financial viability
+
+2. Normalize all outputs into a common scoring input envelope.
+3. Add confidence score per validator result.
+
+### Phase C — Gap Report and Action Engine (2 weeks)
+
+1. Generate machine-readable blockers/warnings:
+   - severity
+   - owner
+   - due date
+   - recommended remediation actions
+
+2. Add remediation templates by gap type.
+3. Attach each gap to source artifacts for auditability.
+
+### Phase D — Gating and Workflow Integration (2 weeks)
+
+1. Add readiness gates in pipeline state transitions:
+   - `not_ready` blocks launch
+   - `conditional` requires explicit waiver
+   - `ready` allows progression
+
+2. Log override decisions with rationale and expiration.
+3. Feed readiness score into ranking and investor outputs.
+
+### Data model additions
+
+- `readiness_scores`
+- `readiness_dimension_scores`
+- `readiness_gaps`
+- `readiness_overrides`
+
+### Validation checklist
+
+- Deterministic score recomputation for same inputs
+- Weight/version traceability in audit logs
+- No launch transition when blocking gaps exist
+- Reviewer agreement on top blockers vs generated blockers

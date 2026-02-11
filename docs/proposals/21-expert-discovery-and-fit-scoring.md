@@ -119,3 +119,48 @@ FitScore =
 - External credential validation integration.
 - Automated discovery from publications and patents.
 - Adaptive scoring by project complexity.
+
+## Detailed Implementation Plan
+
+### Phase A — Expert Ontology + Data Connectors (2–3 weeks)
+
+1. Define a normalized expert ontology:
+   - domains/subdomains
+   - credential classes
+   - region/jurisdiction tags
+   - project-type experience tags
+2. Build ingestion connectors for curated sources (registries, publications, procurement records, verified profiles).
+3. Add entity resolution to deduplicate the same expert across sources.
+
+### Phase B — Fit Scoring Service (2 weeks)
+
+1. Implement feature extraction:
+   - domain similarity to plan
+   - project similarity to past verified work
+   - jurisdiction compatibility
+   - credential strength and recency
+   - availability signals
+2. Implement weighted scoring with configurable policy weights per domain.
+3. Emit ranked shortlist with per-expert rationale and confidence.
+
+### Phase C — User Workflow + Outreach (2 weeks)
+
+1. Add expert shortlist panel in plan UI.
+2. Generate outreach packets from plan context (scope, constraints, expected review role).
+3. Track responses and status transitions (invited, accepted, declined, completed).
+
+### Data model additions
+
+- `experts`
+- `expert_profiles`
+- `expert_source_records`
+- `expert_fit_scores`
+- `expert_outreach_events`
+
+### Validation checklist
+
+- Dedup precision on merged profiles
+- Ranking quality judged by human reviewers
+- Time-to-first-accepted-expert
+- Coverage of required review domains per plan
+

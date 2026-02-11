@@ -119,3 +119,50 @@ Each claim in the plan should reference an evidence level.
 - Reputation scoring for experts.
 - Automated dispute resolution for conflicting expert opinions.
 - Continuous verification updates as plans evolve.
+
+## Detailed Implementation Plan
+
+### Phase A — Workflow State Machine (1–2 weeks)
+
+1. Define verification lifecycle states:
+   - `draft`
+   - `triage_review`
+   - `domain_review`
+   - `integration_review`
+   - `final_verification`
+2. Add transition guards and role permissions.
+3. Add SLA timers and escalation triggers.
+
+### Phase B — Domain Review Packets (2 weeks)
+
+1. Auto-generate review packet templates per domain (engineering, legal, environment, finance).
+2. Attach structured checklists and evidence requirements.
+3. Enforce issue severity taxonomy (blocker/major/minor).
+
+### Phase C — Integration + Conflict Resolution (2 weeks)
+
+1. Build cross-domain conflict register.
+2. Add mediation workflow for contradictory expert findings.
+3. Require explicit acceptance/rejection for each blocker before final verification.
+
+### Phase D — Final Report + Signoff (1 week)
+
+1. Generate signed verification summary with conditions.
+2. Produce machine-readable status for downstream bidding gates.
+3. Archive all review evidence and decision logs.
+
+### Data model additions
+
+- `verification_runs`
+- `verification_stages`
+- `verification_issues`
+- `verification_signoffs`
+- `verification_slas`
+
+### Validation checklist
+
+- Stage transition correctness
+- Blocker enforcement before completion
+- Reviewer SLA compliance
+- Reproducible final verification export
+

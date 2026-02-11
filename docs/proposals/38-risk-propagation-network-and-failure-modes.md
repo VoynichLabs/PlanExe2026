@@ -108,3 +108,87 @@ Run multi-step simulations to reveal cascades:
 - Automated edge discovery from historical plans.
 - Dynamic updates as execution data arrives.
 - Cross-project risk propagation benchmarking.
+
+## Detailed Implementation Plan
+
+### Phase 1: Graph Construction Layer
+
+1. Define canonical node types:
+   - `risk_event`, `task`, `milestone`, `resource_constraint`
+
+2. Define edge semantics:
+   - causal amplification
+   - schedule delay transfer
+   - cost transfer
+   - confidence score per edge
+
+3. Build graph extraction adapters from plan artifacts:
+   - WBS + dependencies
+   - risk register
+   - finance assumptions
+
+### Phase 2: Propagation Simulator
+
+1. At each simulation tick:
+   - sample active risk events
+   - propagate effects along outgoing edges
+   - update impacted task states and milestone forecasts
+
+2. Capture cascade traces:
+   - first-trigger node
+   - propagation chain
+   - terminal failure state
+
+3. Aggregate over 10,000 runs:
+   - pathway frequencies
+   - expected loss per pathway
+   - median time-to-failure
+
+### Phase 3: Mitigation Optimizer
+
+1. Score intervention points by marginal risk reduction.
+2. Recommend top mitigation portfolio under budget constraints.
+3. Re-simulate with mitigations applied to show deltas.
+
+### Suggested algorithmic approach
+
+- Use weighted directed graph with event queue.
+- Compute influence centrality to prioritize mitigation.
+- Run counterfactual analysis: remove/attenuate edge and measure probability delta.
+
+### Data model additions
+
+- `risk_graph_nodes` (run_id, node_id, node_type, metadata)
+- `risk_graph_edges` (run_id, src, dst, edge_type, weight, lag)
+- `risk_cascade_paths` (run_id, path_json, probability, expected_loss)
+
+### Integration points
+
+- Feed risk pathway penalties into ELO/selection ranking.
+- Push high-risk cascade alerts into governance dashboard.
+- Link mitigation actions back into planning artifacts.
+
+### Validation checklist
+
+- Synthetic graph tests with known cascades.
+- Stability tests for edge-weight perturbation.
+- Human review of top-10 pathways for interpretability.
+
+## Detailed Implementation Plan (Graph Operations)
+
+### Graph Build Pipeline
+1. Extract nodes from tasks, risks, resources.
+2. Infer edges from dependencies and causal templates.
+3. Score edge confidence and impact weight.
+
+### Runtime
+- Run cascade simulation alongside baseline Monte Carlo.
+- Persist top failure chains and intervention candidates.
+
+### Mitigation Planner
+- Compute marginal risk reduction for each intervention.
+- Recommend portfolio under mitigation budget constraint.
+
+### Governance
+- Require review for interventions with high operational disruption.
+

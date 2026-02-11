@@ -103,3 +103,86 @@ Build a Monte Carlo cashflow simulator that:
 - Scenario-specific macro stress models.
 - Automated FX hedging analysis.
 - Live cashflow tracking during execution.
+
+## Detailed Implementation Plan
+
+### Phase 1: Cashflow Model Assembly
+
+1. Build canonical cashflow timeline object:
+   - period granularity (weekly/monthly)
+   - inflow schedule with uncertainty bands
+   - outflow schedule from CBS and staffing plans
+
+2. Add uncertainty injectors:
+   - receivable delay distributions
+   - procurement inflation shocks
+   - FX movement models for multi-currency projects
+   - drawdown timing constraints for debt/grants
+
+3. Define insolvency rules:
+   - threshold crossing (`cash_balance < 0`)
+   - sustained shortfall windows (`n` periods below minimum buffer)
+
+### Phase 2: Stress Simulation Engine
+
+1. Run 10,000 stochastic scenarios with deterministic seed option.
+2. Compute key outputs:
+   - probability of negative cash by period
+   - minimum viable reserve buffer
+   - required funding bridge amount and timing
+
+3. Tag scenario archetypes:
+   - delay-driven insolvency
+   - inflation-driven insolvency
+   - FX-driven insolvency
+
+### Phase 3: Decision Layer + Policy Hooks
+
+1. Add policy thresholds configurable by domain/risk appetite.
+2. Emit recommendations automatically:
+   - resequence payment milestones
+   - increase contingency reserve
+   - add backup credit facility
+
+3. Integrate with bid/no-bid gate:
+   - block escalation if liquidity failure probability exceeds limit.
+
+### Data model additions
+
+- `cashflow_scenarios` (run_id, period, inflow, outflow, balance, scenario_id)
+- `cashflow_risk_summary` (run_id, p_negative_cash, min_buffer, worst_gap)
+- `funding_actions` (run_id, action_type, expected_impact)
+
+### UX/reporting
+
+Add a dedicated report section:
+- cash-at-risk curve
+- highest-risk periods
+- mitigation playbook with expected probability reduction
+
+### Validation checklist
+
+- Reconcile baseline simulation with deterministic cashflow model.
+- Verify multi-currency translation consistency.
+- Backtest against historical liquidity incidents where available.
+
+## Detailed Implementation Plan (Treasury Readiness)
+
+### Treasury Simulation Features
+- Dynamic cash floor policy per project stage
+- Payment delay distributions by counterparty type
+- Optional emergency facility simulation
+
+### Decision Outputs
+- Minimum reserve recommendation
+- Funding bridge trigger points
+- Suggested payment milestone re-shaping
+
+### Alerting
+- Critical alert when insolvency probability exceeds configured threshold
+- Daily digest for plans in warning zone
+
+### Validation
+- Replay historical near-insolvency projects for calibration
+- Stress test with correlated shock scenarios
+

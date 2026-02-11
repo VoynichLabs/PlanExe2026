@@ -116,3 +116,37 @@ Store routing configuration in `llm_config.json`:
 - User satisfaction rating increases (via post-plan survey)
 
 - No increase in pipeline failure rate
+
+## Detailed Implementation Plan
+
+### Phase A — Routing Contract and Registry
+
+1. Define an explicit routing contract in `run_plan_pipeline.py` with:
+   - stage name
+   - routing signal inputs
+   - selected agent class
+   - fallback class
+2. Build an agent registry file (YAML/JSON) mapping capabilities to stages.
+3. Add deterministic routing mode for reproducible runs.
+
+### Phase B — Dynamic Selection Engine
+
+1. Implement router scoring using:
+   - stage complexity
+   - domain type
+   - latency/cost budget
+2. Add weighted scoring for each candidate agent and choose top-ranked.
+3. Add confidence threshold to trigger fallback routing when uncertain.
+
+### Phase C — Observability and Controls
+
+1. Emit route decisions as structured events.
+2. Track route success/failure by stage.
+3. Add policy overrides for forced agent selection in sensitive flows.
+
+### Validation Checklist
+
+- Deterministic routing under fixed seeds
+- Correct fallback activation under low confidence
+- Route-quality lift vs static baseline
+

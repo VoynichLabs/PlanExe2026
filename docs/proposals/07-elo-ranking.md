@@ -1661,3 +1661,30 @@ Completed items for immediate usability improvements:
 **Last updated:** 2026-02-08  
 **Maintainer:** OpenClaw team  
 **Feedback:** Open issues at https://github.com/VoynichLabs/PlanExe2026/issues
+
+## Detailed Implementation Plan
+
+### Phase A — Pairwise Ranking Core
+
+1. Implement candidate sampling strategy.
+2. Run pairwise comparisons with structured KPI outputs.
+3. Apply Elo updates with configurable K-factor profiles.
+
+### Phase B — Data Products
+
+1. Store per-comparison details and reasons.
+2. Generate percentile tiers and confidence bands.
+3. Add per-user and global leaderboard views.
+
+### Phase C — Calibration and Governance
+
+1. Calibrate ranking against real outcomes (where available).
+2. Add anti-gaming heuristics and anomaly detection.
+3. Add periodic re-ranking for drift control.
+
+### Validation Checklist
+
+- Ranking stability across reruns
+- Predictive value vs downstream outcomes
+- Fairness checks across domains
+

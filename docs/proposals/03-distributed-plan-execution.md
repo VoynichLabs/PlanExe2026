@@ -218,3 +218,30 @@ def execute_outline_stage(plan_id, research_results):
 - Railway multi-service deploys: https://docs.railway.app/
 
 - DAG scheduling patterns: Apache Airflow, Prefect, Temporal
+
+## Detailed Implementation Plan
+
+### Phase A — Distributed Runtime Topology
+
+1. Define coordinator + worker architecture.
+2. Partition execution graph into shardable task groups.
+3. Add worker heartbeat and lease ownership semantics.
+
+### Phase B — Queue and Retry Semantics
+
+1. Introduce queue topics by task class and priority.
+2. Implement idempotent workers with attempt counters.
+3. Add dead-letter queues and replay tooling.
+
+### Phase C — Consistency and Recovery
+
+1. Persist checkpoint snapshots per milestone.
+2. Implement coordinator failover strategy.
+3. Add exactly-once/at-least-once mode selection by task type.
+
+### Validation Checklist
+
+- Throughput scaling under worker expansion
+- Recovery time after worker/node failure
+- No duplicate side effects for idempotent tasks
+

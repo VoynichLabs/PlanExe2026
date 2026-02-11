@@ -90,3 +90,61 @@ Release an `OpenClaw:Wallet` skill that handles both protocols.
 - Multi-currency pricing and FX handling.
 - Per-agent spending dashboards.
 - Payment routing by risk tier.
+
+## Detailed Implementation Plan
+
+### Phase A — Payment Abstraction Layer (2 weeks)
+
+1. Define unified payment request schema for AP2 and x402.
+2. Implement protocol adapter interface:
+   - authorize
+   - capture
+   - verify
+   - refund/reverse
+
+3. Add signed transaction envelope for audit trail integrity.
+
+### Phase B — AP2 Corporate Spend Path (2–3 weeks)
+
+1. Implement mandate verification service:
+   - signature validation
+   - scope checks
+   - spend limit checks
+   - expiry checks
+
+2. Add policy controls:
+   - per-agent monthly limits
+   - category restrictions
+   - emergency stop on anomaly
+
+3. Integrate corporate settlement provider.
+
+### Phase C — x402 Micropayment Path (2 weeks)
+
+1. Implement 402 challenge-response flow.
+2. Add payment proof verification and replay protection.
+3. Support low-latency settlement cache for repeated calls.
+
+### Phase D — Risk, Compliance, and Observability (2 weeks)
+
+1. Add fraud scoring on transaction patterns.
+2. Add AML/KYC policy hooks where required.
+3. Add full observability:
+   - success/failure rates
+   - latency by protocol
+   - dispute and reversal metrics
+
+### Data model additions
+
+- `agent_wallets`
+- `payment_mandates`
+- `payment_transactions`
+- `payment_proofs`
+- `payment_alerts`
+
+### Validation checklist
+
+- mandate scope enforcement tests
+- replay and double-spend protection tests
+- protocol fallback behavior under partial outages
+- settlement reconciliation tests against provider statements

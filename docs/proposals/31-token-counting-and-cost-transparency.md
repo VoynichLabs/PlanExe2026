@@ -96,3 +96,128 @@ Implement a token accounting layer that:
 - Per-user or per-team cost budgeting.
 - Predictive cost estimation before plan generation.
 - Multi-currency cost reporting.
+
+## Detailed Implementation Plan
+
+### 1) Instrumentation in `llm.py` (source of truth)
+
+Implement a provider-normalization layer around every outbound model call:
+
+1. Capture request metadata before call:
+   - `run_id`, `stage`, `provider`, `model`, `prompt_variant`, `started_at`
+2. Execute provider call unchanged.
+3. Read **raw provider response** and parse usage fields:
+   - OpenAI-style: `usage.prompt_tokens`, `usage.completion_tokens`, reasoning fields when present
+   - Anthropic-style: `input_tokens`, `output_tokens`, thinking-token fields when present
+   - Gemini/OpenRouter: normalized usage from provider envelope
+4. Persist raw usage payload JSON for audit (`raw_usage_json`) plus normalized fields.
+
+### 2) Token schema and persistence
+
+Create a DB table such as:
+
+```sql
+CREATE TABLE llm_call_usage (
+  id UUID PRIMARY KEY,
+  run_id TEXT NOT NULL,
+  stage TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  model TEXT NOT NULL,
+  input_tokens INT,
+  output_tokens INT,
+  reasoning_tokens INT,
+  cached_tokens INT,
+  cost_usd NUMERIC(12,6),
+  latency_ms INT,
+  raw_usage_json JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+And a summary view/table:
+
+```sql
+CREATE MATERIALIZED VIEW llm_run_usage_summary AS
+SELECT run_id,
+       SUM(input_tokens) AS input_tokens,
+       SUM(output_tokens) AS output_tokens,
+       SUM(reasoning_tokens) AS reasoning_tokens,
+       SUM(cost_usd) AS total_cost_usd,
+       COUNT(*) AS call_count
+FROM llm_call_usage
+GROUP BY run_id;
+```
+
+### 3) Cost engine
+
+Add a `pricing_catalog` keyed by provider+model with time-versioned rates:
+- input per 1k tokens
+- output per 1k tokens
+- reasoning per 1k tokens (if billed separately)
+
+Cost formula per call:
+
+`cost = (input_tokens/1000)*rate_in + (output_tokens/1000)*rate_out + (reasoning_tokens/1000)*rate_reason`
+
+Store calculated cost and the `pricing_version` used for reproducibility.
+
+### 4) API/report integration
+
+- Extend run status endpoint with:
+  - total tokens and cost
+  - stage-by-stage usage table
+  - model/provider breakdown
+- Add a report section in generated plan artifacts:
+  - “Cost & Token Accounting”
+  - includes confidence note when provider usage is partially missing.
+
+### 5) Structured output handling rule
+
+Critical implementation detail:
+- Usage is captured from provider raw envelope **before** JSON parsing/validation.
+- Structured-output parse failures should not lose token accounting.
+
+### 6) Reliability and edge cases
+
+- If provider usage fields missing:
+  - mark `usage_quality = estimated`
+  - optional fallback tokenizer estimate
+- For retries:
+  - log each retry as independent call record
+  - include `attempt_number`
+- For streaming:
+  - aggregate chunk usage if available; else finalize from closing usage frame.
+
+### 7) Rollout phases
+
+- Phase A: capture + store usage only (no UI)
+- Phase B: cost engine + summary endpoint
+- Phase C: user-visible report + budget alerts
+- Phase D: optimization recommendations (cost hot spots)
+
+### 8) Validation checklist
+
+- Unit tests for provider mapping parsers
+- Golden tests with canned raw provider responses
+- Billing reconciliation tests against provider invoices
+- Backfill script for historical runs where data exists
+
+## Detailed Implementation Plan (Operational Rollout)
+
+### Deployment Path
+1. Ship instrumentation behind `TOKEN_ACCOUNTING_ENABLED` feature flag.
+2. Enable in staging first; reconcile with provider dashboards for 1 week.
+3. Roll out to production with alerting on missing usage payloads.
+
+### Cost Reconciliation Workflow
+- Daily batch compares internal aggregated cost to provider invoice API.
+- If variance >2%, emit finance alert and lock optimization recommendations until corrected.
+
+### Observability
+- Metrics: `token_usage_capture_rate`, `usage_parse_failures`, `cost_variance_pct`.
+- Dashboards by provider/model/stage.
+
+### Ownership Model
+- Platform team owns parser + pricing catalog.
+- Product team owns user-facing reports and budget controls.
+

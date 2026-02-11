@@ -230,3 +230,45 @@ This allows the system to scale while avoiding wasted planning cycles.
 - Human-in-the-loop review interface.
 - CRM and bidding workflow dispatch.
 - Feedback loop from bid outcomes to scoring.
+
+## Detailed Implementation Plan
+
+### Phase A — Source Registry and Ingestion Backbone (2–3 weeks)
+
+1. Build source registry with trust tiers and refresh cadences.
+2. Implement ingestion adapters (RSS/API/web-scrape where allowed).
+3. Normalize raw events into `opportunity_event` schema.
+
+### Phase B — Classification + Enrichment (2 weeks)
+
+1. Classify domain, region, and project-type using hybrid rules + LLM.
+2. Enrich with estimated budget/deadline/issuer confidence signals.
+3. Deduplicate multi-source events into canonical opportunity records.
+
+### Phase C — Opportunity Scoring + Prompt Generation (2 weeks)
+
+1. Implement scoring model (urgency, bidability, strategic fit).
+2. Generate planning prompts from top opportunities.
+3. Add queue policy for daily volume and domain diversity.
+
+### Phase D — Monitoring + QA (1 week)
+
+1. Add source health dashboard and ingestion latency alerts.
+2. Add false-positive feedback loop from downstream verification outcomes.
+3. Add replay tooling for ingestion incidents.
+
+### Data model additions
+
+- `news_sources`
+- `opportunity_events_raw`
+- `opportunity_events_canonical`
+- `opportunity_scores`
+- `opportunity_prompt_queue`
+
+### Validation checklist
+
+- Detection latency vs known announcements
+- Dedup precision/recall
+- Prompt conversion rate to useful plans
+- Source reliability drift monitoring
+

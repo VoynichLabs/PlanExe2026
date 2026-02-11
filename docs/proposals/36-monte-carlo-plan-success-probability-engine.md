@@ -126,3 +126,99 @@ Get the distribution data.
   "success_prob_deadline": 0.42 # 42% chance to hit deadline
 }
 ```
+
+## Detailed Implementation Plan
+
+### Phase 1: Simulation Foundation (2–3 weeks)
+
+1. Define normalized simulation input contract:
+   - task duration distributions (optimistic/most likely/pessimistic)
+   - cost uncertainty distributions per CBS line item
+   - risk event probabilities and impact models
+
+2. Build Monte Carlo core package:
+   - deterministic seed support for reproducibility
+   - vectorized simulation runner (NumPy/JAX-compatible)
+   - scenario persistence for post-run diagnostics
+
+3. Add baseline output artifacts:
+   - percentile summaries (P10/P50/P90)
+   - success probability against target date/cost
+   - critical-path frequency map
+
+### Phase 2: Pipeline Integration (2 weeks)
+
+1. Add a post-planning stage in `run_plan_pipeline.py`:
+   - `simulate_plan_success`
+   - consumes WBS, CBS, risk register
+
+2. Persist results in structured storage:
+   - run-level summary table
+   - optional per-iteration table for top-N scenario replay
+
+3. Expose API and report sections:
+   - `/api/simulate/plan/{id}` trigger endpoint
+   - `/api/simulate/results/{id}` retrieval endpoint
+   - markdown report block in generated plan output
+
+### Phase 3: Calibration + Reliability (2–4 weeks)
+
+1. Backtest against historical completed projects.
+2. Calibrate distribution parameters by domain.
+3. Add quality gates:
+   - minimum input completeness threshold
+   - confidence labels (high/medium/low) by data quality
+
+4. Add drift detection:
+   - trigger re-sim when assumptions or benchmark inputs change.
+
+### Data and API contracts
+
+Suggested summary payload extension:
+
+```json
+{
+  "simulation": {
+    "iterations": 10000,
+    "seed": 42,
+    "success_probability": 0.42,
+    "schedule": {"p10": "2026-06-01", "p50": "2026-07-15", "p90": "2026-09-01"},
+    "cost": {"p10": 1200000, "p50": 1500000, "p90": 2100000},
+    "top_drivers": ["foundation_work", "steel_supply", "permit_delay"]
+  }
+}
+```
+
+### Operational safeguards
+
+- Hard cap on iterations for interactive usage.
+- Queue long simulations asynchronously.
+- Cache deterministic runs by `(plan_hash, assumptions_hash, seed)`.
+
+### Validation checklist
+
+- Unit tests for distribution samplers.
+- Statistical sanity tests (mean/variance bounds).
+- Integration tests for API + report rendering.
+- Backtest acceptance criteria per domain.
+
+## Detailed Implementation Plan (Compute + Reliability)
+
+### Compute Strategy
+- Interactive mode: 1,000 runs for quick feedback
+- Batch mode: 10,000+ runs for decision-grade outputs
+- Queue heavy runs with cancellation support
+
+### Reliability Controls
+- Seeded reproducibility for audit
+- Input validation for distribution parameter sanity
+- Guardrails against invalid dependency graphs
+
+### Explainability
+- Output top driver contributions per percentile shift
+- Include “what changed this outcome” narrative snippets
+
+### SLOs
+- P95 interactive response < 8s (1k runs)
+- Batch completion < 2 min for standard plan size
+

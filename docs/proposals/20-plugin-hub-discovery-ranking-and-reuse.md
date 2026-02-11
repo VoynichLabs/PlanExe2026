@@ -107,3 +107,30 @@ RankScore =
 - Revenue sharing models.
 - Federated plugin registries.
 - Automated dependency compatibility checks.
+
+## Detailed Implementation Plan
+
+### Phase A — Retrieval Stack
+
+1. Build semantic capability index for plugins.
+2. Add feature store for rank signals (fit, reliability, recency, reuse).
+3. Implement top-k retrieval with configurable cutoffs.
+
+### Phase B — Ranking Model
+
+1. Compute blended ranking score with policy-tunable weights.
+2. Add duplicate detection and merge recommendations.
+3. Add exploration mode for discovering undervalued plugins.
+
+### Phase C — Feedback and Economy
+
+1. Capture runtime success feedback per plugin use.
+2. Adjust ranking via online updates with decay.
+3. Reward stable high-performing plugins via visibility boosts.
+
+### Validation Checklist
+
+- Top-1 retrieval success rate
+- Duplicate plugin creation reduction
+- Reuse rate growth over time
+
