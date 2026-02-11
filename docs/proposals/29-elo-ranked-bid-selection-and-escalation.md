@@ -160,3 +160,44 @@ The Escalation Monitor connects to external Webhooks:
 ## Future Enhancements
 -   **Tournament Mode:** Periodically re-rank the top 50 bids against each other to ensure the "King of the Hill" is truly the best.
 -   **Niche Pools:** Separate Elo ladders for different sectors (e.g., "BioTech Elo", "Crypto Elo").
+
+## Detailed Implementation Plan
+
+### Phase A — Selection Funnel Definition (1 week)
+
+1. Define funnel cutoffs and policy defaults (20% -> 5% -> 1%).
+2. Define promotion/demotion rules with override controls.
+3. Define confidence requirements for borderline candidates.
+
+### Phase B — Ranking Pipeline Integration (2 weeks)
+
+1. Pull ELO and percentile outputs from proposal-07 stack.
+2. Add domain-fit and verification features to ranking vector.
+3. Compute composite selection score for escalation decisions.
+
+### Phase C — Escalation Workflow (2 weeks)
+
+1. Route top cohort to expert verification and premium refinement.
+2. Track escalation outcomes and review costs.
+3. Add auto-stop for candidates that fail critical post-escalation checks.
+
+### Phase D — Outcome Learning Loop (2 weeks)
+
+1. Ingest real bid outcomes (win/loss/shortlist).
+2. Recalibrate ranking and threshold policies.
+3. Add model drift alerts when ranking precision degrades.
+
+### Data model additions
+
+- `selection_funnel_runs`
+- `selection_scores`
+- `escalation_events`
+- `bid_outcome_feedback`
+
+### Validation checklist
+
+- Precision@top cohorts
+- Win-rate lift vs non-ranked baseline
+- Cost savings from reduced deep review
+- Stability of thresholds across domains
+

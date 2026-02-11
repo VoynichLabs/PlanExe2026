@@ -103,3 +103,50 @@ Create a verification framework that:
 - Cross-border expert panels.
 - Treaty database integration.
 - Automated regulatory change detection.
+
+## Detailed Implementation Plan
+
+### Phase A — Jurisdiction Matrix Engine (2 weeks)
+
+1. Build dual-jurisdiction requirement templates:
+   - permits
+   - environmental reviews
+   - procurement and labor standards
+2. Create conflict detection rules between country A/B requirements.
+3. Attach confidence and source references to each requirement.
+
+### Phase B — Cross-Border Expert Orchestration (2 weeks)
+
+1. Enforce role model:
+   - country A lead
+   - country B lead
+   - neutral chair
+2. Route issues by domain and jurisdiction ownership.
+3. Add bilingual/multilingual artifact support where required.
+
+### Phase C — Harmonization Workflow (2 weeks)
+
+1. Build standards conflict map and resolution ledger.
+2. Add harmonization plan generator with legal/technical options.
+3. Track unresolved blockers and escalation deadlines.
+
+### Phase D — Dual Signoff + Readiness Output (1 week)
+
+1. Require dual-jurisdiction signoff before verified status.
+2. Output cross-border readiness summary and unresolved-risk list.
+3. Export due-diligence package for public/private stakeholders.
+
+### Data model additions
+
+- `jurisdiction_requirements`
+- `crossborder_conflicts`
+- `harmonization_actions`
+- `crossborder_signoffs`
+
+### Validation checklist
+
+- Requirement coverage completeness per jurisdiction
+- Conflict resolution cycle time
+- Reduction in late-stage legal blockers
+- Consistency of dual-signoff enforcement
+

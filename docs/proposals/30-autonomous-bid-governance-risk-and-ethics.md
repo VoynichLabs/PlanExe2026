@@ -100,3 +100,48 @@ Create a governance framework that:
 - Real-time regulatory update integration.
 - External ethics review board for sensitive domains.
 - Insurance-backed risk protection.
+
+## Detailed Implementation Plan
+
+### Phase A — Governance Policy Framework (2 weeks)
+
+1. Define policy classes:
+   - legal/compliance
+   - ethical constraints
+   - sanctions/jurisdiction rules
+   - public-interest safety constraints
+2. Encode policy as machine-evaluable rules with severity levels.
+3. Add policy ownership and review cadence.
+
+### Phase B — Decision Gate Enforcement (2 weeks)
+
+1. Insert policy gates at intake, selection, and final bid decision.
+2. Require human signoff above budget/impact thresholds.
+3. Add mandatory refusal states when verification confidence is insufficient.
+
+### Phase C — Auditability and Explainability (2 weeks)
+
+1. Build immutable decision trail from signal to final bid decision.
+2. Generate explainability bundles for accepted/rejected bids.
+3. Add regulator-ready export with policy evidence.
+
+### Phase D — Monitoring and Incident Response (1–2 weeks)
+
+1. Add policy violation alerts and incident severity routing.
+2. Add post-incident review workflow and corrective actions.
+3. Add periodic governance health reports.
+
+### Data model additions
+
+- `governance_policies`
+- `policy_evaluations`
+- `bid_decision_audit`
+- `governance_incidents`
+
+### Validation checklist
+
+- Policy coverage against known risk scenarios
+- Zero unapproved high-impact autonomous bids
+- Explainability completeness for all decisions
+- Incident response SLA compliance
+
