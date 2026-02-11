@@ -122,3 +122,72 @@ If an experiment hits its "Kill Criteria" (e.g., "Cost > $100/unit"), the system
 ## Future Enhancements
 1.  **Automated Literature Review:** Agents that scan arXiv/Patents to suggest H1/H2/H3.
 2.  **Bayesian Updating:** Automatically update $P_{success}$ based on partial experiment results.
+
+## Detailed Implementation Plan
+
+### Phase 1: Hypothesis object model and state machine
+
+1. Define strict schema for each hypothesis:
+   - assumptions
+   - required experiments
+   - expected value of success
+   - kill criteria
+
+2. Implement lifecycle state machine:
+- proposed
+- approved
+- testing
+- validated
+- refuted
+- archived
+
+3. Add immutable event log for all state transitions.
+
+### Phase 2: Experiment protocol builder
+
+For each hypothesis, auto-generate experiment cards:
+- objective metric
+- target threshold
+- sample size / duration
+- budget cap
+- stop-loss condition
+
+Require explicit owner and due date before launch.
+
+### Phase 3: Portfolio execution strategy
+
+1. Compute EVI for H1/H2/H3.
+2. Choose execution mode:
+- serial if one hypothesis dominates
+- parallel if top two EVIs are close
+
+3. Reallocate budget dynamically when a hypothesis is refuted.
+
+### Phase 4: Bayesian update loop
+
+After each experiment result:
+1. Update posterior success probability.
+2. Recalculate EVI and ranking.
+3. Trigger recommendation:
+- continue
+- pivot
+- terminate challenge
+
+### Data model additions
+
+- `challenge_registry` (challenge_id, statement, domain, owner, status)
+- `hypothesis_cards` (challenge_id, hypothesis_id, p_success, evi, state)
+- `experiment_runs` (hypothesis_id, metrics_json, pass_fail, cost)
+- `decision_log` (challenge_id, decision, rationale, timestamp)
+
+### Integration with Monte Carlo and planning
+
+- Inject hypothesis success distributions into Monte Carlo plan simulations.
+- Update plan success probability after each experiment cycle.
+- Surface “research readiness” score in bid/no-bid outputs.
+
+### Validation checklist
+
+- Time-to-first-validated-hypothesis trend.
+- Reduction in dead-end R&D spend.
+- Post-hoc accuracy of EVI-based prioritization.
