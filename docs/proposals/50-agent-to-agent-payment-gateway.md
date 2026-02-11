@@ -10,71 +10,83 @@ author: PlanExe Team
 **Author:** PlanExe Team  
 **Date:** 2026-02-11  
 **Status:** Proposal  
-**Audience:** Financial Architects, OpenClaw Developers  
+**Audience:** Financial Architects, OpenClaw Developers
 
 ---
 
-## Overview
-This proposal defines the "Economic Interface" for PlanExe. It allows autonomous agents to purchase Cloud Credits (for plan generation) using standardized machine-readable protocols, removing the need for a human to manually enter a credit card on a website.
+## Pitch
+Enable headless agents to pay for PlanExe services using standardized protocols for corporate spend and micropayments.
 
-We support a **Dual-Protocol Strategy**:
-1.  **AP2 (Agent Payments Protocol):** For high-value, auditable corporate spend (authorized by Humans).
-2.  **x402 (HTTP 402):** For low-value, instant micropayments (authorized by Wallets).
+## Why
+Agents operate without browsers or CAPTCHAs. Payments must be machine-native, auditable, and reliable at scale.
 
-## Core Problem
-Agents like OpenClaw run headless. They cannot solve CAPTCHAs or navigate Stripe Checkout flows. If MyAgent runs out of credits at 3 AM, it gets stuck.
+## Problem
+
+- Headless agents cannot use standard checkout flows.
+- Corporate payments require audit trails and limits.
+- Micropayments must be instant and low-friction.
+
+## Proposed Solution
+Implement a dual-protocol payment gateway:
+
+1. **AP2 (Agent Payments Protocol):** corporate spend with signed mandates.
+2. **x402 (HTTP 402):** instant micropayments for per-request charging.
 
 ## Architecture 1: The Corporate Route (AP2)
-Best for Enterprise agents with a budget.
 
 ### The Mandate
-The Human Manager signs a digital "Spend Mandate" authorizing the bot.
-*   **Issuer:** `corp-finance@acme.com`
-*   **Subject:** `did:molt:my-agent`
-*   **Limit:** $500/month
-*   **Scope:** `planexe.org/*`
+A human manager signs a digital spend mandate authorizing the bot.
 
-### The Transaction Flow
-1.  **Agent:** Calls `POST /api/purchase-credits` with `{ amount: 100, mandate: <Signed_JWT> }`.
-2.  **PlanExe:** Verifies the Mandate signature against the Corporate Public Key.
-3.  **PlanExe:** Charges the Corporate Card on file (via Stripe).
-4.  **PlanExe:** Issues 100 Credits to the Agent.
+- Issuer: `corp-finance@acme.com`
+- Subject: `did:molt:my-agent`
+- Limit: $500/month
+- Scope: `planexe.org/*`
 
----
+### Transaction Flow
+
+1. Agent calls `POST /api/purchase-credits` with `{ amount: 100, mandate: <Signed_JWT> }`.
+2. PlanExe verifies mandate signature.
+3. PlanExe charges corporate card on file.
+4. PlanExe issues credits to the agent.
 
 ## Architecture 2: The Crypto Route (x402)
-Best for Independent agents using stablecoins or Lightning.
 
-### The Header Exchange
-Standard HTTP logic for paying per-request.
+### Header Exchange
 
-1.  **Agent:** Calls `POST /api/generate-plan`.
-2.  **PlanExe:** Returns `402 Payment Required`.
-    *   `WWW-Authenticate: x402 token="...", invoice="lnbc1...", amount="5.00 USDC"`
-3.  **Agent:** Pays the invoice via its local wallet.
-4.  **Agent:** Retries the request with `Authorization: x402 <proof_of_payment>`.
-5.  **PlanExe:** Returns `200 OK`.
-
----
+1. Agent calls `POST /api/generate-plan`.
+2. PlanExe returns `402 Payment Required` with invoice header.
+3. Agent pays via wallet.
+4. Agent retries with `Authorization: x402 <proof_of_payment>`.
+5. PlanExe returns `200 OK`.
 
 ## Integration with OpenClaw
-We will release an `OpenClaw:Wallet` skill that manages both protocols.
 
-*   **Config:**
-    ```json
-    {
-      "wallet": {
-        "ap2_mandate": "/path/to/mandate.jwt",
-        "x402_private_key": "Make sure this is secure!",
-        "auto_top_up": true
-      }
-    }
-    ```
+Release an `OpenClaw:Wallet` skill that handles both protocols.
 
-*   **Behavior:**
-    *   If the request is < $0.10, try x402 (Instant).
-    *   If the request is > $10.00, use AP2 (Audited).
+```json
+{
+  "wallet": {
+    "ap2_mandate": "/path/to/mandate.jwt",
+    "x402_private_key": "secure-me",
+    "auto_top_up": true
+  }
+}
+```
 
 ## Success Metrics
-*   **Headless Revenue:** % of revenue coming from API calls with no browser session.
-*   **Friction:** Error rate on x402 payments (target < 1%).
+
+- Headless revenue share (% of revenue from agent payments).
+- Error rate on x402 (< 1%).
+- Time-to-top-up for AP2 mandates.
+
+## Risks
+
+- Mandate key compromise.
+- Payment replay attacks.
+- Wallet integration failures on edge devices.
+
+## Future Enhancements
+
+- Multi-currency pricing and FX handling.
+- Per-agent spending dashboards.
+- Payment routing by risk tier.

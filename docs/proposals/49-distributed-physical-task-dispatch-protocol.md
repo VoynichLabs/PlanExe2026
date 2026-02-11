@@ -10,36 +10,41 @@ author: PlanExe Team
 **Author:** PlanExe Team  
 **Date:** 2026-02-11  
 **Status:** Proposal  
-**Audience:** IoT Architects, Robotics Engineers  
+**Audience:** IoT Architects, Robotics Engineers
 
 ---
 
-## Overview
-This proposal defines a secure protocol for dispatching **Physical Tasks** from the PlanExe Cloud (Brain) to edge-based autonomous agents (Body), such as Raspberry Pi-powered OpenClaw instances.
+## Pitch
+Define a secure protocol for dispatching physical tasks from the PlanExe Cloud to edge agents and verifying real-world execution.
 
-It solves the "Cloud-Edge Gap": Cloud LLMs can plan complex actions, but they cannot execute them (they don't have hands). Edge devices have hands (servos, switches) but lack the planning capability.
+## Why
+Cloud planning is only valuable if it can reliably trigger real actions on devices. A standardized dispatch protocol closes the cloud-to-edge gap.
 
-## Core Problem
-A PlanExe Gantt chart might say: "Task 4: Water the plants at 08:00 AM."
-How does that text string turn into a GPIO signal on the Edge Agent's Raspberry Pi?
+## Problem
+
+- Gantt tasks are not executable by edge devices.
+- No consistent task payload or authentication layer.
+- Proof of physical execution is weak or absent.
 
 ## Proposed Solution
-A **Pub/Sub Dispatch System** using MQTT/WebSockets.
+Implement a pub/sub dispatch protocol that:
 
-1.  **PlanExe Cloud** publishes a `TaskManifest` to a secure queue.
-2.  **Edge Agents** (authenticated via client certs) subscribe to their specific `device_id` channel.
-3.  **The Agent** executes the task locally (e.g., Python script).
-4.  **The Agent** uploads proof of work (Photo/Log) back to the Cloud.
+1. Publishes `TaskManifest` payloads to secure device channels.
+2. Authenticates edge agents with client certs.
+3. Verifies task completion with proof-of-physical-work.
 
 ## Architecture
 
-### 1. The Dispatcher (Cloud)
-Parses the Gantt chart. Identifying tasks tagged with `@physical`.
-*   *Task:* "Take a photo of the construction site."
-*   *Target:* `device:drone-01`
-*   *Deadline:* `2026-02-12T09:00:00Z`
+```text
+PlanExe Cloud
+  -> Dispatcher
+  -> MQTT/WebSocket Bus
+  -> Edge Agent
+  -> Proof Upload
+  -> Verification
+```
 
-### 2. The Protocol (JSON Payload)
+## Task Manifest Schema
 
 ```json
 {
@@ -50,30 +55,37 @@ Parses the Gantt chart. Identifying tasks tagged with `@physical`.
     "angle": "45_degrees",
     "target": "zone_a"
   },
+  "deadline": "2026-02-12T09:00:00Z",
   "auth_token": "jwt_ey..."
 }
 ```
 
-### 3. The Executor (Edge / OpenClaw)
-The Edge Agent receives the message.
-1.  Verifies the `auth_token`.
-2.  Maps `capture_image` to a local function `cam.capture()`.
-3.  Runs the hardware logic.
-4.  Returns: `{"status": "success", "artifact_url": "s3://..."}`
-
----
-
 ## Proof of Physical Work (PoPW)
-To prevent agents from lying ("I watered the plants" when they didn't), we require cryptographic proof.
-*   **Photo Verification:** Agent must upload a timestamped photo of the result.
-*   **Sensor Logs:** Agent must upload the moisture sensor data showing the spike in humidity.
-*   **GPS Tweak:** Agent must sign the log with its GPS coordinates.
 
-## Integration with MoltBook
-*   **Gig Economy:** A user can post a physical task on MoltBook ("I need someone to 3D print this part").
-*   **Dispatch:** PlanExe routes the job to a local agent with a 3D printer (e.g., Agent B).
-*   **Verification:** Agent B prints it, PlanExe verifies the photo, and payment is released.
+- Photo verification with timestamp
+- Sensor logs (e.g., humidity spike)
+- GPS signature for location-dependent tasks
+
+## Integration Points
+
+- Works with OpenClaw execution skill.
+- Feeds into MoltBook gig dispatch.
+- Used by assumption drift monitor for real-world signals.
 
 ## Success Metrics
-*   **Latency:** Time from Cloud Dispatch -> Edge Acknowledgment (< 500ms).
-*   **Reliability:** % of physical tasks successfully completed and verified.
+
+- Dispatch latency (cloud -> edge ack).
+- % tasks completed with valid PoPW.
+- Reduction in false execution claims.
+
+## Risks
+
+- Device spoofing or token leakage.
+- Network instability in remote sites.
+- High verification cost for complex tasks.
+
+## Future Enhancements
+
+- Hardware attestation support.
+- Offline task caching and delayed sync.
+- Automated anomaly detection on PoPW.
