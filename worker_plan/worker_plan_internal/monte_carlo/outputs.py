@@ -1,329 +1,114 @@
 """
 PURPOSE: Format Monte Carlo simulation results and compute risk-adjusted recommendations.
 
-This module transforms raw simulation outputs into human-readable formats,
-including success/failure probabilities, percentiles, and GO/CAUTION/NO-GO
-recommendations based on configurable thresholds.
+Transforms raw simulation dict output into human-readable format with
+success/failure probabilities, percentiles, and GO/CAUTION/NO-GO recommendations.
 
-SRP/DRY: Single responsibility = output formatting and recommendation logic.
-         No simulation, no sensitivity analysis. Clean interface to simulation results.
+SRP/DRY: Single responsibility = output formatting and recommendation logic only.
+         No simulation, no analysis. Clean dict-in, dict-out interface.
 """
 
-from dataclasses import dataclass, asdict
-from typing import Dict, List, Any
-import numpy as np
-
-# Handle both relative and absolute imports
-try:
-    from . import config
-except ImportError:
-    import config
-
-
-@dataclass
-class MonteCarloResults:
-    """Structured output from Monte Carlo simulation formatting.
-    
-    Attributes:
-        success_probability (float): Percentage of successful scenarios (0-100).
-        failure_probability (float): Percentage of failed scenarios (0-100).
-        risk_adjusted_recommendation (str): "GO", "CAUTION", or "NO-GO".
-        duration_p10 (float): 10th percentile duration (days).
-        duration_p50 (float): 50th percentile duration (days).
-        duration_p90 (float): 90th percentile duration (days).
-        cost_p10 (float): 10th percentile cost.
-        cost_p50 (float): 50th percentile cost.
-        cost_p90 (float): 90th percentile cost.
-        summary_narrative (str): Plain English summary of key findings.
-        percentiles_dict (dict): Full percentile breakdown for advanced users.
-    """
-    success_probability: float
-    failure_probability: float
-    risk_adjusted_recommendation: str
-    duration_p10: float
-    duration_p50: float
-    duration_p90: float
-    cost_p10: float
-    cost_p50: float
-    cost_p90: float
-    summary_narrative: str
-    percentiles_dict: Dict[str, Dict[str, float]]
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert results to dictionary for JSON serialization."""
-        return {
-            "success_probability": round(self.success_probability, 2),
-            "failure_probability": round(self.failure_probability, 2),
-            "risk_adjusted_recommendation": self.risk_adjusted_recommendation,
-            "duration": {
-                "p10": round(self.duration_p10, 2),
-                "p50": round(self.duration_p50, 2),
-                "p90": round(self.duration_p90, 2),
-            },
-            "cost": {
-                "p10": round(self.cost_p10, 2),
-                "p50": round(self.cost_p50, 2),
-                "p90": round(self.cost_p90, 2),
-            },
-            "summary_narrative": self.summary_narrative,
-            "percentiles_dict": {
-                k: {kk: round(vv, 2) for kk, vv in v.items()}
-                for k, v in self.percentiles_dict.items()
-            },
-        }
+from typing import Dict, Any
 
 
 class OutputFormatter:
-    """
-    Formats raw simulation results into actionable outputs.
-    
-    Thresholds for risk-adjusted recommendations:
-    - GO: success_probability >= 80%
-    - CAUTION: 50% <= success_probability < 80%
-    - NO-GO: success_probability < 50%
-    """
+    """Formats Monte Carlo simulation results and generates recommendations."""
 
-    # Default recommendation thresholds (as percentages)
-    GO_THRESHOLD = 80.0
-    CAUTION_MIN_THRESHOLD = 50.0
-    CAUTION_MAX_THRESHOLD = 80.0
-
-    @staticmethod
-    def _safe_extract_threshold(value, fallback: float) -> float:
+    def __init__(self, go_threshold: float = 80.0, caution_threshold: float = 50.0):
         """
-        Safely extract a scalar threshold value from config.
-        
-        Handles cases where:
-        - value is already a scalar (float/int)
-        - value is a dict (extract from key)
-        - value is malformed (use fallback)
+        Initialize formatter with thresholds.
         
         Args:
-            value: The threshold value from config (may be scalar or dict)
-            fallback: Fallback value if extraction fails
-            
-        Returns:
-            Scalar threshold value as float
+            go_threshold: Success % for GO recommendation (default 80%)
+            caution_threshold: Success % for NO-GO threshold (default 50%)
+                - GO: success >= go_threshold
+                - CAUTION: caution_threshold <= success < go_threshold
+                - NO-GO: success < caution_threshold
         """
-        # If it's already a scalar, use it
-        if isinstance(value, (int, float)):
-            return float(value)
-        
-        # If it's a dict, try common keys
-        if isinstance(value, dict):
-            # Try various keys
-            for key in ['value', 'threshold', 'scalar', 'default']:
-                if key in value and isinstance(value[key], (int, float)):
-                    return float(value[key])
-        
-        # If we can't extract, use fallback
-        return fallback
+        self.go_threshold = go_threshold
+        self.caution_threshold = caution_threshold
 
-    @staticmethod
-    def _load_thresholds_from_config():
+    def format_results(self, results: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Load recommendation thresholds from config.py with defensive checks.
+        Format simulation results into human-readable output.
         
-        Returns:
-            Tuple of (go_threshold_pct, caution_min_pct, caution_max_pct) as percentages
-        """
-        try:
-            # Try to get from config
-            go_val = getattr(config, 'GO_THRESHOLD', None)
-            no_go_val = getattr(config, 'NO_GO_THRESHOLD', None)
-            re_scope_val = getattr(config, 'RE_SCOPE_THRESHOLD', None)
-            
-            # Safely extract scalar values
-            go_thresh = OutputFormatter._safe_extract_threshold(go_val, 0.8)
-            no_go_thresh = OutputFormatter._safe_extract_threshold(no_go_val, 0.5)
-            re_scope_thresh = OutputFormatter._safe_extract_threshold(re_scope_val, 0.65)
-            
-            # Convert from decimal (0.0-1.0) to percentage (0-100) if needed
-            # If value is already > 10, assume it's already a percentage
-            go_pct = go_thresh * 100 if go_thresh <= 10 else go_thresh
-            no_go_pct = no_go_thresh * 100 if no_go_thresh <= 10 else no_go_thresh
-            re_scope_pct = re_scope_thresh * 100 if re_scope_thresh <= 10 else re_scope_thresh
-            
-            return go_pct, no_go_pct, re_scope_pct
-        except Exception:
-            # If anything fails, use class defaults
-            return OutputFormatter.GO_THRESHOLD, OutputFormatter.CAUTION_MIN_THRESHOLD, OutputFormatter.CAUTION_MAX_THRESHOLD
-
-    @staticmethod
-    def format_results(
-        results: Dict[str, Any],
-        go_threshold: float = None,
-        caution_min: float = None,
-        caution_max: float = None,
-    ) -> MonteCarloResults:
-        """
-        Format simulation results into structured output.
-
         Args:
-            results: Dictionary or MonteCarloResults dataclass containing:
-                - 'probabilities': dict with 'success', 'failure', etc.
-                - 'percentiles': dict with 'duration' and 'cost' percentiles
-                - 'scenarios': list of scenario dicts (optional, for narratives)
-                - Any other computed fields
-                
-                If a MonteCarloResults dataclass is passed, it will be converted to dict
-                and mapped to the expected structure.
-                
-            go_threshold: Success probability threshold for GO recommendation (default 80%).
-            caution_min: Min threshold for CAUTION recommendation (default 50%).
-            caution_max: Max threshold for CAUTION recommendation (default 80%).
-
+            results: Dict from MonteCarloSimulation.run() with keys:
+                - success_probability: float (0-1)
+                - failure_probability: float (0-1)
+                - delay_probability: float (0-1)
+                - budget_overrun_probability: float (0-1)
+                - duration_percentiles: {10: val, 50: val, 90: val}
+                - cost_percentiles: {10: val, 50: val, 90: val}
+                - recommendation: str (auto-generated if not present)
+        
         Returns:
-            MonteCarloResults object with formatted outputs.
-
-        Raises:
-            KeyError: If required keys missing from results.
-            ValueError: If probabilities are not in [0, 100] or don't sum to ~100.
+            Dict with formatted outputs:
+                - recommendation: "GO" | "CAUTION" | "NO-GO"
+                - success_probability_pct: float (0-100)
+                - summary: str (one-line summary)
+                - full_report: dict with detailed outputs
         """
-        # Convert MonteCarloResults dataclass to dict if needed
-        if hasattr(results, '__dataclass_fields__'):
-            dataclass_dict = asdict(results)
-            # Map MonteCarloResults fields to expected format
-            results = {
-                "probabilities": {
-                    "success": dataclass_dict.get("success_probability", 0.0),
-                    "failure": dataclass_dict.get("failure_probability", 0.0),
+        # Extract raw values from simulation output
+        success_prob_01 = results.get('success_probability', 0.0)  # 0-1 range
+        success_prob_pct = success_prob_01 * 100.0  # Convert to 0-100 range
+        
+        failure_prob_pct = results.get('failure_probability', 0.0) * 100.0
+        delay_prob_pct = results.get('delay_probability', 0.0) * 100.0
+        budget_overrun_pct = results.get('budget_overrun_probability', 0.0) * 100.0
+        
+        duration_pcts = results.get('duration_percentiles', {10: 0, 50: 0, 90: 0})
+        cost_pcts = results.get('cost_percentiles', {10: 0, 50: 0, 90: 0})
+        
+        # Compute recommendation based on success probability
+        recommendation = self._compute_recommendation(success_prob_pct)
+        
+        # Build summary
+        summary = (
+            f"Recommendation: {recommendation}. "
+            f"Success probability: {success_prob_pct:.1f}%. "
+            f"P50 duration: {duration_pcts.get(50, 0):.1f} days, "
+            f"P50 cost: ${cost_pcts.get(50, 0):,.0f}."
+        )
+        
+        # Return formatted results
+        return {
+            'recommendation': recommendation,
+            'success_probability_pct': success_prob_pct,
+            'failure_probability_pct': failure_prob_pct,
+            'delay_probability_pct': delay_prob_pct,
+            'budget_overrun_probability_pct': budget_overrun_pct,
+            'summary': summary,
+            'duration_percentiles': duration_pcts,
+            'cost_percentiles': cost_pcts,
+            'full_report': {
+                'recommendation': recommendation,
+                'probabilities': {
+                    'success': success_prob_pct,
+                    'failure': failure_prob_pct,
+                    'delay': delay_prob_pct,
+                    'budget_overrun': budget_overrun_pct,
                 },
-                "percentiles": dataclass_dict.get("percentiles_dict", {}),
+                'percentiles': {
+                    'duration': duration_pcts,
+                    'cost': cost_pcts,
+                }
             }
-        
-        # Load thresholds from config if not provided
-        if go_threshold is None or caution_min is None or caution_max is None:
-            go_thresh_config, no_go_thresh_config, re_scope_thresh_config = OutputFormatter._load_thresholds_from_config()
-            if go_threshold is None:
-                go_threshold = go_thresh_config
-            if caution_min is None:
-                caution_min = no_go_thresh_config
-            if caution_max is None:
-                # caution_max should be the GO threshold (upper bound for CAUTION)
-                caution_max = go_thresh_config
-        
-        # Extract probabilities
-        probabilities = results.get("probabilities", {})
-        success_prob = probabilities.get("success", 0.0)
-        failure_prob = probabilities.get("failure", 0.0)
-
-        # Validate probabilities
-        if not (0 <= success_prob <= 100):
-            raise ValueError(f"success_probability must be in [0, 100], got {success_prob}")
-        if not (0 <= failure_prob <= 100):
-            raise ValueError(f"failure_probability must be in [0, 100], got {failure_prob}")
-
-        # Extract percentiles
-        percentiles = results.get("percentiles", {})
-        duration_pcts = percentiles.get("duration", {})
-        cost_pcts = percentiles.get("cost", {})
-
-        # Get P10, P50, P90 for duration and cost
-        duration_p10 = duration_pcts.get("p10", 0.0)
-        duration_p50 = duration_pcts.get("p50", 0.0)
-        duration_p90 = duration_pcts.get("p90", 0.0)
-        cost_p10 = cost_pcts.get("p10", 0.0)
-        cost_p50 = cost_pcts.get("p50", 0.0)
-        cost_p90 = cost_pcts.get("p90", 0.0)
-
-        # Compute risk-adjusted recommendation
-        recommendation = OutputFormatter._compute_recommendation(
-            success_prob, go_threshold, caution_min, caution_max
-        )
-
-        # Generate summary narrative
-        narrative = OutputFormatter._generate_narrative(
-            success_prob, failure_prob, duration_p50, cost_p50, recommendation
-        )
-
-        # Assemble full percentiles dict for reference
-        percentiles_dict = {
-            "duration": duration_pcts,
-            "cost": cost_pcts,
         }
 
-        return MonteCarloResults(
-            success_probability=success_prob,
-            failure_probability=failure_prob,
-            risk_adjusted_recommendation=recommendation,
-            duration_p10=duration_p10,
-            duration_p50=duration_p50,
-            duration_p90=duration_p90,
-            cost_p10=cost_p10,
-            cost_p50=cost_p50,
-            cost_p90=cost_p90,
-            summary_narrative=narrative,
-            percentiles_dict=percentiles_dict,
-        )
-
-    @staticmethod
-    def _compute_recommendation(
-        success_prob: float,
-        go_threshold: float,
-        caution_min: float,
-        caution_max: float,
-    ) -> str:
+    def _compute_recommendation(self, success_probability_pct: float) -> str:
         """
-        Compute risk-adjusted recommendation based on success probability.
-
+        Compute GO/CAUTION/NO-GO recommendation based on success probability.
+        
         Args:
-            success_prob: Success probability as percentage (0-100).
-            go_threshold: Threshold for GO (default 80%).
-            caution_min: Min threshold for CAUTION (default 50%).
-            caution_max: Max threshold for CAUTION (default 80%).
-
+            success_probability_pct: Success probability as percentage (0-100)
+        
         Returns:
-            "GO", "CAUTION", or "NO-GO".
+            "GO" | "CAUTION" | "NO-GO"
         """
-        if success_prob >= go_threshold:
+        if success_probability_pct >= self.go_threshold:
             return "GO"
-        elif caution_min <= success_prob < caution_max:
+        elif success_probability_pct >= self.caution_threshold:
             return "CAUTION"
         else:
             return "NO-GO"
-
-    @staticmethod
-    def _generate_narrative(
-        success_prob: float,
-        failure_prob: float,
-        median_duration: float,
-        median_cost: float,
-        recommendation: str,
-    ) -> str:
-        """
-        Generate a plain English summary of key findings.
-
-        Args:
-            success_prob: Success probability percentage.
-            failure_prob: Failure probability percentage.
-            median_duration: P50 (median) duration.
-            median_cost: P50 (median) cost.
-            recommendation: GO, CAUTION, or NO-GO.
-
-        Returns:
-            Plain English narrative string.
-        """
-        narrative = f"Success probability: {success_prob:.1f}%. "
-        narrative += f"Failure probability: {failure_prob:.1f}%. "
-        narrative += f"Expected duration (P50): {median_duration:.1f} days. "
-        narrative += f"Expected cost (P50): {median_cost:.2f}. "
-        narrative += f"Recommendation: {recommendation}. "
-
-        if recommendation == "GO":
-            narrative += (
-                "The plan has a high probability of success. "
-                "Proceed with planning and execution."
-            )
-        elif recommendation == "CAUTION":
-            narrative += (
-                "The plan has moderate probability of success. "
-                "Mitigate risks, review assumptions, and prepare contingencies."
-            )
-        else:  # NO-GO
-            narrative += (
-                "The plan has low probability of success. "
-                "Consider re-scoping, reducing scope, or increasing resources."
-            )
-
-        return narrative

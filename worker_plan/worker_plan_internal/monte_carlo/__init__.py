@@ -21,20 +21,14 @@ SRP/DRY CHECK:
     - sensitivity.py: Sensitivity analysis only
 """
 
-from .outputs import OutputFormatter, MonteCarloResults
+from .outputs import OutputFormatter
 from .sensitivity import SensitivityAnalyzer, SensitivityDriver
 
 __version__ = "0.1.0"
 __author__ = "PlanExe Team"
 
 __all__ = [
-    "sample_triangular",
-    "sample_pert",
-    "sample_lognormal",
-    "sample_risk_event",
-    "sample_bernoulli_impact",
     "OutputFormatter",
-    "MonteCarloResults",
     "SensitivityAnalyzer",
     "SensitivityDriver",
 ]
