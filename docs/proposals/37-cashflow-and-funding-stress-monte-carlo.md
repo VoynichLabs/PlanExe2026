@@ -1,7 +1,7 @@
 ---
 title: "Cashflow + Funding Stress Monte Carlo (How Money Moves)"
 date: 2026-02-10
-status: Proposal
+status: proposal
 author: PlanExe Team
 ---
 

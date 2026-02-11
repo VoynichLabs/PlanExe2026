@@ -1,7 +1,7 @@
 ---
 title: "Three-Hypotheses Engine for Unsolved Challenges"
 date: 2026-02-10
-status: Proposal
+status: proposal
 author: PlanExe Team
 ---
 

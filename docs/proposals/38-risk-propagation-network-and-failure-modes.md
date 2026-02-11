@@ -1,7 +1,7 @@
 ---
 title: "Risk Propagation Network + Failure Mode Manifestation"
 date: 2026-02-10
-status: Proposal
+status: proposal
 author: PlanExe Team
 ---
 

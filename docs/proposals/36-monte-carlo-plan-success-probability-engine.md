@@ -1,7 +1,7 @@
 ---
 title: "Monte Carlo Plan Success Probability Engine (10,000 Runs)"
 date: 2026-02-10
-status: Proposal
+status: proposal
 author: PlanExe Team
 ---
 

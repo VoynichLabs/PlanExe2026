@@ -1,7 +1,7 @@
 ---
 title: "Frontier Research Gap Mapper for Mega-Projects"
 date: 2026-02-10
-status: Proposal
+status: proposal
 author: PlanExe Team
 ---
 
