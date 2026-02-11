@@ -110,3 +110,57 @@ OpenClaw Agent
 - Offline plan caching for intermittent connectivity.
 - Capability-aware task routing across multiple agents.
 - Automatic escalation to humans for high-risk tasks.
+
+## Detailed Implementation Plan
+
+### Phase A — Skill Packaging and Contracts (1–2 weeks)
+
+1. Define skill manifest and tool contracts:
+   - `create_plan`
+   - `check_plan_status`
+   - `get_next_action_item`
+   - `report_result`
+
+2. Add JSON schema validation for tool inputs/outputs.
+3. Version the skill API separately from PlanExe core API.
+
+### Phase B — MCP Bridge and Runtime Adapter (2–3 weeks)
+
+1. Implement MCP client wrapper inside skill runtime.
+2. Add retry/backoff and circuit-breaker handling for cloud calls.
+3. Normalize errors into agent-friendly remediation messages.
+
+### Phase C — Execution Loop and State Sync (2 weeks)
+
+1. Build local task executor abstraction for edge environments.
+2. Add plan-state sync protocol:
+   - pull next action
+   - execute/report
+   - reconcile conflicts
+
+3. Support partial completion and blocked states.
+
+### Phase D — Safety, Budgets, and Governance (2 weeks)
+
+1. Add execution policy profiles by risk tier.
+2. Add per-run budget controls and token/cost caps.
+3. Add human escalation hooks for high-impact tasks.
+
+### Integration points
+
+- OpenClaw skill registry
+- PlanExe MCP cloud endpoints
+- Execution readiness and evidence ledger modules
+
+### Operational safeguards
+
+- Offline queue with replay upon reconnect
+- Idempotency keys for duplicate submissions
+- Signed task receipts for non-repudiation
+
+### Validation checklist
+
+- End-to-end tool contract tests
+- Network partition resilience tests
+- Duplicate event/retry safety tests
+- Human escalation path latency and success tests
