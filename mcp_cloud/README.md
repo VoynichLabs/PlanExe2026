@@ -194,11 +194,14 @@ The inspector forwards these headers to the remote server, which accepts
 
 **CORS errors:** If you see "CORS preflight response did not succeed" or "status
 code: 400" in the browser console when connecting to a deployed MCP server:
-1. Redeploy mcp_cloud with the OPTIONS-exemption fix (OPTIONS preflight no longer
-   requires the API key).
+1. Redeploy mcp_cloud with the latest changes (OPTIONS preflight is exempt from
+   API key, explicit OPTIONS handler, permissive CORS headers).
 2. Ensure `PLANEXE_MCP_CORS_ORIGINS` on the deployed server either is unset
    (allows all origins) or includes `http://localhost:6274` and
    `http://127.0.0.1:6274`.
+3. If the error persists, the 400 may come from a **proxy or CDN** (Railway,
+   Cloudflare, nginx). Ensure OPTIONS requests are forwarded to the app and not
+   blocked. Some platforms require explicit CORS or OPTIONS configuration.
 
 ### Skipping proxy authentication (development only)
 

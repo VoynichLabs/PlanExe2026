@@ -398,7 +398,7 @@ app.add_middleware(
     allow_origins=CORS_ORIGINS,
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-API-Key", "API_KEY"],
+    allow_headers=["*"],  # Allow any header (e.g. X-API-Key) for CORS preflight
 )
 
 
@@ -478,6 +478,13 @@ async def call_tool_via_registry(
 
     content, error = _normalize_tool_result(result)
     return MCPToolCallResponse(content=content, error=error)
+
+
+@app.options("/mcp")
+@app.options("/mcp/")
+async def options_mcp() -> Response:
+    """Handle CORS preflight for /mcp so browser-based tools (e.g. MCP Inspector) succeed."""
+    return Response(status_code=200)
 
 
 @app.post("/mcp/tools/call", response_model=MCPToolCallResponse)
