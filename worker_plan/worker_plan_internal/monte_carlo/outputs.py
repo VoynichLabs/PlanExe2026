@@ -9,7 +9,7 @@ SRP/DRY: Single responsibility = output formatting and recommendation logic.
          No simulation, no sensitivity analysis. Clean interface to simulation results.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from typing import Dict, List, Any
 import numpy as np
 
@@ -160,11 +160,15 @@ class OutputFormatter:
         Format simulation results into structured output.
 
         Args:
-            results: Dictionary from simulation.py containing:
+            results: Dictionary or MonteCarloResults dataclass containing:
                 - 'probabilities': dict with 'success', 'failure', etc.
                 - 'percentiles': dict with 'duration' and 'cost' percentiles
                 - 'scenarios': list of scenario dicts (optional, for narratives)
                 - Any other computed fields
+                
+                If a MonteCarloResults dataclass is passed, it will be converted to dict
+                and mapped to the expected structure.
+                
             go_threshold: Success probability threshold for GO recommendation (default 80%).
             caution_min: Min threshold for CAUTION recommendation (default 50%).
             caution_max: Max threshold for CAUTION recommendation (default 80%).
@@ -176,6 +180,18 @@ class OutputFormatter:
             KeyError: If required keys missing from results.
             ValueError: If probabilities are not in [0, 100] or don't sum to ~100.
         """
+        # Convert MonteCarloResults dataclass to dict if needed
+        if hasattr(results, '__dataclass_fields__'):
+            dataclass_dict = asdict(results)
+            # Map MonteCarloResults fields to expected format
+            results = {
+                "probabilities": {
+                    "success": dataclass_dict.get("success_probability", 0.0),
+                    "failure": dataclass_dict.get("failure_probability", 0.0),
+                },
+                "percentiles": dataclass_dict.get("percentiles_dict", {}),
+            }
+        
         # Load thresholds from config if not provided
         if go_threshold is None or caution_min is None or caution_max is None:
             go_thresh_config, no_go_thresh_config, re_scope_thresh_config = OutputFormatter._load_thresholds_from_config()
