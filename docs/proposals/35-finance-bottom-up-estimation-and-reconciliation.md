@@ -135,3 +135,88 @@ Compare bottom-up vs top-down outputs:
 - Automated cost libraries by region and sector.
 - Sensitivity analysis and scenario modeling.
 - Learning system that updates estimates from real outcomes.
+
+## Detailed Implementation Plan
+
+### 1) Bottom-up estimator architecture
+
+For each WBS task, build a cost object:
+- labor profile (roles, hours, rates)
+- material BOM (qty × unit cost)
+- external services
+- fixed/variable overhead
+- contingency allocation
+
+Aggregate task costs -> work package -> phase -> plan total.
+
+### 2) Revenue build-up layer
+
+For plans with revenue:
+- unit sales model or contract milestone model
+- churn/renewal assumptions (if subscription)
+- conversion and ramp assumptions
+
+Link revenue timing to project timeline for cashflow realism.
+
+### 3) Reconciliation algorithm (top-down vs bottom-up)
+
+Input:
+- top-down scenario bands (P10/P50/P90)
+- bottom-up deterministic/ranged total
+
+Compute variance decomposition by category:
+- labor delta
+- materials delta
+- capex delta
+- schedule-induced delta
+
+Generate reconciliation recommendations ranked by expected impact.
+
+### 4) Convergence rules
+
+Define explicit convergence status:
+- `green`: variance <= 10%
+- `yellow`: 10–20%
+- `red`: >20%
+
+If yellow/red, require iteration actions before “finance-ready” status.
+
+### 5) Iteration loop
+
+1. identify highest variance categories
+2. request missing inputs or benchmark corrections
+3. update assumptions
+4. recompute both models
+5. re-evaluate convergence state
+
+Track each iteration for audit.
+
+### 6) Integration points
+
+- Pull CBS line items from Proposal 33
+- Pull benchmark priors from Proposal 34
+- Expose convergence status in plan summary
+- Feed risk module when persistent red variance remains
+
+### 7) Output package
+
+Produce a finance bundle:
+- bottom-up ledger
+- top-down summary
+- variance decomposition chart
+- reconciliation action log
+- convergence status + signoff checklist
+
+### 8) Rollout phases
+
+- Phase A: deterministic bottom-up + simple variance
+- Phase B: ranged bottom-up with confidence levels
+- Phase C: automated reconciliation recommendations
+- Phase D: closed-loop learning from actual spend/revenue outcomes
+
+### 9) Validation checklist
+
+- Accounting consistency (totals match component sums)
+- Reproducibility under fixed assumptions
+- Reviewer confidence uplift after reconciliation
+- Reduced forecast error on executed projects

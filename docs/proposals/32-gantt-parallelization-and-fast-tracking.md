@@ -110,3 +110,92 @@ This assessment becomes the constraint set for the parallelization algorithm and
 - Median planned duration reduction (baseline vs fast-track)
 
 - Rework rate estimate + mitigation completeness
+
+## Detailed Implementation Plan
+
+### 1) Build a scheduling core with dual outputs
+
+For each plan, generate two schedules:
+1. **Baseline schedule** (current dependency-respecting sequence)
+2. **Accelerated schedule** (parallel-packed fast-track)
+
+Store both as first-class artifacts so users can compare tradeoffs.
+
+### 2) Dependency graph normalization
+
+Parse WBS tasks into DAG nodes:
+- `task_id`, `duration_estimate`, `resource_class`, `depends_on`
+- normalize missing fields with defaults + confidence labels
+
+Run validation:
+- detect cycles
+- detect orphan tasks
+- detect impossible predecessors
+
+### 3) Critical-path + slack analysis
+
+Compute earliest start, latest finish, total float.
+
+Rules:
+- Critical path tasks (`float=0`) are primary compression targets.
+- Non-critical tasks with high float become parallelization candidates.
+
+### 4) Fast-track transformations
+
+Apply deterministic transformation operators:
+1. **Split-long-task** when duration exceeds threshold and has high blocking impact.
+2. **Overlap-safe-pairs** where partial deliverables can unblock downstream work.
+3. **Parallel-pack** tasks with non-overlapping dependencies and compatible resources.
+4. **Inject-merge-task** after redundant/parallel workstreams.
+
+### 5) Resource-constrained packing
+
+Use user capacity profile as hard constraints:
+- max concurrent FTE per role
+- external bottlenecks (regulatory, vendor windows)
+- overtime/contractor allowance
+
+Suggested solver approach:
+- heuristic first-fit decreasing by criticality
+- optional CP-SAT/ILP mode for high-stakes plans
+
+### 6) Risk-aware acceleration scoring
+
+Every acceleration action gets risk deltas:
+- coordination risk
+- rework probability
+- quality degradation probability
+
+Compute:
+`net_benefit = schedule_days_saved - risk_penalty_weighted`
+
+Only apply changes with positive net benefit unless user opts into aggressive mode.
+
+### 7) Output format
+
+Add sections to plan output:
+- Parallelization opportunities (with rationale)
+- Baseline vs fast-track Gantt delta
+- Resource stress table
+- Rework-risk heatmap
+- Recommended governance cadence (daily standups, weekly integration reviews)
+
+### 8) Integration points
+
+- Hook after initial WBS generation and dependency extraction.
+- Feed accelerated schedule into finance modules (faster schedule may increase labor/coordination costs).
+- Expose mode flag: `schedule_mode=baseline|fast_track|aggressive`.
+
+### 9) Rollout phases
+
+- Phase A: analysis-only (no modifications, just suggestions)
+- Phase B: auto-generate accelerated schedule
+- Phase C: add optimization solver + risk scoring
+- Phase D: closed-loop calibration from actual project outcomes
+
+### 10) Validation checklist
+
+- Synthetic DAG benchmarks with known optimal schedules
+- Regression tests on common project patterns
+- Stress tests for 1k+ task plans
+- User acceptance tests on readability of baseline vs accelerated outputs
