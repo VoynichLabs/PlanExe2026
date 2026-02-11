@@ -254,3 +254,33 @@ post_to_twitter(tweet)
 - Prompt engineering best practices: Anthropic prompt guide
 
 - Caching strategies: Redis best practices
+
+## Detailed Implementation Plan
+
+### Phase A — Explainability Contract
+
+1. Define explanation schema:
+   - summary
+   - rationale
+   - assumptions
+   - caveats
+2. Add response styles (executive, technical, regulator).
+
+### Phase B — API + Caching
+
+1. Implement explanation endpoint with plan version hash keying.
+2. Add cache layer with invalidation on plan updates.
+3. Add token/cost controls for explanation generation.
+
+### Phase C — Quality and Safety
+
+1. Add hallucination guards using evidence references.
+2. Add sensitivity filters for confidential sections.
+3. Include confidence labels and uncertainty notes.
+
+### Validation Checklist
+
+- Explanation consistency across reruns
+- Evidence reference coverage thresholds
+- Low hallucination rate in review samples
+

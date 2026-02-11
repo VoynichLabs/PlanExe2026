@@ -251,3 +251,30 @@ Phase 4 - Measure + iterate
 - Do not touch `open_dir_server` allowlist/path validation unless explicitly asked.
 
 - Do not change MCP to advertise tasks protocol ("Run as task") - tools-only stays.
+
+## Detailed Implementation Plan
+
+### Phase A — Focus Classification Runtime
+
+1. Add pre-planning classifier stage for business/software/hybrid focus.
+2. Emit confidence and missing-info flags.
+3. Support explicit user override with trace logging.
+
+### Phase B — Track-Specific Prompting and Levers
+
+1. Build track prompt packs for business and software tracks.
+2. Route lever generation using track-aware templates.
+3. Enforce mandatory lever coverage per selected track.
+
+### Phase C — Track-Specific Gates
+
+1. Define no-go gate sets by track.
+2. Add auto-fail conditions for missing critical artifacts.
+3. Add hybrid sequencing logic for mixed plans.
+
+### Validation Checklist
+
+- Classification accuracy benchmark
+- Gate relevance by plan type
+- User override frequency and satisfaction
+
