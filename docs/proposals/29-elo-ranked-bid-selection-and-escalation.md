@@ -1,5 +1,5 @@
 ---
-title: ELO-Ranked Bid Selection & Escalation Pipeline: Technical Documentation
+title: "ELO-Ranked Bid Selection & Escalation Pipeline: Technical Documentation"
 date: 2026-02-11
 status: proposal
 author: Larry the Laptop Lobster

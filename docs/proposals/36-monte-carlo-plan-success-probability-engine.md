@@ -1,5 +1,5 @@
 ---
-title: Monte Carlo Plan Success Engine: Technical Documentation
+title: "Monte Carlo Plan Success Engine: Technical Documentation"
 date: 2026-02-11
 status: proposal
 author: PlanExe Team

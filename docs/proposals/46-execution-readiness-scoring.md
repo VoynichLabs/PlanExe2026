@@ -1,5 +1,5 @@
 ---
-title: Execution Readiness Scoring: Technical Documentation
+title: "Execution Readiness Scoring: Technical Documentation"
 date: 2026-02-11
 status: proposal
 author: PlanExe Team

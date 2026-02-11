@@ -1,5 +1,5 @@
 ---
-title: Assumption Drift Monitor: Technical Documentation
+title: "Assumption Drift Monitor: Technical Documentation"
 date: 2026-02-11
 status: proposal
 author: PlanExe Team

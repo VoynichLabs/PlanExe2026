@@ -1,5 +1,5 @@
 ---
-title: Three-Hypotheses Engine: Technical Documentation
+title: "Three-Hypotheses Engine: Technical Documentation"
 date: 2026-02-11
 status: proposal
 author: PlanExe Team
