@@ -117,7 +117,7 @@ If your client only supports Streamable HTTP and fails on `/mcp`, you have two o
 - `PLANEXE_MCP_HTTP_PORT`: HTTP server port (default: `8001`). Railway will override with `PORT` env var.
 - `PLANEXE_MCP_PUBLIC_BASE_URL`: Public base URL for report/zip download links in `task_file_info` (e.g. `http://192.168.1.40:8001`). When unset, the HTTP server uses the request’s host (scheme + authority), so clients connecting at `http://192.168.1.40:8001/mcp/` get download URLs like `http://192.168.1.40:8001/download/...` instead of localhost. If clients still see localhost in download URLs (e.g. behind a proxy), uncomment and set this in the repo’s `.env.docker-example` or `.env.developer-example` (copy to `.env` and fill in your public URL).
 - `PORT`: Railway-provided port (takes precedence over `PLANEXE_MCP_HTTP_PORT`)
-- `PLANEXE_MCP_CORS_ORIGINS`: Comma-separated list of allowed origins (default: `http://localhost,http://127.0.0.1`).
+- `PLANEXE_MCP_CORS_ORIGINS`: Comma-separated list of allowed origins. When unset, uses `*` (all origins) so browser-based tools like the MCP Inspector can connect. If you set it (e.g. for a specific frontend), include `http://localhost:6274` and `http://127.0.0.1:6274` for the Inspector.
 - `PLANEXE_MCP_MAX_BODY_BYTES`: Max request size for `POST /mcp/tools/call` (default: `1048576`).
 - `PLANEXE_MCP_RATE_LIMIT`: Max requests per window for `POST /mcp/tools/call` (default: `60`).
 - `PLANEXE_MCP_RATE_WINDOW_SECONDS`: Rate limit window in seconds (default: `60`).
@@ -182,13 +182,23 @@ npx @modelcontextprotocol/inspector --transport http --server-url https://mcp.pl
 
 Steps:
 1. In the inspector UI, expand **"Authentication"** in the left sidebar
-2. Select **Bearer Token**
-3. Paste your API key (e.g. `pex_...`)
+2. Select **Custom Headers**
+3. Add a header. Either:
+   - **X-API-Key** → your API key (e.g. `pex_...`)
+   - or **Authorization** → `Bearer pex_...` (include the word `Bearer` and a space)
 4. Click **"Connect"**
 5. Click **"Tools"** then **"List Tools"** to verify
 
-The inspector sends `Authorization: Bearer <your-key>` which the server accepts
-via `_extract_api_key()` (same as `X-API-Key` or `API_KEY` headers).
+The inspector forwards these headers to the remote server, which accepts
+`Authorization: Bearer <key>`, `X-API-Key`, or `API_KEY`.
+
+**CORS errors:** If you see "CORS preflight response did not succeed" or "status
+code: 400" in the browser console when connecting to a deployed MCP server:
+1. Redeploy mcp_cloud with the OPTIONS-exemption fix (OPTIONS preflight no longer
+   requires the API key).
+2. Ensure `PLANEXE_MCP_CORS_ORIGINS` on the deployed server either is unset
+   (allows all origins) or includes `http://localhost:6274` and
+   `http://127.0.0.1:6274`.
 
 ### Skipping proxy authentication (development only)
 

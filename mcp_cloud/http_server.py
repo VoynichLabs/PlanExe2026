@@ -413,7 +413,10 @@ async def enforce_api_key(
     request: Request,
     call_next: Callable[[Request], Awaitable[Response]],
 ) -> Response:
-    if request.url.path.startswith("/mcp") or request.url.path.startswith("/download"):
+    # OPTIONS (CORS preflight) must not require auth; browser does not send custom headers
+    if request.method != "OPTIONS" and (
+        request.url.path.startswith("/mcp") or request.url.path.startswith("/download")
+    ):
         error_response = _validate_api_key(request)
         if error_response:
             return error_response
