@@ -82,6 +82,8 @@ def sample_bernoulli_impact(
             sampled_impacts = np.array(
                 [impact_fn() for _ in range(int(num_events))]
             )
+            # Flatten to ensure 1D shape (N,) not (N,1) - prevents shape mismatch
+            sampled_impacts = sampled_impacts.flatten()
 
             # Assign sampled impacts to positions where occurrence=1
             event_positions = np.where(occurrences == 1)[0]
@@ -207,11 +209,13 @@ def sample_portfolio_risk(
         samples = sample_bernoulli_impact(
             probability, impact_fn, size=size, random_state=random_state
         )
-        impacts_per_event.append(
-            samples if isinstance(samples, np.ndarray) else np.array([samples])
-        )
+        # Flatten to ensure consistent 1D shape (N,) not (N,1)
+        if isinstance(samples, np.ndarray):
+            impacts_per_event.append(samples.flatten())
+        else:
+            impacts_per_event.append(np.array([samples]))
 
-    # Sum impacts across all events
+    # Sum impacts across all events (returns clean 1D array)
     total_impacts = np.sum(impacts_per_event, axis=0)
 
     return total_impacts

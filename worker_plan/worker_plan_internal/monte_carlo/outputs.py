@@ -13,6 +13,12 @@ from dataclasses import dataclass
 from typing import Dict, List, Any
 import numpy as np
 
+# Handle both relative and absolute imports
+try:
+    from . import config
+except ImportError:
+    import config
+
 
 @dataclass
 class MonteCarloResults:
@@ -77,17 +83,78 @@ class OutputFormatter:
     - NO-GO: success_probability < 50%
     """
 
-    # Recommendation thresholds
+    # Default recommendation thresholds (as percentages)
     GO_THRESHOLD = 80.0
     CAUTION_MIN_THRESHOLD = 50.0
     CAUTION_MAX_THRESHOLD = 80.0
 
     @staticmethod
+    def _safe_extract_threshold(value, fallback: float) -> float:
+        """
+        Safely extract a scalar threshold value from config.
+        
+        Handles cases where:
+        - value is already a scalar (float/int)
+        - value is a dict (extract from key)
+        - value is malformed (use fallback)
+        
+        Args:
+            value: The threshold value from config (may be scalar or dict)
+            fallback: Fallback value if extraction fails
+            
+        Returns:
+            Scalar threshold value as float
+        """
+        # If it's already a scalar, use it
+        if isinstance(value, (int, float)):
+            return float(value)
+        
+        # If it's a dict, try common keys
+        if isinstance(value, dict):
+            # Try various keys
+            for key in ['value', 'threshold', 'scalar', 'default']:
+                if key in value and isinstance(value[key], (int, float)):
+                    return float(value[key])
+        
+        # If we can't extract, use fallback
+        return fallback
+
+    @staticmethod
+    def _load_thresholds_from_config():
+        """
+        Load recommendation thresholds from config.py with defensive checks.
+        
+        Returns:
+            Tuple of (go_threshold_pct, caution_min_pct, caution_max_pct) as percentages
+        """
+        try:
+            # Try to get from config
+            go_val = getattr(config, 'GO_THRESHOLD', None)
+            no_go_val = getattr(config, 'NO_GO_THRESHOLD', None)
+            re_scope_val = getattr(config, 'RE_SCOPE_THRESHOLD', None)
+            
+            # Safely extract scalar values
+            go_thresh = OutputFormatter._safe_extract_threshold(go_val, 0.8)
+            no_go_thresh = OutputFormatter._safe_extract_threshold(no_go_val, 0.5)
+            re_scope_thresh = OutputFormatter._safe_extract_threshold(re_scope_val, 0.65)
+            
+            # Convert from decimal (0.0-1.0) to percentage (0-100) if needed
+            # If value is already > 10, assume it's already a percentage
+            go_pct = go_thresh * 100 if go_thresh <= 10 else go_thresh
+            no_go_pct = no_go_thresh * 100 if no_go_thresh <= 10 else no_go_thresh
+            re_scope_pct = re_scope_thresh * 100 if re_scope_thresh <= 10 else re_scope_thresh
+            
+            return go_pct, no_go_pct, re_scope_pct
+        except Exception:
+            # If anything fails, use class defaults
+            return OutputFormatter.GO_THRESHOLD, OutputFormatter.CAUTION_MIN_THRESHOLD, OutputFormatter.CAUTION_MAX_THRESHOLD
+
+    @staticmethod
     def format_results(
         results: Dict[str, Any],
-        go_threshold: float = GO_THRESHOLD,
-        caution_min: float = CAUTION_MIN_THRESHOLD,
-        caution_max: float = CAUTION_MAX_THRESHOLD,
+        go_threshold: float = None,
+        caution_min: float = None,
+        caution_max: float = None,
     ) -> MonteCarloResults:
         """
         Format simulation results into structured output.
@@ -109,6 +176,17 @@ class OutputFormatter:
             KeyError: If required keys missing from results.
             ValueError: If probabilities are not in [0, 100] or don't sum to ~100.
         """
+        # Load thresholds from config if not provided
+        if go_threshold is None or caution_min is None or caution_max is None:
+            go_thresh_config, no_go_thresh_config, re_scope_thresh_config = OutputFormatter._load_thresholds_from_config()
+            if go_threshold is None:
+                go_threshold = go_thresh_config
+            if caution_min is None:
+                caution_min = no_go_thresh_config
+            if caution_max is None:
+                # caution_max should be the GO threshold (upper bound for CAUTION)
+                caution_max = go_thresh_config
+        
         # Extract probabilities
         probabilities = results.get("probabilities", {})
         success_prob = probabilities.get("success", 0.0)

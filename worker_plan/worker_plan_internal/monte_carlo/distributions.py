@@ -194,6 +194,31 @@ class RiskEventSampler:
             raise ValueError(f"Unknown impact_type: {impact_type}")
 
 
+def compute_lognormal_params(mean, std_dev):
+    """Compute lognormal parameters (mu, sigma) from mean and std dev.
+    
+    Given E[X]=mean, compute mu and sigma for Lognormal(mu, sigma).
+    Uses CV = std_dev/mean as starting point.
+    
+    Args:
+        mean: Expected value of the lognormal distribution
+        std_dev: Standard deviation of the lognormal distribution
+        
+    Returns:
+        tuple: (mu, sigma) parameters for scipy.stats.lognorm
+        
+    Raises:
+        ValueError: if mean is not positive or std_dev is negative
+    """
+    if mean <= 0 or std_dev < 0:
+        raise ValueError("mean must be positive and std_dev must be non-negative")
+    
+    cv = std_dev / mean  # coefficient of variation
+    sigma = np.sqrt(np.log(cv**2 + 1))  # exact relationship
+    mu = np.log(mean) - sigma**2 / 2
+    return mu, sigma
+
+
 # Module-level convenience functions for direct import
 def sample_triangular(min_val, likely_val, max_val, size=1, random_state=None):
     """Module-level wrapper for triangular sampling."""
