@@ -89,3 +89,59 @@ PlanExe Cloud
 - Hardware attestation support.
 - Offline task caching and delayed sync.
 - Automated anomaly detection on PoPW.
+
+## Detailed Implementation Plan
+
+### Phase A — Protocol and Security Foundations (2 weeks)
+
+1. Define `TaskManifest` schema versioning.
+2. Add mutual-auth model for edge agents:
+   - client certs or hardware keys
+   - short-lived dispatch tokens
+
+3. Add replay protection and nonce strategy.
+
+### Phase B — Dispatcher and Transport Layer (2–3 weeks)
+
+1. Implement cloud dispatcher with QoS guarantees.
+2. Support MQTT/WebSocket transports behind common abstraction.
+3. Add delivery semantics:
+   - accepted
+   - in_progress
+   - completed
+   - failed
+
+### Phase C — Proof of Physical Work (PoPW) Verification (2 weeks)
+
+1. Define PoPW artifact schema:
+   - timestamp
+   - geo/location
+   - sensor payload
+   - media hash
+
+2. Build verifier pipeline:
+   - integrity checks
+   - anti-spoof heuristics
+   - confidence scoring
+
+3. Attach PoPW confidence to task completion status.
+
+### Phase D — Reliability and Operations (2 weeks)
+
+1. Add offline task cache with deferred sync.
+2. Add dead-letter queue for failed dispatches.
+3. Add anomaly detection for suspicious execution proofs.
+
+### Data model additions
+
+- `physical_task_dispatch`
+- `edge_delivery_events`
+- `popw_artifacts`
+- `popw_verification_results`
+
+### Validation checklist
+
+- End-to-end dispatch latency targets
+- Exactly-once/at-least-once behavior verification
+- PoPW spoofing simulation tests
+- Offline replay consistency checks
