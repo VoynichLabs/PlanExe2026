@@ -1,5 +1,5 @@
 ---
-title: Execution Readiness Scoring: Technical Documentation
+title: "Execution Readiness Scoring: Technical Documentation"
 date: 2026-02-11
 status: proposal
 author: PlanExe Team
@@ -26,10 +26,11 @@ Plans are often approved based on *optimism* rather than *evidence*. Teams commi
 
 ### 1. Scoring Engine
 The core service. It aggregates data from multiple "Validator Agents":
--   **Evidence Validator:** Checks if all critical claims are backed by Level 3 evidence.
--   **Resource Validator:** Cross-checks "Roles Needed" vs "Staff Available".
--   **Dependency Validator:** Ensures upstream constraints (e.g., "Seed funding secured") are met.
--   **Risk Validator:** Verifies that all "Critical" risks have mitigation plans.
+
+- **Evidence Validator:** Checks if all critical claims are backed by Level 3 evidence.
+- **Resource Validator:** Cross-checks "Roles Needed" vs "Staff Available".
+- **Dependency Validator:** Ensures upstream constraints (e.g., "Seed funding secured") are met.
+- **Risk Validator:** Verifies that all "Critical" risks have mitigation plans.
 
 ### 2. The Scorecard (0-100)
 A weighted sum of the validator outputs.

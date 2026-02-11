@@ -1,5 +1,5 @@
 ---
-title: Evidence Traceability Ledger: Technical Documentation
+title: "Evidence Traceability Ledger: Technical Documentation"
 date: 2026-02-11
 status: proposal
 author: PlanExe Team

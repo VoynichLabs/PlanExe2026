@@ -1,5 +1,5 @@
 ---
-title: Counterfactual Scenario Explorer: Technical Documentation
+title: "Counterfactual Scenario Explorer: Technical Documentation"
 date: 2026-02-11
 status: proposal
 author: PlanExe Team

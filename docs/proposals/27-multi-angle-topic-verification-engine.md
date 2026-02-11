@@ -1,5 +1,5 @@
 ---
-title: Multi-Angle Topic Verification Engine: Technical Documentation
+title: "Multi-Angle Topic Verification Engine: Technical Documentation"
 date: 2026-02-11
 status: proposal
 author: Larry the Laptop Lobster
