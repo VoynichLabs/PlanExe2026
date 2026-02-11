@@ -146,3 +146,96 @@ Plans may involve multiple currencies (e.g., cross-border bridge projects). The 
 - Domain-specific CBS templates.
 - Automated cost library updates.
 - Integration with procurement and supplier pricing feeds.
+
+## Detailed Implementation Plan
+
+### 1) Canonical CBS taxonomy service
+
+Create a versioned taxonomy module:
+- global categories (L1)
+- domain-specific subcategories (L2/L3)
+- mapping aliases (e.g., “permits” -> compliance/legal)
+
+This avoids inconsistent CBS labels across plans.
+
+### 2) WBS-to-CBS mapper
+
+Implement deterministic + ML-assisted mapper:
+1. Rule-based first pass from task metadata and keywords.
+2. LLM-assisted classification for ambiguous tasks.
+3. Confidence score and explanation per mapping.
+
+Store mapping artifacts:
+- `wbs_task_id`
+- `cbs_path`
+- `mapping_confidence`
+- `mapping_reason`
+
+### 3) Cost line generation
+
+For each mapped task, generate cost lines:
+- quantity
+- unit
+- unit rate
+- currency
+- low/base/high estimate
+- source (user input, benchmark, quote, inferred)
+
+Represent uncertainty explicitly; avoid single-point false precision.
+
+### 4) Assumptions and provenance registry
+
+Every cost line should reference an assumption record:
+- assumption text
+- evidence source
+- owner
+- last update timestamp
+
+Provide “assumption drift” detection if benchmarks change.
+
+### 5) CBS outputs and exports
+
+Generate:
+- hierarchical CBS table
+- WBS↔CBS crosswalk table
+- top cost drivers with sensitivity
+- export to CSV/XLSX/JSON for finance tooling
+
+### 6) Integration with top-down and bottom-up finance
+
+- Top-down uses CBS categories for ratio application.
+- Bottom-up consumes CBS line items as task-level cost ledger.
+- Reconciliation reports highlight CBS categories causing variance.
+
+### 7) API contract proposal
+
+```json
+{
+  "plan_id": "...",
+  "cbs_version": "v1.0",
+  "currency": "USD",
+  "items": [
+    {
+      "wbs_task_id": "3.2",
+      "cbs_path": "Labor/Engineering/Backend",
+      "estimate": {"low": 50000, "base": 70000, "high": 95000},
+      "confidence": "medium",
+      "assumption_id": "asm_42"
+    }
+  ]
+}
+```
+
+### 8) Rollout phases
+
+- Phase A: rule-based mapping + static taxonomy
+- Phase B: confidence scoring + assumption registry
+- Phase C: export + integration with finance modules
+- Phase D: live vendor pricing and automated refresh
+
+### 9) Validation checklist
+
+- Coverage: % WBS tasks mapped to valid CBS nodes
+- Consistency: repeated runs produce stable mappings
+- Auditability: every line has source + assumption
+- Usability: finance users can edit/approve CBS quickly
