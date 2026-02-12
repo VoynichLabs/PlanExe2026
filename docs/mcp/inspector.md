@@ -1,8 +1,8 @@
-# Inspector
+# MCP Inspector
 
 Inspecting PlanExe's MCP server. 
 
-This is my (Simon Strandgaard) preferred way to troubleshoot MCP. Whenever there is a problem with MCP, the **inspector** is the **HAMMER**.
+This is my (Simon Strandgaard) preferred way to troubleshoot MCP. Whenever there is a problem, the **MCP Inspector** is the **HAMMER**.
 
 Locations: [Github](https://github.com/modelcontextprotocol/inspector), [Documentation](https://modelcontextprotocol.io/docs/tools/inspector)
 
