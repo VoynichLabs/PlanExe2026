@@ -60,13 +60,10 @@ from mcp_cloud.app import (
     handle_prompt_examples,
     resolve_task_for_task_id,
     set_download_base_url,
+    _resolve_user_from_api_key,
 )
 
 REQUIRED_API_KEY = os.environ.get("PLANEXE_MCP_API_KEY")
-if not REQUIRED_API_KEY:
-    logger.warning(
-        "PLANEXE_MCP_API_KEY not set. API key authentication disabled (not recommended for production)"
-    )
 
 HTTP_HOST = os.environ.get("PLANEXE_MCP_HTTP_HOST", "127.0.0.1")
 HTTP_PORT = int(os.environ.get("PORT") or os.environ.get("PLANEXE_MCP_HTTP_PORT", "8001"))
@@ -106,11 +103,11 @@ def _extract_api_key(request: Request) -> Optional[str]:
     return None
 
 
-def _validate_api_key(request: Request) -> Optional[JSONResponse]:
-    """Return an error response if API key validation fails."""
-    if not REQUIRED_API_KEY:
-        return None
-
+async def _validate_api_key(request: Request) -> Optional[JSONResponse]:
+    """Return an error response if API key validation fails.
+    Accepts: (1) valid UserApiKey from DB, or (2) PLANEXE_MCP_API_KEY if set.
+    Authentication is always required for /mcp and /download.
+    """
     provided_key = _extract_api_key(request)
     if not provided_key:
         return JSONResponse(
@@ -120,10 +117,16 @@ def _validate_api_key(request: Request) -> Optional[JSONResponse]:
             },
         )
 
-    if provided_key != REQUIRED_API_KEY:
-        return JSONResponse(status_code=403, content={"detail": "Invalid API key"})
+    # Accept PLANEXE_MCP_API_KEY (shared secret) if configured
+    if REQUIRED_API_KEY and provided_key == REQUIRED_API_KEY:
+        return None
 
-    return None
+    # Accept valid UserApiKey from database (pex_... keys from home.planexe.org)
+    user = await asyncio.to_thread(_resolve_user_from_api_key, provided_key)
+    if user:
+        return None
+
+    return JSONResponse(status_code=403, content={"detail": "Invalid API key"})
 
 
 def _client_identifier(request: Request) -> str:
@@ -417,7 +420,7 @@ async def enforce_api_key(
     if request.method != "OPTIONS" and (
         request.url.path.startswith("/mcp") or request.url.path.startswith("/download")
     ):
-        error_response = _validate_api_key(request)
+        error_response = await _validate_api_key(request)
         if error_response:
             return error_response
 
@@ -557,7 +560,7 @@ def healthcheck() -> dict[str, Any]:
     return {
         "status": "healthy",
         "service": "planexe-mcp-cloud",
-        "api_key_configured": REQUIRED_API_KEY is not None
+        "authentication": "required",
     }
 
 
@@ -577,7 +580,7 @@ def root() -> dict[str, Any]:
             "llm_txt": "/llm.txt",
         },
         "documentation": "See /docs for OpenAPI documentation",
-        "authentication": "Authorization: Bearer <key> or X-API-Key (set PLANEXE_MCP_API_KEY)"
+        "authentication": "Required: X-API-Key or Authorization: Bearer <key> (UserApiKey from home.planexe.org, or PLANEXE_MCP_API_KEY)",
     }
 
 
@@ -600,9 +603,8 @@ if __name__ == "__main__":
     import uvicorn
 
     logger.info(f"Starting PlanExe MCP Cloud server on {HTTP_HOST}:{HTTP_PORT}")
-    if REQUIRED_API_KEY:
-        logger.info("API key authentication enabled")
-    else:
-        logger.warning("API key authentication disabled - set PLANEXE_MCP_API_KEY")
+    logger.info(
+        "Authentication required: UserApiKey (from home.planexe.org) or PLANEXE_MCP_API_KEY"
+    )
 
     uvicorn.run("http_server:app", host=HTTP_HOST, port=HTTP_PORT, reload=False)

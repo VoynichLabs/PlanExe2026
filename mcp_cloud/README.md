@@ -33,7 +33,7 @@ Build and run mcp_cloud with HTTP endpoints:
 docker compose up --build mcp_cloud
 ```
 
-mcp_cloud exposes HTTP endpoints on port `8001` (or `${PLANEXE_MCP_HTTP_PORT}`). Set `PLANEXE_MCP_API_KEY` in your `.env` file or environment to enable API key authentication.
+mcp_cloud exposes HTTP endpoints on port `8001` (or `${PLANEXE_MCP_HTTP_PORT}`). **Authentication is always required**: provide a valid `X-API-Key` or `Authorization: Bearer <key>`. Accepted keys are (1) UserApiKey from home.planexe.org (`pex_...`), or (2) `PLANEXE_MCP_API_KEY` if set (for dev or shared secret).
 
 ### Connecting via HTTP/URL
 
@@ -84,7 +84,7 @@ After starting with Docker, configure your MCP client (e.g., LM Studio) to conne
 }
 ```
 
-Set `PLANEXE_MCP_API_KEY` to the same value you use in `Authorization: Bearer <key>` or `X-API-Key`.
+Use a UserApiKey from home.planexe.org, or set `PLANEXE_MCP_API_KEY` to a shared secret for local/dev use.
 
 ### Available HTTP Endpoints
 
@@ -112,7 +112,7 @@ If your client only supports Streamable HTTP and fails on `/mcp`, you have two o
 
 ### HTTP Server Configuration
 
-- `PLANEXE_MCP_API_KEY`: **Required for production**. API key for authentication. Clients can provide `Authorization: Bearer <key>` or `X-API-Key`.
+- `PLANEXE_MCP_API_KEY`: Optional shared secret for auth. When set, clients can use this key instead of a UserApiKey. For production with user accounts, keys from home.planexe.org (UserApiKey) are validated against the database. For local dev without DB users, set `PLANEXE_MCP_API_KEY` to a known value.
 - `PLANEXE_MCP_HTTP_HOST`: HTTP server host (default: `127.0.0.1`). Use `0.0.0.0` to bind all interfaces (containers/cloud).
 - `PLANEXE_MCP_HTTP_PORT`: HTTP server port (default: `8001`). Railway will override with `PORT` env var.
 - `PLANEXE_MCP_PUBLIC_BASE_URL`: Public base URL for report/zip download links in `task_file_info` (e.g. `http://192.168.1.40:8001`). When unset, the HTTP server uses the request’s host (scheme + authority), so clients connecting at `http://192.168.1.40:8001/mcp/` get download URLs like `http://192.168.1.40:8001/download/...` instead of localhost. If clients still see localhost in download URLs (e.g. behind a proxy), uncomment and set this in the repo’s `.env.docker-example` or `.env.developer-example` (copy to `.env` and fill in your public URL).
@@ -172,7 +172,7 @@ Steps:
 
 ### Production (with API key authentication)
 
-When `PLANEXE_MCP_API_KEY` is set on the server, the inspector must send the key
+Authentication is always required. The inspector must send the key
 with every request. The inspector proxy forwards the `Authorization` header to
 the remote server.
 
@@ -213,7 +213,7 @@ DANGEROUSLY_OMIT_AUTH=true npx @modelcontextprotocol/inspector --transport http 
 ```
 
 This only disables the local inspector-proxy token check. The remote server still
-enforces `PLANEXE_MCP_API_KEY` if configured.
+still requires API key authentication (UserApiKey or PLANEXE_MCP_API_KEY).
 
 ### Everything reference (stdio)
 
@@ -399,4 +399,4 @@ See `railway.md` for Railway-specific deployment instructions. The server automa
 - Artifact writes are not yet supported via HTTP (would require a write endpoint in `worker_plan`).
 - Artifact writes are rejected while a run is active (strict policy per spec).
 - Task IDs use the TaskItem UUID (e.g., `5e2b2a7c-8b49-4d2f-9b8f-6a3c1f05b9a1`).
-- **Security**: Always set `PLANEXE_MCP_API_KEY` in production deployments to prevent unauthorized access.
+- **Security**: Authentication is always required. Production deployments use UserApiKey from the database; for local dev without users, set `PLANEXE_MCP_API_KEY`.
