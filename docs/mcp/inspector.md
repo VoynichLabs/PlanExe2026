@@ -56,11 +56,14 @@ If `Connect` fails with this error: *Connection Failed: "TypeError: NetworkError
 
 If `Connect` still fails, then please report your issue on [Discord](https://planexe.org/discord). 
 
+### When connected
+
 When connected follow these steps:
-![screenshot of mcp inspector just connected](inspector_step4_mcp_planexe_org.webp)
 
 1. In the topbar; Click on the `Tools` tab.
 2. In the `Tools` panel; Click on the `List Tools` button.
+
+![screenshot of mcp inspector just connected](inspector_step4_mcp_planexe_org.webp)
 
 Now there should be a list with tool names and descriptions:
 ```
@@ -80,10 +83,18 @@ Follow these steps:
 
 ## Approach 2. MCP server inside docker
 
+### Prerequisites
+
+I assume you are able to create plans on your computer via the `frontend_single_user` web interface, [http://localhost:7860/](http://localhost:7860/). It doesn't make sense proceeding if there is a problem with LLMs and no plan can be created.
+
+### Start docker
+
 PlanExe's docker stack exposes the MCP endpoint on your loopback interface (default `127.0.0.1:8001/mcp/`). Start with `docker compose up` and wait until you see `mcp_cloud` and `/healthcheck` like this:
 ```
 mcp_cloud | INFO: 127.0.0.1:43988 - "GET /healthcheck HTTP/1.1" 200 OK
 ```
+
+### Start inspector
 
 In a separate terminal; launch the inspector.
 
@@ -97,6 +108,8 @@ Once the UI opens in the browser, keep `Authentication` empty and click `Connect
 
 ![Screenshot click connect](inspector_step2_docker.webp)
 
+### When connected
+
 Then open the `Tools` tab, click `List Tools`.
 
 ![Screenshot list tools](inspector_step3_docker.webp)
@@ -108,23 +121,51 @@ Click `prompt_examples`, click `Run Tool`.
 
 ## Approach 3. MCP server as a python program
 
-The `mcp_local/planexe_mcp_local.py` proxy runs a tiny Python MCP server that forwards tool calls to the remote `mcp_cloud` while downloading reports into a local directory. It is handy when you want Inspector to speak to MCP over stdio or need the downloads saved directly on your workstation.
+If MCP had a built-in download mechanism, then there wouldn't be a need for this python program. As of 2026-Feb-12 MCP doesn't have such download mechanism, and developers make kludgy workarounds. The `mcp_local/planexe_mcp_local.py` proxy runs a tiny Python MCP server that forwards tool calls to the remote `mcp_cloud` while downloading reports into a local directory.
 
-Set these environment variables before running the inspector:
+### Prerequisites
 
-- `PLANEXE_URL`: where the proxy should forward the tool calls, usually `http://localhost:8001/mcp` if you are running the docker stack locally.
-- `PLANEXE_MCP_API_KEY`: optional. Only needed if Approach 2 has auth enabled (`PLANEXE_MCP_REQUIRE_AUTH=true`).
-- `PLANEXE_PATH`: an absolute directory that PlanExe is allowed to write to (downloads land here).
+I assume that you already have verified that things are working in "Approach 2. MCP server inside docker". If things are broken there, it makes no sense following the instructions here.
 
-Then launch Inspector like this:
+### Start docker
+
+PlanExe's docker stack exposes the MCP endpoint on your loopback interface (default `127.0.0.1:8001/mcp/`). Start with `docker compose up` and wait until you see `mcp_cloud` and `/healthcheck` like this:
+```
+mcp_cloud | INFO: 127.0.0.1:43988 - "GET /healthcheck HTTP/1.1" 200 OK
+```
+
+### Start inspector
+
+In a separate terminal; launch the inspector.
+
+On my computer, I launch the inspector like this:
+
+![Screenshot example prompts](inspector_step1_local.webp)
+
+You have to make these adjustments for your computer.
+
+The `PLANEXE_PATH` is an absolute directory that PlanExe is allowed to write to. The downloaded files lands here.
+
+The `/absolute/path/to/PlanExe` is where you have cloned the PlanExe repo.
 
 ```bash
 npx @modelcontextprotocol/inspector \
   -e "PLANEXE_URL=http://localhost:8001/mcp" \
-  -e "PLANEXE_MCP_API_KEY=insert-your-api-key-here" \
   -e "PLANEXE_PATH=/absolute/path/for/downloads" \
   --transport stdio \
   uv run --with mcp /absolute/path/to/PlanExe/mcp_local/planexe_mcp_local.py
 ```
 
-The `uv run --with mcp` invocation starts the proxy via the uvicorn entry point that ships with the repo. If Approach 2 auth is disabled, `PLANEXE_MCP_API_KEY` can be omitted. If auth is enabled, the script injects the API key for you, so you normally do not need to add another `X-API-Key` header in the Authentication tab. After connecting, the Tools list now includes the synthetic `task_download` helper in addition to `prompt_examples`, `task_create`, `task_status`, and friends; the rest of the workflow is identical to Approach 1. Do **not** enable "Run as task"—PlanExe uses the tool-based flow (`create` → `status` → `download`) exclusively.
+Once the UI opens in the browser, click `Connect`.
+
+![Screenshot example prompts](inspector_step2_local.webp)
+
+### When connected
+
+Then open the `Tools` tab, click `List Tools`.
+
+![Screenshot example prompts](inspector_step3_local.webp)
+
+Click `prompt_examples`, click `Run Tool`.
+
+![Screenshot example prompts](inspector_step4_local.webp)
