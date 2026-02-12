@@ -105,6 +105,7 @@ All proposals must include YAML front matter (`---` blocks with `title`, `date`,
 Every proposal should include at least:
 - **Pitch**: one short paragraph stating the idea.
 - **Problem**: why this matters now.
+- **Feasibility**: practical constraints, dependencies, and likely blockers before implementation starts.
 - **Proposal / Solution**: what we intend to build.
 - **Success metrics**: how we will measure outcomes.
 - **Risks**: key risks and mitigations.
@@ -157,6 +158,9 @@ One paragraph.
 
 ## Problem
 Why this matters.
+
+## Feasibility
+Potential blockers, dependencies, and implementation constraints.
 
 ## Proposal
 What we plan to build.
