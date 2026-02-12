@@ -72,6 +72,22 @@ RATE_LIMIT_REQUESTS = int(os.environ.get("PLANEXE_MCP_RATE_LIMIT", "60"))
 RATE_LIMIT_WINDOW_SECONDS = float(os.environ.get("PLANEXE_MCP_RATE_WINDOW_SECONDS", "60"))
 
 
+def _parse_bool_env(name: str, default: bool) -> bool:
+    raw_value = os.environ.get(name)
+    if raw_value is None:
+        return default
+    normalized = raw_value.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    logger.warning("Invalid boolean for %s=%r. Using default=%s", name, raw_value, default)
+    return default
+
+
+AUTH_REQUIRED = _parse_bool_env("PLANEXE_MCP_REQUIRE_AUTH", default=True)
+
+
 def _split_csv_env(value: Optional[str]) -> list[str]:
     if not value:
         return []
@@ -106,8 +122,11 @@ def _extract_api_key(request: Request) -> Optional[str]:
 async def _validate_api_key(request: Request) -> Optional[JSONResponse]:
     """Return an error response if API key validation fails.
     Accepts: (1) valid UserApiKey from DB, or (2) PLANEXE_MCP_API_KEY if set.
-    Authentication is always required for /mcp and /download.
+    Authentication can be disabled with PLANEXE_MCP_REQUIRE_AUTH=false.
     """
+    if not AUTH_REQUIRED:
+        return None
+
     provided_key = _extract_api_key(request)
     if not provided_key:
         return JSONResponse(
@@ -560,7 +579,7 @@ def healthcheck() -> dict[str, Any]:
     return {
         "status": "healthy",
         "service": "planexe-mcp-cloud",
-        "authentication": "required",
+        "authentication_required": AUTH_REQUIRED,
     }
 
 
@@ -580,7 +599,12 @@ def root() -> dict[str, Any]:
             "llm_txt": "/llm.txt",
         },
         "documentation": "See /docs for OpenAPI documentation",
-        "authentication": "Required: X-API-Key or Authorization: Bearer <key> (UserApiKey from home.planexe.org, or PLANEXE_MCP_API_KEY)",
+        "authentication": (
+            "Required: X-API-Key or Authorization: Bearer <key> (UserApiKey from home.planexe.org, "
+            "or PLANEXE_MCP_API_KEY)"
+            if AUTH_REQUIRED
+            else "Disabled (PLANEXE_MCP_REQUIRE_AUTH=false)"
+        ),
     }
 
 
@@ -603,8 +627,11 @@ if __name__ == "__main__":
     import uvicorn
 
     logger.info(f"Starting PlanExe MCP Cloud server on {HTTP_HOST}:{HTTP_PORT}")
-    logger.info(
-        "Authentication required: UserApiKey (from home.planexe.org) or PLANEXE_MCP_API_KEY"
-    )
+    if AUTH_REQUIRED:
+        logger.info(
+            "Authentication required: UserApiKey (from home.planexe.org) or PLANEXE_MCP_API_KEY"
+        )
+    else:
+        logger.warning("Authentication disabled via PLANEXE_MCP_REQUIRE_AUTH=false")
 
     uvicorn.run("http_server:app", host=HTTP_HOST, port=HTTP_PORT, reload=False)

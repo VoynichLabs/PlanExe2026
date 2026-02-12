@@ -80,15 +80,22 @@ Follow these steps:
 
 ## Approach 2. MCP server inside docker
 
-PlanExe's docker stack exposes the MCP endpoint on your loopback interface (default `127.0.0.1:8001/mcp/`). Start whatever services you need (`docker compose up worker_plan frontend_single_user` is the common subset) and wait until `worker_plan` reports healthy; `docker compose logs -f worker_plan` and `curl http://localhost:8001/healthcheck` are quick sanity checks.
+PlanExe's docker stack exposes the MCP endpoint on your loopback interface (default `127.0.0.1:8001/mcp/`). Start with `docker compose up` and wait until you see `mcp_cloud` and `/healthcheck` like this:
+```
+mcp_cloud | INFO: 127.0.0.1:43988 - "GET /healthcheck HTTP/1.1" 200 OK
+```
 
-The inspector still authenticates via the `X-API-Key` custom header. Grab the value from `PLANEXE_MCP_API_KEY` inside `.env` (replace the placeholder `your-api-key-here` with a real key and restart the containers if you change it). Then launch the inspector with the local URL:
+By default, docker compose sets `PLANEXE_MCP_REQUIRE_AUTH=false`, so you do **not** need API key headers in Inspector for local docker use.
+
+Launch the inspector with the local URL:
 
 ```bash
 npx @modelcontextprotocol/inspector --transport http --server-url http://localhost:8001/mcp/
 ```
 
-Once the GUI opens, expand Authentication, add `X-API-Key`, and paste in the key. Click Connect, open the Tools tab, click List Tools, and invoke `prompt_examples` the same way you did in Approach 1. If you customized `PLANEXE_MCP_HTTP_HOST` / `PLANEXE_MCP_HTTP_PORT` in `.env`, point the inspector at that address instead of `localhost:8001` so the HTTP transport reaches the service running inside docker.
+Once the GUI opens, keep Authentication empty and click Connect. Then open the Tools tab, click List Tools, and invoke `prompt_examples` the same way you did in Approach 1.
+
+If you enable auth (`PLANEXE_MCP_REQUIRE_AUTH=true`), add custom header `X-API-Key` with either a valid `UserApiKey` (`pex_...`) or the shared key from `PLANEXE_MCP_API_KEY`. If you customized `PLANEXE_MCP_HTTP_HOST` / `PLANEXE_MCP_HTTP_PORT` in `.env`, point the inspector at that address instead of `localhost:8001` so the HTTP transport reaches the service running inside docker.
 
 ## Approach 3. MCP server as a python program
 
@@ -97,7 +104,7 @@ The `mcp_local/planexe_mcp_local.py` proxy runs a tiny Python MCP server that fo
 Set these environment variables before running the inspector:
 
 - `PLANEXE_URL`: where the proxy should forward the tool calls, usually `http://localhost:8001/mcp` if you are running the docker stack locally.
-- `PLANEXE_MCP_API_KEY`: the same API key used by Approach 2.
+- `PLANEXE_MCP_API_KEY`: optional. Only needed if Approach 2 has auth enabled (`PLANEXE_MCP_REQUIRE_AUTH=true`).
 - `PLANEXE_PATH`: an absolute directory that PlanExe is allowed to write to (downloads land here).
 
 Then launch Inspector like this:
@@ -111,4 +118,4 @@ npx @modelcontextprotocol/inspector \
   uv run --with mcp /absolute/path/to/PlanExe/mcp_local/planexe_mcp_local.py
 ```
 
-The `uv run --with mcp` invocation starts the proxy via the uvicorn entry point that ships with the repo. Because the script injects the API key for you, you normally do not need to add another `X-API-Key` header in the Authentication tab. After connecting, the Tools list now includes the synthetic `task_download` helper in addition to `prompt_examples`, `task_create`, `task_status`, and friends; the rest of the workflow is identical to Approach 1. Do **not** enable "Run as task"—PlanExe uses the tool-based flow (`create` → `status` → `download`) exclusively.
+The `uv run --with mcp` invocation starts the proxy via the uvicorn entry point that ships with the repo. If Approach 2 auth is disabled, `PLANEXE_MCP_API_KEY` can be omitted. If auth is enabled, the script injects the API key for you, so you normally do not need to add another `X-API-Key` header in the Authentication tab. After connecting, the Tools list now includes the synthetic `task_download` helper in addition to `prompt_examples`, `task_create`, `task_status`, and friends; the rest of the workflow is identical to Approach 1. Do **not** enable "Run as task"—PlanExe uses the tool-based flow (`create` → `status` → `download`) exclusively.
