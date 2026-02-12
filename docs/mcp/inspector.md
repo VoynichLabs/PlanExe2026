@@ -85,17 +85,26 @@ PlanExe's docker stack exposes the MCP endpoint on your loopback interface (defa
 mcp_cloud | INFO: 127.0.0.1:43988 - "GET /healthcheck HTTP/1.1" 200 OK
 ```
 
-By default, docker compose sets `PLANEXE_MCP_REQUIRE_AUTH=false`, so you do **not** need API key headers in Inspector for local docker use.
-
-Launch the inspector with the local URL:
+In a separate terminal; launch the inspector.
 
 ```bash
 npx @modelcontextprotocol/inspector --transport http --server-url http://localhost:8001/mcp/
 ```
 
-Once the GUI opens, keep Authentication empty and click Connect. Then open the Tools tab, click List Tools, and invoke `prompt_examples` the same way you did in Approach 1.
+![Screenshot of starting inspector from commandline](inspector_step1_docker.webp)
 
-If you enable auth (`PLANEXE_MCP_REQUIRE_AUTH=true`), add custom header `X-API-Key` with either a valid `UserApiKey` (`pex_...`) or the shared key from `PLANEXE_MCP_API_KEY`. If you customized `PLANEXE_MCP_HTTP_HOST` / `PLANEXE_MCP_HTTP_PORT` in `.env`, point the inspector at that address instead of `localhost:8001` so the HTTP transport reaches the service running inside docker.
+Once the UI opens in the browser, keep `Authentication` empty and click `Connect`.
+
+![Screenshot click connect](inspector_step2_docker.webp)
+
+Then open the `Tools` tab, click `List Tools`.
+
+![Screenshot list tools](inspector_step3_docker.webp)
+
+Click `prompt_examples`, click `Run Tool`.
+
+![Screenshot example prompts](inspector_step4_docker.webp)
+
 
 ## Approach 3. MCP server as a python program
 
