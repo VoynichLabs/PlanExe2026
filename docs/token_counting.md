@@ -4,7 +4,7 @@ title: Token counting implementation
 
 # Token counting implementation
 
-This document describes the token counting feature that tracks LLM usage for each plan run. It includes architecture, API usage, migration behavior, and implementation status.
+This document describes the token counting feature that tracks LLM usage for each task execution. It includes architecture, API usage, migration behavior, and implementation status.
 
 ---
 
@@ -29,7 +29,7 @@ Token counting and per-call metrics are implemented and integrated into plan exe
 ### Features delivered
 
 - Automatic token tracking across LLM calls
-- Aggregated and detailed run-level metrics endpoints
+- Aggregated and detailed task-level metrics endpoints
 - Database-backed persistence with indexed queries
 - Graceful degradation when database access is unavailable
 - Provider-aware extraction for OpenAI-compatible, Anthropic, and LLamaIndex response shapes
@@ -54,7 +54,7 @@ The token counting system captures and stores metrics from LLM calls made during
 
 1. **Database model** (`database_api/model_token_metrics.py`)
    - `TokenMetrics`: Stores per-call metrics
-   - `TokenMetricsSummary`: Aggregated run statistics
+   - `TokenMetricsSummary`: Aggregated task statistics
 
 2. **Token extraction** (`worker_plan/worker_plan_internal/llm_util/token_counter.py`)
    - `TokenCount`: Container object for parsed counts
@@ -65,13 +65,13 @@ The token counting system captures and stores metrics from LLM calls made during
    - Lazy database loading to reduce import coupling
 
 4. **Pipeline integration** (`worker_plan/worker_plan_internal/llm_util/token_instrumentation.py`)
-   - `set_current_run_id()`
+   - `set_current_task_id()`
    - `record_llm_tokens()`
    - `record_attempt_tokens()`
 
 5. **API endpoints** (`worker_plan/app.py`)
-   - `GET /runs/{run_id}/token-metrics`
-   - `GET /runs/{run_id}/token-metrics/detailed`
+   - `GET /token-metrics/{task_id}`
+   - `GET /token-metrics/{task_id}/detailed`
 
 ---
 
@@ -83,9 +83,8 @@ The token counting system captures and stores metrics from LLM calls made during
 CREATE TABLE token_metrics (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-    run_id VARCHAR(255) NOT NULL,
     llm_model VARCHAR(255) NOT NULL,
-    task_name VARCHAR(255),
+    task_id VARCHAR(255),
     input_tokens INTEGER,
     output_tokens INTEGER,
     thinking_tokens INTEGER,
@@ -93,9 +92,8 @@ CREATE TABLE token_metrics (
     success BOOLEAN NOT NULL DEFAULT FALSE,
     error_message TEXT,
     raw_usage_data JSON,
-    INDEX idx_run_id (run_id),
     INDEX idx_llm_model (llm_model),
-    INDEX idx_task_name (task_name),
+    INDEX idx_task_id (task_id),
     INDEX idx_timestamp (timestamp)
 );
 ```
@@ -122,14 +120,14 @@ db.create_all()
 ### Aggregated metrics
 
 ```bash
-curl http://localhost:8000/runs/PlanExe_20250210_120000/token-metrics
+curl http://localhost:8000/token-metrics/de305d54-75b4-431b-adb2-eb6b9e546014
 ```
 
 Example response:
 
 ```json
 {
-  "run_id": "PlanExe_20250210_120000",
+  "task_id": "de305d54-75b4-431b-adb2-eb6b9e546014",
   "total_input_tokens": 45231,
   "total_output_tokens": 12450,
   "total_thinking_tokens": 0,
@@ -145,21 +143,21 @@ Example response:
 ### Detailed metrics
 
 ```bash
-curl http://localhost:8000/runs/PlanExe_20250210_120000/token-metrics/detailed
+curl http://localhost:8000/token-metrics/de305d54-75b4-431b-adb2-eb6b9e546014/detailed
 ```
 
 Example response:
 
 ```json
 {
-  "run_id": "PlanExe_20250210_120000",
+  "task_id": "de305d54-75b4-431b-adb2-eb6b9e546014",
   "count": 42,
   "metrics": [
     {
       "id": 1,
-      "timestamp": "2025-02-10T12:00:15.123456",
+      "timestamp": "1984-02-10T12:00:15.123456",
       "llm_model": "gpt-4-turbo",
-      "task_name": "IdentifyPurpose",
+      "task_id": "de305d54-75b4-431b-adb2-eb6b9e546014",
       "input_tokens": 1234,
       "output_tokens": 567,
       "thinking_tokens": 0,
@@ -190,19 +188,19 @@ The extractor accepts partial usage payloads and records `None` where fields are
 ## Manual instrumentation
 
 ```python
-from worker_plan_internal.llm_util.token_instrumentation import set_current_run_id
+from worker_plan_internal.llm_util.token_instrumentation import set_current_task_id
 from worker_plan_internal.llm_util.token_metrics_store import get_token_metrics_store
 
-set_current_run_id("PlanExe_20250210_120000")
+set_current_task_id("de305d54-75b4-431b-adb2-eb6b9e546014")
 
 store = get_token_metrics_store()
 store.record_token_usage(
-    run_id="PlanExe_20250210_120000",
+    task_id="de305d54-75b4-431b-adb2-eb6b9e546014",
     llm_model="gpt-4",
     input_tokens=1000,
     output_tokens=500,
     duration_seconds=3.5,
-    task_name="MyTask",
+    task_id="de305d54-75b4-431b-adb2-eb6b9e546014",
     success=True,
 )
 ```
@@ -213,7 +211,7 @@ store.record_token_usage(
 
 ### Metrics not recorded
 
-1. Confirm `RUN_ID_DIR` is set.
+1. Confirm `PLANEXE_TASK_ID` is set when running through task-backed services.
 2. Confirm database connectivity.
 3. Check logs for token instrumentation warnings/errors.
 

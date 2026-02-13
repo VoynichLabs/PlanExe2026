@@ -23,14 +23,11 @@ class TokenMetrics(db.Model):
     # When was this metric recorded
     timestamp = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(UTC), index=True)
 
-    # The run ID from the plan execution
-    run_id = db.Column(String(255), nullable=False, index=True)
-
     # The LLM model name that was used
     llm_model = db.Column(String(255), nullable=False, index=True)
 
-    # The task/stage name where the LLM was called (e.g., "IdentifyPurpose", "ReviewPlan")
-    task_name = db.Column(String(255), nullable=True, index=True)
+    # Optional TaskItem.id associated with this LLM invocation.
+    task_id = db.Column(String(255), nullable=True, index=True)
 
     # Number of tokens in the prompt/input
     input_tokens = db.Column(Integer, nullable=True)
@@ -55,8 +52,8 @@ class TokenMetrics(db.Model):
 
     def __repr__(self):
         total = (self.input_tokens or 0) + (self.output_tokens or 0) + (self.thinking_tokens or 0)
-        return (f"<TokenMetrics(run_id='{self.run_id}', model='{self.llm_model}', "
-                f"task='{self.task_name}', total_tokens={total}, success={self.success})>")
+        return (f"<TokenMetrics(task_id='{self.task_id}', model='{self.llm_model}', "
+                f"total_tokens={total}, success={self.success})>")
 
     @property
     def total_tokens(self) -> int:
@@ -68,9 +65,8 @@ class TokenMetrics(db.Model):
         return {
             'id': self.id,
             'timestamp': self.timestamp.isoformat() if self.timestamp else None,
-            'run_id': self.run_id,
+            'task_id': self.task_id,
             'llm_model': self.llm_model,
-            'task_name': self.task_name,
             'input_tokens': self.input_tokens,
             'output_tokens': self.output_tokens,
             'thinking_tokens': self.thinking_tokens,
@@ -82,10 +78,10 @@ class TokenMetrics(db.Model):
 
 
 class TokenMetricsSummary:
-    """Aggregated token metrics for a plan execution."""
+    """Aggregated token metrics for a task execution."""
 
-    def __init__(self, run_id: str, metrics: list[TokenMetrics]):
-        self.run_id = run_id
+    def __init__(self, task_id: str, metrics: list[TokenMetrics]):
+        self.task_id = task_id
         self.metrics = metrics
 
     @property
@@ -131,7 +127,7 @@ class TokenMetricsSummary:
     def to_dict(self) -> dict:
         """Convert to dictionary for API responses."""
         return {
-            'run_id': self.run_id,
+            'task_id': self.task_id,
             'total_input_tokens': self.total_input_tokens,
             'total_output_tokens': self.total_output_tokens,
             'total_thinking_tokens': self.total_thinking_tokens,

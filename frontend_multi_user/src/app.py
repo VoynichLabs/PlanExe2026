@@ -378,6 +378,7 @@ class MyFlaskApp:
         self.admin.add_view(AdminOnlyModelView(model=UserApiKey, session=self.db.session, name="User API Key"))
         self.admin.add_view(AdminOnlyModelView(model=CreditHistory, session=self.db.session, name="Credit History"))
         self.admin.add_view(AdminOnlyModelView(model=PaymentRecord, session=self.db.session, name="Payments"))
+        self.admin.add_view(AdminOnlyModelView(model=TokenMetrics, session=self.db.session, name="Token Metrics"))
 
         self._setup_routes()
 

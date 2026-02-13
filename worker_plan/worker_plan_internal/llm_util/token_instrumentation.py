@@ -12,27 +12,29 @@ from worker_plan_internal.llm_util.token_metrics_store import get_token_metrics_
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["record_llm_tokens", "get_current_run_id", "set_current_run_id"]
+__all__ = [
+    "record_llm_tokens",
+    "get_current_task_id",
+    "set_current_task_id",
+]
 
-# Thread-local storage for current run_id (set by the pipeline)
-_current_run_id: Optional[str] = None
+_current_task_id: Optional[str] = None
+
+def set_current_task_id(task_id: Optional[str]) -> None:
+    """Set the current TaskItem.id for token tracking."""
+    global _current_task_id
+    _current_task_id = task_id
+    logger.debug(f"Set current task_id for token tracking: {task_id}")
 
 
-def set_current_run_id(run_id: Optional[str]) -> None:
-    """Set the current run ID for token tracking."""
-    global _current_run_id
-    _current_run_id = run_id
-    logger.debug(f"Set current run_id for token tracking: {run_id}")
-
-
-def get_current_run_id() -> Optional[str]:
-    """Get the current run ID for token tracking."""
-    return _current_run_id
+def get_current_task_id() -> Optional[str]:
+    """Get the current TaskItem.id for token tracking."""
+    return _current_task_id
 
 
 def record_llm_tokens(
     llm_model: str,
-    task_name: Optional[str] = None,
+    task_id: Optional[str] = None,
     duration_seconds: Optional[float] = None,
 ) -> Callable:
     """
@@ -43,14 +45,14 @@ def record_llm_tokens(
 
     Args:
         llm_model: The LLM model identifier
-        task_name: Optional name of the task/stage
+        task_id: Optional TaskItem.id
         duration_seconds: Optional duration of the call
 
     Returns:
         A decorator function
 
     Example:
-        @record_llm_tokens("gpt-4", task_name="ReviewPlan")
+        @record_llm_tokens("gpt-4", task_id="6d6fbc8f-c7a9-4aa2-9f87-2f9fcf5d1cc7")
         def my_llm_function(llm):
             return llm.chat([...])
     """
@@ -62,24 +64,24 @@ def record_llm_tokens(
                 result = func(*args, **kwargs)
 
                 # Try to extract and store token counts
-                run_id = get_current_run_id()
-                if run_id is None:
-                    logger.debug(f"No run_id set for token tracking in {func.__name__}")
+                current_task_id = get_current_task_id()
+                if current_task_id is None:
+                    logger.debug(f"No task_id set for token tracking in {func.__name__}")
                     return result
 
                 try:
                     token_count = extract_token_count(result)
                     store = get_token_metrics_store()
+                    resolved_task_id = task_id or current_task_id
 
                     success = token_count.total_tokens > 0 or result is not None
                     store.record_token_usage(
-                        run_id=run_id,
+                        task_id=resolved_task_id,
                         llm_model=llm_model,
                         input_tokens=token_count.input_tokens,
                         output_tokens=token_count.output_tokens,
                         thinking_tokens=token_count.thinking_tokens,
                         duration_seconds=duration_seconds,
-                        task_name=task_name or func.__name__,
                         success=success,
                         raw_usage_data=token_count.raw_usage_data if token_count.raw_usage_data else None,
                     )
@@ -119,8 +121,8 @@ def record_attempt_tokens(
         error_message: Error message if the attempt failed
         response: The response object from the LLM (to extract tokens)
     """
-    run_id = get_current_run_id()
-    if run_id is None:
+    task_id = get_current_task_id()
+    if task_id is None:
         return
 
     try:
@@ -128,13 +130,12 @@ def record_attempt_tokens(
         token_count = extract_token_count(response) if response else None
 
         store.record_token_usage(
-            run_id=run_id,
+            task_id=task_id,
             llm_model=llm_model,
             input_tokens=token_count.input_tokens if token_count else None,
             output_tokens=token_count.output_tokens if token_count else None,
             thinking_tokens=token_count.thinking_tokens if token_count else None,
             duration_seconds=duration_seconds,
-            task_name=f"llm_attempt_{attempt_index}",
             success=success,
             error_message=error_message,
             raw_usage_data=token_count.raw_usage_data if token_count and token_count.raw_usage_data else None,

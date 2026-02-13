@@ -127,6 +127,7 @@ try:
     from worker_plan_internal.plan.filenames import FilenameEnum
     from worker_plan_api.planexe_dotenv import PlanExeDotEnv
     from worker_plan_internal.llm_util.llm_executor import LLMModelFromName, PipelineStopRequested
+    from worker_plan_internal.llm_util.token_instrumentation import set_current_task_id
     from worker_plan_internal.llm_util.track_activity import TrackActivity
     from worker_plan_internal.plan.filenames import ExtraFilenameEnum
     from worker_plan_internal.plan.ping_llm import run_ping_llm_report
@@ -137,6 +138,7 @@ try:
     from database_api.model_worker import WorkerItem
     from database_api.model_user_account import UserAccount
     from database_api.model_credit_history import CreditHistory
+    from database_api.model_token_metrics import TokenMetrics
     from worker_plan_database.speedvsdetail import resolve_speedvsdetail
     from worker_plan_database.machai import MachAI
     from flask import Flask
@@ -501,22 +503,29 @@ def execute_pipeline_for_job(task_id: str, user_id: str, run_id_dir: Path, speed
 
     llm_models = ExecutePipeline.resolve_llm_models(None)
     pipeline_instance = ServerExecutePipeline(task_id=task_id, run_id_dir=run_id_dir, speedvsdetail=speedvsdetail, llm_models=llm_models)
-    if speedvsdetail == SpeedVsDetailEnum.PING_LLM:
-        logger.info("PING_LLM mode requested; running a single LLM ping.")
-        run_ping_llm_report(
-            run_id_dir=run_id_dir,
-            llm_models=LLMModelFromName.from_names(llm_models),
-        )
-    else:
-        pipeline_instance.setup()
-        logger.info(f"ExecutePipeline instance: {pipeline_instance!r}")
+    # Keep a Flask app context active while running pipeline tasks so db-backed
+    # instrumentation (for example token metrics) can access db.session safely.
+    with app.app_context():
+        set_current_task_id(task_id)
+        try:
+            if speedvsdetail == SpeedVsDetailEnum.PING_LLM:
+                logger.info("PING_LLM mode requested; running a single LLM ping.")
+                run_ping_llm_report(
+                    run_id_dir=run_id_dir,
+                    llm_models=LLMModelFromName.from_names(llm_models),
+                )
+            else:
+                pipeline_instance.setup()
+                logger.info(f"ExecutePipeline instance: {pipeline_instance!r}")
 
-        # LLM/reasoning models often fail, due to censorship, invalid json, timeouts.
-        # Thus I track whenever a LLM/reasoning model is used, by appended the payload+backtrace to the "track_activity" file.
-        # so the developer can troubleshoot problems with the LLM/reasoning model.
-        track_activity.jsonl_file_path = run_id_dir / ExtraFilenameEnum.TRACK_ACTIVITY_JSONL.value
-        
-        pipeline_instance.run()
+                # LLM/reasoning models often fail, due to censorship, invalid json, timeouts.
+                # Thus I track whenever a LLM/reasoning model is used, by appended the payload+backtrace to the "track_activity" file.
+                # so the developer can troubleshoot problems with the LLM/reasoning model.
+                track_activity.jsonl_file_path = run_id_dir / ExtraFilenameEnum.TRACK_ACTIVITY_JSONL.value
+
+                pipeline_instance.run()
+        finally:
+            set_current_task_id(None)
 
     end_time = time.time()
     duration_in_seconds = end_time - start_time
@@ -796,8 +805,8 @@ def process_pending_tasks() -> bool:
 def startup_worker():
     with app.app_context():
         try:
-            ensure_taskitem_artifact_columns()
             db.create_all()
+            ensure_taskitem_artifact_columns()
             logger.debug(f"Ensured database tables exist.")
             WorkerItem.upsert_heartbeat(worker_id=WORKER_ID)
         except Exception as e:    
