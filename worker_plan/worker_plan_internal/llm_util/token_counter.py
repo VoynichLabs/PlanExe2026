@@ -37,6 +37,7 @@ class TokenCount:
         raw_usage_data: Optional[Dict[str, Any]] = None,
         upstream_provider: Optional[str] = None,
         upstream_model: Optional[str] = None,
+        cost_usd: Optional[float] = None,
     ):
         self.input_tokens = input_tokens
         self.output_tokens = output_tokens
@@ -44,6 +45,7 @@ class TokenCount:
         self.raw_usage_data = raw_usage_data or {}
         self.upstream_provider = upstream_provider
         self.upstream_model = upstream_model
+        self.cost_usd = cost_usd
 
     @property
     def total_tokens(self) -> int:
@@ -66,6 +68,7 @@ class TokenCount:
             "raw_usage_data": self.raw_usage_data,
             "upstream_provider": self.upstream_provider,
             "upstream_model": self.upstream_model,
+            "cost_usd": self.cost_usd,
         }
 
 
@@ -140,6 +143,7 @@ def _extract_from_chat_response(response: ChatResponse) -> TokenCount:
     raw_usage_data = {}
     upstream_provider = None
     upstream_model = None
+    cost_usd = None
 
     # Try to get usage from response object
     if hasattr(response, "raw"):
@@ -151,6 +155,7 @@ def _extract_from_chat_response(response: ChatResponse) -> TokenCount:
                 input_tokens = usage.get("prompt_tokens") or usage.get("input_tokens")
                 output_tokens = usage.get("completion_tokens") or usage.get("output_tokens")
                 thinking_tokens = usage.get("reasoning_tokens") or usage.get("thinking_tokens")
+                cost_usd = _extract_cost_from_usage(usage)
             upstream_provider, upstream_model = _extract_provider_and_model(raw)
 
     # Also check message for usage info
@@ -168,6 +173,7 @@ def _extract_from_chat_response(response: ChatResponse) -> TokenCount:
         raw_usage_data=raw_usage_data,
         upstream_provider=upstream_provider,
         upstream_model=upstream_model,
+        cost_usd=cost_usd,
     )
 
 
@@ -176,6 +182,7 @@ def _extract_from_usage_object(usage: Any) -> TokenCount:
     input_tokens = None
     output_tokens = None
     thinking_tokens = None
+    cost_usd = None
     raw_usage_data = {}
 
     try:
@@ -188,12 +195,18 @@ def _extract_from_usage_object(usage: Any) -> TokenCount:
         if hasattr(usage, "cache_creation_input_tokens"):
             # Anthropic cache tokens
             thinking_tokens = thinking_tokens or usage.cache_creation_input_tokens
+        if hasattr(usage, "cost"):
+            try:
+                cost_usd = float(usage.cost)
+            except (TypeError, ValueError):
+                cost_usd = None
 
         # Capture raw data
         if hasattr(usage, "__dict__"):
             raw_usage_data = usage.__dict__.copy()
         elif isinstance(usage, dict):
             raw_usage_data = usage.copy()
+            cost_usd = cost_usd if cost_usd is not None else _extract_cost_from_usage(usage)
 
     except Exception as e:
         logger.debug(f"Error extracting from usage object: {e}")
@@ -203,6 +216,7 @@ def _extract_from_usage_object(usage: Any) -> TokenCount:
         output_tokens=output_tokens,
         thinking_tokens=thinking_tokens,
         raw_usage_data=raw_usage_data,
+        cost_usd=cost_usd,
     )
 
 
@@ -212,6 +226,7 @@ def _extract_from_dict(response: dict) -> TokenCount:
     output_tokens = None
     thinking_tokens = None
     upstream_provider, upstream_model = _extract_provider_and_model(response)
+    cost_usd = None
 
     # Check for usage key
     usage = response.get("usage")
@@ -219,6 +234,7 @@ def _extract_from_dict(response: dict) -> TokenCount:
         input_tokens = usage.get("prompt_tokens") or usage.get("input_tokens")
         output_tokens = usage.get("completion_tokens") or usage.get("output_tokens")
         thinking_tokens = usage.get("reasoning_tokens") or usage.get("thinking_tokens")
+        cost_usd = _extract_cost_from_usage(usage)
         return TokenCount(
             input_tokens=input_tokens,
             output_tokens=output_tokens,
@@ -226,6 +242,7 @@ def _extract_from_dict(response: dict) -> TokenCount:
             raw_usage_data=_build_usage_snapshot(usage, upstream_provider, upstream_model),
             upstream_provider=upstream_provider,
             upstream_model=upstream_model,
+            cost_usd=cost_usd,
         )
 
     # Direct keys
@@ -245,6 +262,7 @@ def _extract_from_dict(response: dict) -> TokenCount:
         ),
         upstream_provider=upstream_provider,
         upstream_model=upstream_model,
+        cost_usd=cost_usd if cost_usd is not None else _extract_cost_from_usage(response),
     )
 
 
@@ -290,3 +308,20 @@ def _extract_provider_and_model(payload: dict) -> tuple[Optional[str], Optional[
             provider = provider.get("name") or provider.get("id")
 
     return str(provider) if provider else None, str(model) if model else None
+
+
+def _extract_cost_from_usage(payload: Any) -> Optional[float]:
+    if not isinstance(payload, dict):
+        return None
+
+    cost = payload.get("cost")
+    if cost is None and isinstance(payload.get("cost_details"), dict):
+        details = payload.get("cost_details") or {}
+        cost = details.get("upstream_inference_cost")
+        if cost is None:
+            cost = details.get("total_cost")
+
+    try:
+        return float(cost) if cost is not None else None
+    except (TypeError, ValueError):
+        return None

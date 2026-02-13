@@ -42,6 +42,9 @@ class TokenMetrics(db.Model):
     # Number of tokens used for thinking/reasoning (for providers that support it, e.g., o1, o3)
     thinking_tokens = db.Column(Integer, nullable=True)
 
+    # Cost of this LLM call in USD when reported by provider usage payload.
+    cost_usd = db.Column(Float, nullable=True)
+
     # Duration of the LLM call in seconds
     duration_seconds = db.Column(Float, nullable=True)
 
@@ -77,6 +80,7 @@ class TokenMetrics(db.Model):
             'output_tokens': self.output_tokens,
             'thinking_tokens': self.thinking_tokens,
             'total_tokens': self.total_tokens,
+            'cost_usd': self.cost_usd,
             'duration_seconds': self.duration_seconds,
             'success': self.success,
             'error_message': self.error_message,

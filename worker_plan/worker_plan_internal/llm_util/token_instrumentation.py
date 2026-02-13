@@ -83,6 +83,7 @@ def record_llm_tokens(
                         input_tokens=token_count.input_tokens,
                         output_tokens=token_count.output_tokens,
                         thinking_tokens=token_count.thinking_tokens,
+                        cost_usd=token_count.cost_usd,
                         duration_seconds=duration_seconds,
                         success=success,
                         raw_usage_data=token_count.raw_usage_data if token_count.raw_usage_data else None,
@@ -131,6 +132,20 @@ def record_attempt_tokens(
         store = get_token_metrics_store()
         token_count = extract_token_count(response) if response else None
 
+        if token_count is None:
+            return
+        if (
+            token_count.input_tokens is None
+            and token_count.output_tokens is None
+            and token_count.thinking_tokens is None
+            and token_count.cost_usd is None
+            and not token_count.upstream_provider
+            and not token_count.upstream_model
+            and not token_count.raw_usage_data
+        ):
+            # Skip noisy rows when no usage metadata is available.
+            return
+
         store.record_token_usage(
             task_id=task_id,
             llm_model=llm_model,
@@ -139,6 +154,7 @@ def record_attempt_tokens(
             input_tokens=token_count.input_tokens if token_count else None,
             output_tokens=token_count.output_tokens if token_count else None,
             thinking_tokens=token_count.thinking_tokens if token_count else None,
+            cost_usd=token_count.cost_usd if token_count else None,
             duration_seconds=duration_seconds,
             success=success,
             error_message=error_message,

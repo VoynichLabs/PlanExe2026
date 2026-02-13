@@ -250,6 +250,57 @@ class TrackActivity(BaseEventHandler):
         except Exception:
             logger.debug("Failed to write activity overview file: %s", overview_path, exc_info=True)
 
+    def _record_token_metrics_row(self, event_data: dict) -> None:
+        """Persist per-event token metrics directly from instrumentation payloads."""
+        try:
+            from worker_plan_internal.llm_util.token_instrumentation import get_current_task_id
+            from worker_plan_internal.llm_util.token_metrics_store import get_token_metrics_store
+        except Exception as exc:
+            logger.debug("Token metrics store unavailable in TrackActivity: %s", exc)
+            return
+
+        task_id = get_current_task_id()
+        if not task_id:
+            return
+
+        token_usage = self._extract_token_usage(event_data) or {}
+        cost_usd = self._extract_cost(event_data)
+        model_name = self._extract_model_name(event_data)
+        upstream_provider, upstream_model = self._split_provider_and_model(model_name)
+
+        has_usage = any(
+            token_usage.get(key) is not None
+            for key in ("input_tokens", "output_tokens", "thinking_tokens", "total_tokens")
+        )
+        if not has_usage and cost_usd == 0.0 and not upstream_provider and not upstream_model:
+            return
+
+        try:
+            store = get_token_metrics_store()
+            store.record_token_usage(
+                task_id=str(task_id),
+                llm_model=model_name or "unknown",
+                upstream_provider=upstream_provider,
+                upstream_model=upstream_model,
+                input_tokens=token_usage.get("input_tokens"),
+                output_tokens=token_usage.get("output_tokens"),
+                thinking_tokens=token_usage.get("thinking_tokens"),
+                cost_usd=cost_usd if cost_usd != 0.0 else None,
+                success=True,
+                raw_usage_data=token_usage.get("raw_usage_data"),
+            )
+        except Exception:
+            logger.debug("Failed to persist token metrics from TrackActivity", exc_info=True)
+
+    @staticmethod
+    def _split_provider_and_model(model_name: str) -> tuple[Optional[str], Optional[str]]:
+        if not model_name:
+            return None, None
+        if ":" not in model_name:
+            return None, model_name
+        provider, model = model_name.split(":", 1)
+        return provider or None, model or None
+
     def handle(self, event: Any) -> None:
         if isinstance(event, (LLMChatStartEvent, LLMChatEndEvent, LLMCompletionStartEvent, LLMCompletionEndEvent, LLMStructuredPredictStartEvent, LLMStructuredPredictEndEvent)):
             # Create event record with timestamp and backtrace
@@ -268,6 +319,7 @@ class TrackActivity(BaseEventHandler):
                 if token_usage is not None:
                     event_record["token_usage"] = token_usage
                 self._update_activity_overview(filtered_event_data)
+                self._record_token_metrics_row(filtered_event_data)
             
             # Append to JSONL file
             with open(self.jsonl_file_path, 'a', encoding='utf-8') as f:

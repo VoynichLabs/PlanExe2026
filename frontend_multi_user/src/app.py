@@ -300,6 +300,8 @@ class MyFlaskApp:
                     conn.execute(text("ALTER TABLE token_metrics ADD COLUMN IF NOT EXISTS upstream_provider VARCHAR(255)"))
                 if "upstream_model" not in columns:
                     conn.execute(text("ALTER TABLE token_metrics ADD COLUMN IF NOT EXISTS upstream_model VARCHAR(255)"))
+                if "cost_usd" not in columns:
+                    conn.execute(text("ALTER TABLE token_metrics ADD COLUMN IF NOT EXISTS cost_usd DOUBLE PRECISION"))
 
         def _seed_initial_records() -> None:
             # Add initial records if the table is empty

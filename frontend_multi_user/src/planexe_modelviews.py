@@ -92,6 +92,7 @@ class TokenMetricsView(AdminOnlyModelView):
         'output_tokens',
         'thinking_tokens',
         'total_tokens',
+        'cost_usd',
         'duration_seconds',
         'success',
         'error_message',
