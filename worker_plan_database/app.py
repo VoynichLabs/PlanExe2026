@@ -197,8 +197,17 @@ def ensure_token_metrics_columns() -> None:
         return
     columns = {col["name"] for col in insp.get_columns("token_metrics")}
     with db.engine.begin() as conn:
+        # Remove legacy identifiers. Token metrics should reference tasks only.
+        if "run_id" in columns:
+            conn.execute(text("ALTER TABLE token_metrics DROP COLUMN IF EXISTS run_id"))
+        if "task_name" in columns:
+            conn.execute(text("ALTER TABLE token_metrics DROP COLUMN IF EXISTS task_name"))
         if "task_id" not in columns:
             conn.execute(text("ALTER TABLE token_metrics ADD COLUMN IF NOT EXISTS task_id VARCHAR(255)"))
+        if "upstream_provider" not in columns:
+            conn.execute(text("ALTER TABLE token_metrics ADD COLUMN IF NOT EXISTS upstream_provider VARCHAR(255)"))
+        if "upstream_model" not in columns:
+            conn.execute(text("ALTER TABLE token_metrics ADD COLUMN IF NOT EXISTS upstream_model VARCHAR(255)"))
 
 def worker_process_started() -> None:
     planexe_worker_id = os.environ.get("PLANEXE_WORKER_ID")

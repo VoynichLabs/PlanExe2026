@@ -29,6 +29,10 @@ class TokenMetrics(db.Model):
     # Optional TaskItem.id associated with this LLM invocation.
     task_id = db.Column(String(255), nullable=True, index=True)
 
+    # Provider/model route selected upstream (for gateway providers like OpenRouter).
+    upstream_provider = db.Column(String(255), nullable=True, index=True)
+    upstream_model = db.Column(String(255), nullable=True, index=True)
+
     # Number of tokens in the prompt/input
     input_tokens = db.Column(Integer, nullable=True)
 
@@ -67,6 +71,8 @@ class TokenMetrics(db.Model):
             'timestamp': self.timestamp.isoformat() if self.timestamp else None,
             'task_id': self.task_id,
             'llm_model': self.llm_model,
+            'upstream_provider': self.upstream_provider,
+            'upstream_model': self.upstream_model,
             'input_tokens': self.input_tokens,
             'output_tokens': self.output_tokens,
             'thinking_tokens': self.thinking_tokens,

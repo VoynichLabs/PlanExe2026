@@ -209,6 +209,13 @@ class LLMExecutor:
         except Exception as e:
             duration = time.perf_counter() - attempt_start_time
             logger.error(f"LLMExecutor: Error creating LLM {llm_model!r}: {e!r} traceback: {traceback.format_exc()}")
+            self._record_attempt_token_metrics(
+                llm_model_name=getattr(llm_model, "name", llm_model.__class__.__name__),
+                duration=duration,
+                success=False,
+                error_message=str(e),
+                response=None,
+            )
             return LLMAttempt(stage='create', llm_model=llm_model, success=False, duration=duration, exception=e)
 
         llm_executor_uuid = str(uuid4())
@@ -218,6 +225,13 @@ class LLMExecutor:
                 result = execute_function(llm)
             duration = time.perf_counter() - attempt_start_time
             logger.info(f"LLMExecutor did invoke execute_function. LLM {llm_model!r}. llm_executor_uuid: {llm_executor_uuid!r}. Duration: {duration:.2f} seconds")
+            self._record_attempt_token_metrics(
+                llm_model_name=getattr(llm_model, "name", llm.__class__.__name__),
+                duration=duration,
+                success=True,
+                error_message=None,
+                response=result,
+            )
             return LLMAttempt(stage='execute', llm_model=llm_model, success=True, duration=duration, result=result)
         except PipelineStopRequested as e:
             logger.info(f"LLMExecutor: Stopping because the execute_function callback raised PipelineStopRequested: {e!r}")
@@ -225,7 +239,37 @@ class LLMExecutor:
         except Exception as e:
             duration = time.perf_counter() - attempt_start_time
             logger.error(f"LLMExecutor: error when invoking execute_function. LLM {llm_model!r} and llm_executor_uuid: {llm_executor_uuid!r}: {e!r} traceback: {traceback.format_exc()}")
+            self._record_attempt_token_metrics(
+                llm_model_name=getattr(llm_model, "name", llm.__class__.__name__),
+                duration=duration,
+                success=False,
+                error_message=str(e),
+                response=None,
+            )
             return LLMAttempt(stage='execute', llm_model=llm_model, success=False, duration=duration, exception=e)
+
+    def _record_attempt_token_metrics(
+        self,
+        llm_model_name: str,
+        duration: float,
+        success: bool,
+        error_message: Optional[str],
+        response: Optional[Any],
+    ) -> None:
+        """Best-effort token metrics recording; never blocks LLM execution flow."""
+        try:
+            from worker_plan_internal.llm_util.token_instrumentation import record_attempt_tokens
+
+            record_attempt_tokens(
+                attempt_index=len(self.attempts),
+                llm_model=llm_model_name,
+                duration_seconds=duration,
+                success=success,
+                error_message=error_message,
+                response=response,
+            )
+        except Exception as exc:
+            logger.debug("Failed to record token metrics for attempt: %s", exc)
 
     def _check_stop_callback(self, last_attempt: LLMAttempt, start_time: float, attempt_index: int) -> None:
         """Checks the callback, if it exists, to see if execution should stop."""

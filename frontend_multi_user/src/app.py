@@ -45,7 +45,7 @@ from database_api.model_user_api_key import UserApiKey
 from database_api.model_credit_history import CreditHistory
 from database_api.model_payment_record import PaymentRecord
 from database_api.model_token_metrics import TokenMetrics, TokenMetricsSummary
-from planexe_modelviews import WorkerItemView, TaskItemView, NonceItemView, AdminOnlyModelView
+from planexe_modelviews import WorkerItemView, TaskItemView, NonceItemView, TokenMetricsView, AdminOnlyModelView
 logger = logging.getLogger(__name__)
 
 from worker_plan_api.planexe_dotenv import DotEnvKeyEnum, PlanExeDotEnv
@@ -289,8 +289,17 @@ class MyFlaskApp:
                 return
             columns = {col["name"] for col in insp.get_columns("token_metrics")}
             with self.db.engine.begin() as conn:
+                # Remove legacy identifiers. Token metrics should reference tasks only.
+                if "run_id" in columns:
+                    conn.execute(text("ALTER TABLE token_metrics DROP COLUMN IF EXISTS run_id"))
+                if "task_name" in columns:
+                    conn.execute(text("ALTER TABLE token_metrics DROP COLUMN IF EXISTS task_name"))
                 if "task_id" not in columns:
                     conn.execute(text("ALTER TABLE token_metrics ADD COLUMN IF NOT EXISTS task_id VARCHAR(255)"))
+                if "upstream_provider" not in columns:
+                    conn.execute(text("ALTER TABLE token_metrics ADD COLUMN IF NOT EXISTS upstream_provider VARCHAR(255)"))
+                if "upstream_model" not in columns:
+                    conn.execute(text("ALTER TABLE token_metrics ADD COLUMN IF NOT EXISTS upstream_model VARCHAR(255)"))
 
         def _seed_initial_records() -> None:
             # Add initial records if the table is empty
@@ -379,7 +388,7 @@ class MyFlaskApp:
         self.admin.add_view(AdminOnlyModelView(model=UserApiKey, session=self.db.session, name="User API Key"))
         self.admin.add_view(AdminOnlyModelView(model=CreditHistory, session=self.db.session, name="Credit History"))
         self.admin.add_view(AdminOnlyModelView(model=PaymentRecord, session=self.db.session, name="Payments"))
-        self.admin.add_view(AdminOnlyModelView(model=TokenMetrics, session=self.db.session, name="Token Metrics"))
+        self.admin.add_view(TokenMetricsView(model=TokenMetrics, session=self.db.session, name="Token Metrics"))
 
         self._setup_routes()
 

@@ -78,6 +78,8 @@ def record_llm_tokens(
                     store.record_token_usage(
                         task_id=resolved_task_id,
                         llm_model=llm_model,
+                        upstream_provider=token_count.upstream_provider,
+                        upstream_model=token_count.upstream_model,
                         input_tokens=token_count.input_tokens,
                         output_tokens=token_count.output_tokens,
                         thinking_tokens=token_count.thinking_tokens,
@@ -132,6 +134,8 @@ def record_attempt_tokens(
         store.record_token_usage(
             task_id=task_id,
             llm_model=llm_model,
+            upstream_provider=token_count.upstream_provider if token_count else None,
+            upstream_model=token_count.upstream_model if token_count else None,
             input_tokens=token_count.input_tokens if token_count else None,
             output_tokens=token_count.output_tokens if token_count else None,
             thinking_tokens=token_count.thinking_tokens if token_count else None,

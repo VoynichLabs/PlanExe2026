@@ -35,11 +35,15 @@ class TokenCount:
         output_tokens: Optional[int] = None,
         thinking_tokens: Optional[int] = None,
         raw_usage_data: Optional[Dict[str, Any]] = None,
+        upstream_provider: Optional[str] = None,
+        upstream_model: Optional[str] = None,
     ):
         self.input_tokens = input_tokens
         self.output_tokens = output_tokens
         self.thinking_tokens = thinking_tokens
         self.raw_usage_data = raw_usage_data or {}
+        self.upstream_provider = upstream_provider
+        self.upstream_model = upstream_model
 
     @property
     def total_tokens(self) -> int:
@@ -60,6 +64,8 @@ class TokenCount:
             "thinking_tokens": self.thinking_tokens,
             "total_tokens": self.total_tokens,
             "raw_usage_data": self.raw_usage_data,
+            "upstream_provider": self.upstream_provider,
+            "upstream_model": self.upstream_model,
         }
 
 
@@ -92,6 +98,11 @@ def extract_token_count(response: Any) -> TokenCount:
         # Handle llama_index ChatResponse
         if isinstance(response, ChatResponse):
             return _extract_from_chat_response(response)
+
+        # Handle raw payloads on response objects (common for OpenRouter/Ollama/OpenAI wrappers).
+        raw_payload = getattr(response, "raw", None)
+        if isinstance(raw_payload, dict):
+            return _extract_from_dict(raw_payload)
 
         # Handle direct usage object (from some OpenAI-like calls)
         if hasattr(response, "usage"):
@@ -127,16 +138,20 @@ def _extract_from_chat_response(response: ChatResponse) -> TokenCount:
     output_tokens = None
     thinking_tokens = None
     raw_usage_data = {}
+    upstream_provider = None
+    upstream_model = None
 
     # Try to get usage from response object
     if hasattr(response, "raw"):
         raw = response.raw
-        if isinstance(raw, dict) and "usage" in raw:
-            usage = raw["usage"]
-            raw_usage_data = usage.copy() if isinstance(usage, dict) else {}
-            input_tokens = usage.get("prompt_tokens") or usage.get("input_tokens")
-            output_tokens = usage.get("completion_tokens") or usage.get("output_tokens")
-            thinking_tokens = usage.get("reasoning_tokens") or usage.get("thinking_tokens")
+        if isinstance(raw, dict):
+            usage = raw.get("usage")
+            if isinstance(usage, dict):
+                raw_usage_data = usage.copy()
+                input_tokens = usage.get("prompt_tokens") or usage.get("input_tokens")
+                output_tokens = usage.get("completion_tokens") or usage.get("output_tokens")
+                thinking_tokens = usage.get("reasoning_tokens") or usage.get("thinking_tokens")
+            upstream_provider, upstream_model = _extract_provider_and_model(raw)
 
     # Also check message for usage info
     if hasattr(response, "message") and hasattr(response.message, "usage"):
@@ -151,6 +166,8 @@ def _extract_from_chat_response(response: ChatResponse) -> TokenCount:
         output_tokens=output_tokens,
         thinking_tokens=thinking_tokens,
         raw_usage_data=raw_usage_data,
+        upstream_provider=upstream_provider,
+        upstream_model=upstream_model,
     )
 
 
@@ -194,6 +211,7 @@ def _extract_from_dict(response: dict) -> TokenCount:
     input_tokens = None
     output_tokens = None
     thinking_tokens = None
+    upstream_provider, upstream_model = _extract_provider_and_model(response)
 
     # Check for usage key
     usage = response.get("usage")
@@ -205,7 +223,9 @@ def _extract_from_dict(response: dict) -> TokenCount:
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             thinking_tokens=thinking_tokens,
-            raw_usage_data=usage.copy(),
+            raw_usage_data=_build_usage_snapshot(usage, upstream_provider, upstream_model),
+            upstream_provider=upstream_provider,
+            upstream_model=upstream_model,
         )
 
     # Direct keys
@@ -218,7 +238,13 @@ def _extract_from_dict(response: dict) -> TokenCount:
         output_tokens=output_tokens,
         thinking_tokens=thinking_tokens,
         # Keep raw_usage_data usage-focused even when token fields are top-level.
-        raw_usage_data=_extract_usage_like_fields(response) if input_tokens or output_tokens or thinking_tokens else {},
+        raw_usage_data=_build_usage_snapshot(
+            _extract_usage_like_fields(response) if input_tokens or output_tokens or thinking_tokens else {},
+            upstream_provider,
+            upstream_model,
+        ),
+        upstream_provider=upstream_provider,
+        upstream_model=upstream_model,
     )
 
 
@@ -227,3 +253,40 @@ def _extract_usage_like_fields(response: dict) -> dict:
     if not isinstance(response, dict):
         return {}
     return {key: value for key, value in response.items() if key in _USAGE_FIELD_NAMES}
+
+
+def _build_usage_snapshot(usage: dict, provider: Optional[str], model: Optional[str]) -> dict:
+    snapshot = usage.copy() if isinstance(usage, dict) else {}
+    if provider:
+        snapshot["provider"] = provider
+    if model:
+        snapshot["model"] = model
+    return snapshot
+
+
+def _extract_provider_and_model(payload: dict) -> tuple[Optional[str], Optional[str]]:
+    if not isinstance(payload, dict):
+        return None, None
+
+    provider = payload.get("provider") or payload.get("provider_name")
+    model = payload.get("model") or payload.get("model_name") or payload.get("model_id")
+
+    if isinstance(provider, dict):
+        provider = provider.get("name") or provider.get("id")
+
+    # Common nested locations in provider SDK responses.
+    if (not provider or not model) and isinstance(payload.get("response"), dict):
+        response_dict = payload["response"]
+        provider = provider or response_dict.get("provider") or response_dict.get("provider_name")
+        model = model or response_dict.get("model") or response_dict.get("model_name") or response_dict.get("model_id")
+        if isinstance(provider, dict):
+            provider = provider.get("name") or provider.get("id")
+
+    if (not provider or not model) and isinstance(payload.get("raw"), dict):
+        raw_dict = payload["raw"]
+        provider = provider or raw_dict.get("provider") or raw_dict.get("provider_name")
+        model = model or raw_dict.get("model") or raw_dict.get("model_name") or raw_dict.get("model_id")
+        if isinstance(provider, dict):
+            provider = provider.get("name") or provider.get("id")
+
+    return str(provider) if provider else None, str(model) if model else None

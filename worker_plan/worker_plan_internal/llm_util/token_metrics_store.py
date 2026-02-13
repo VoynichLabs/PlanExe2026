@@ -63,6 +63,8 @@ class TokenMetricsStore:
         self,
         task_id: str,
         llm_model: str,
+        upstream_provider: Optional[str] = None,
+        upstream_model: Optional[str] = None,
         input_tokens: Optional[int] = None,
         output_tokens: Optional[int] = None,
         thinking_tokens: Optional[int] = None,
@@ -95,6 +97,8 @@ class TokenMetricsStore:
             metric = self.TokenMetrics(
                 task_id=task_id,
                 llm_model=llm_model,
+                upstream_provider=upstream_provider,
+                upstream_model=upstream_model,
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
                 thinking_tokens=thinking_tokens,

@@ -77,3 +77,25 @@ class NonceItemView(AdminOnlyModelView):
         form = self.scaffold_form()
         delattr(form, 'id')
         return form
+
+
+class TokenMetricsView(AdminOnlyModelView):
+    """Custom ModelView for TokenMetrics."""
+    column_list = [
+        'id',
+        'timestamp',
+        'task_id',
+        'llm_model',
+        'upstream_provider',
+        'upstream_model',
+        'input_tokens',
+        'output_tokens',
+        'thinking_tokens',
+        'total_tokens',
+        'duration_seconds',
+        'success',
+        'error_message',
+    ]
+    column_default_sort = ('timestamp', True)
+    column_searchable_list = ['task_id', 'llm_model', 'upstream_provider', 'upstream_model']
+    column_filters = ['timestamp', 'llm_model', 'upstream_provider', 'upstream_model', 'success']
