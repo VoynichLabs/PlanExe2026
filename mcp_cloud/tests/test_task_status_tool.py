@@ -35,6 +35,34 @@ class TestTaskStatusTool(unittest.TestCase):
         self.assertIsInstance(result.structuredContent["progress_percentage"], float)
         self.assertEqual(result.structuredContent["progress_percentage"], 100.0)
 
+    def test_task_status_falls_back_to_zip_snapshot_files_when_primary_source_empty(self):
+        task_id = str(uuid.uuid4())
+        task_snapshot = {
+            "id": task_id,
+            "state": TaskState.processing,
+            "stop_requested": False,
+            "progress_percentage": 34.23,
+            "timestamp_created": datetime.now(UTC),
+        }
+        with patch(
+            "mcp_cloud.app._get_task_status_snapshot_sync",
+            return_value=task_snapshot,
+        ), patch(
+            "mcp_cloud.app.fetch_file_list_from_worker_plan",
+            new=AsyncMock(return_value=[]),
+        ), patch(
+            "mcp_cloud.app.list_files_from_zip_snapshot",
+            return_value=["001-2-plan.txt", "log.txt"],
+        ), patch(
+            "mcp_cloud.app.list_files_from_local_run_dir",
+            return_value=None,
+        ):
+            result = asyncio.run(handle_task_status({"task_id": task_id}))
+
+        files = result.structuredContent["files"]
+        self.assertEqual(len(files), 1)
+        self.assertEqual(files[0]["path"], "001-2-plan.txt")
+
 
 if __name__ == "__main__":
     unittest.main()

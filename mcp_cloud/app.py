@@ -460,7 +460,13 @@ async def fetch_file_list_from_worker_plan(run_id: str) -> Optional[list[str]]:
             response = await client.get(f"{WORKER_PLAN_URL}/runs/{run_id}/files")
             if response.status_code == 200:
                 data = response.json()
-                return data.get("files", [])
+                files = data.get("files", [])
+                if files:
+                    return files
+                fallback_files = await asyncio.to_thread(list_files_from_zip_snapshot, run_id)
+                if fallback_files:
+                    return fallback_files
+                return files
             logger.warning(f"Worker plan returned {response.status_code} for files list: {run_id}")
             fallback_files = await asyncio.to_thread(list_files_from_zip_snapshot, run_id)
             if fallback_files is not None:
@@ -468,6 +474,26 @@ async def fetch_file_list_from_worker_plan(run_id: str) -> Optional[list[str]]:
             return None
     except Exception as e:
         logger.error(f"Error fetching file list from worker_plan: {e}", exc_info=True)
+        return None
+
+
+def list_files_from_local_run_dir(run_id: str) -> Optional[list[str]]:
+    """
+    List files from local run directory when this service shares PLANEXE_RUN_DIR
+    with the worker (e.g., Docker compose).
+    """
+    run_dir = (BASE_DIR_RUN / run_id).resolve()
+    try:
+        if not run_dir.is_relative_to(BASE_DIR_RUN):
+            return None
+    except ValueError:
+        return None
+    if not run_dir.exists() or not run_dir.is_dir():
+        return None
+    try:
+        return sorted([path.name for path in run_dir.iterdir() if path.is_file()])
+    except Exception as exc:
+        logger.warning("Unable to list local run dir files for %s: %s", run_id, exc)
         return None
 
 async def fetch_zip_from_worker_plan(run_id: str) -> Optional[bytes]:
@@ -940,6 +966,10 @@ async def handle_task_status(arguments: dict[str, Any]) -> CallToolResult:
     files = []
     if task_uuid:
         files_list = await fetch_file_list_from_worker_plan(task_uuid)
+        if not files_list:
+            files_list = await asyncio.to_thread(list_files_from_zip_snapshot, task_uuid)
+        if not files_list:
+            files_list = await asyncio.to_thread(list_files_from_local_run_dir, task_uuid)
         if files_list:
             for file_name in files_list[:10]:  # Limit to 10 most recent
                 if file_name != "log.txt":
