@@ -219,7 +219,7 @@ def _hash_user_api_key(raw_key: str) -> str:
         logger.warning("PLANEXE_API_KEY_SECRET not set. Using dev secret for API key hashing.")
     return hashlib.sha256(f"{secret}:{raw_key}".encode("utf-8")).hexdigest()
 
-def _resolve_user_from_api_key(raw_key: str) -> Optional[UserAccount]:
+def _resolve_user_from_api_key(raw_key: str) -> Optional[dict[str, Any]]:
     if not raw_key:
         return None
     key_hash = _hash_user_api_key(raw_key)
@@ -228,10 +228,16 @@ def _resolve_user_from_api_key(raw_key: str) -> Optional[UserAccount]:
         if not api_key:
             return None
         user = db.session.get(UserAccount, api_key.user_id)
-        if user:
-            api_key.last_used_at = datetime.now(UTC)
-            db.session.commit()
-        return user
+        if not user:
+            return None
+
+        user_context = {
+            "user_id": str(user.id),
+            "credits_balance": int(user.credits_balance or 0),
+        }
+        api_key.last_used_at = datetime.now(UTC)
+        db.session.commit()
+        return user_context
 
 def _create_task_sync(
     prompt: str,
@@ -865,10 +871,10 @@ async def handle_task_create(arguments: dict[str, Any]) -> CallToolResult:
 
     merged_config = _merge_task_create_config(None, req.speed_vs_detail)
     require_user_key = os.environ.get("PLANEXE_MCP_REQUIRE_USER_KEY", "false").lower() in ("1", "true", "yes", "on")
-    user = None
+    user_context = None
     if req.user_api_key:
-        user = _resolve_user_from_api_key(req.user_api_key.strip())
-        if not user:
+        user_context = _resolve_user_from_api_key(req.user_api_key.strip())
+        if not user_context:
             response = {"error": {"code": "INVALID_USER_API_KEY", "message": "Invalid user_api_key."}}
             return CallToolResult(
                 content=[TextContent(type="text", text=json.dumps(response))],
@@ -883,7 +889,7 @@ async def handle_task_create(arguments: dict[str, Any]) -> CallToolResult:
             isError=True,
         )
 
-    if user and (user.credits_balance or 0) <= 0:
+    if user_context and int(user_context.get("credits_balance", 0)) <= 0:
             response = {"error": {"code": "INSUFFICIENT_CREDITS", "message": "Not enough credits."}}
             return CallToolResult(
                 content=[TextContent(type="text", text=json.dumps(response))],
@@ -895,7 +901,7 @@ async def handle_task_create(arguments: dict[str, Any]) -> CallToolResult:
         _create_task_sync,
         req.prompt,
         merged_config,
-        {"user_id": str(user.id)} if user else None,
+        {"user_id": str(user_context["user_id"])} if user_context else None,
     )
     return CallToolResult(
         content=[TextContent(type="text", text=json.dumps(response))],
