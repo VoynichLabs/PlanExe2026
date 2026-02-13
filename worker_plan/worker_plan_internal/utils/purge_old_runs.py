@@ -4,8 +4,35 @@ import os
 import shutil
 import threading
 import time
+import uuid
 
 logger = logging.getLogger(__name__)
+
+_START_TIME_SUFFIX = "start_time.json"
+_PLAN_SUFFIX = "plan.txt"
+
+
+def _is_uuid_name(name: str) -> bool:
+    try:
+        parsed = uuid.UUID(name)
+    except ValueError:
+        return False
+    return str(parsed) == name
+
+
+def _looks_like_plan_run_dir(dirname: str, path: str) -> bool:
+    """A run directory must be UUID-named and contain required marker files."""
+    if not _is_uuid_name(dirname):
+        return False
+    if not os.path.isdir(path):
+        return False
+    try:
+        filenames = os.listdir(path)
+    except OSError:
+        return False
+    has_start_time = any(name.endswith(_START_TIME_SUFFIX) for name in filenames)
+    has_plan = any(name.endswith(_PLAN_SUFFIX) for name in filenames)
+    return has_start_time and has_plan
 
 
 def purge_old_runs(run_dir: str, max_age_hours: float = 1.0, prefix: str = "myrun_") -> None:
@@ -26,6 +53,7 @@ def purge_old_runs(run_dir: str, max_age_hours: float = 1.0, prefix: str = "myru
     count_deleted = 0
     count_skip_without_prefix = 0
     count_skip_recent = 0
+    count_skip_non_run_shape = 0
     count_error = 0
     for item in os.listdir(run_dir):
         if not item.startswith(prefix):
@@ -33,6 +61,14 @@ def purge_old_runs(run_dir: str, max_age_hours: float = 1.0, prefix: str = "myru
             continue  # Skip files and directories that don't match the prefix
 
         item_path = os.path.join(run_dir, item)
+        is_dir = os.path.isdir(item_path)
+        if not is_dir:
+            # Never delete files from run root. Users may place arbitrary files there.
+            count_skip_non_run_shape += 1
+            continue
+        if not _looks_like_plan_run_dir(item, item_path):
+            count_skip_non_run_shape += 1
+            continue
 
         try:
             # Get the modification time of the item (file or directory)
@@ -40,7 +76,7 @@ def purge_old_runs(run_dir: str, max_age_hours: float = 1.0, prefix: str = "myru
 
             if mtime < cutoff:
                 logger.debug(f"Deleting old data: {item} from {run_dir}")
-                if os.path.isdir(item_path):
+                if is_dir:
                     shutil.rmtree(item_path)  # Delete the directory and all its contents
                 else:
                     os.remove(item_path)  # Delete the file
@@ -53,10 +89,11 @@ def purge_old_runs(run_dir: str, max_age_hours: float = 1.0, prefix: str = "myru
             logger.error(f"Error processing {item} in {run_dir}: {e}")
             count_error += 1
     logger.info(
-        "Purge complete: %s deleted, %s skipped (recent), %s skipped (no prefix), %s errors",
+        "Purge complete: %s deleted, %s skipped (recent), %s skipped (no prefix), %s skipped (not run artifacts), %s errors",
         count_deleted,
         count_skip_recent,
         count_skip_without_prefix,
+        count_skip_non_run_shape,
         count_error,
     )
 

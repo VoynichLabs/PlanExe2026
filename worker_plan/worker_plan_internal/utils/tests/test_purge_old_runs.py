@@ -1,88 +1,77 @@
-import unittest
 import os
 import shutil
 import time
+import unittest
+import uuid
 
 from worker_plan_internal.utils.purge_old_runs import purge_old_runs
 
 
 class TestPurgeOldRuns(unittest.TestCase):
     def setUp(self):
-        """Set up test environment before each test."""
-        # Create a temporary directory for the runs
         self.test_run_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "test_run"))
         if os.path.exists(self.test_run_dir):
             shutil.rmtree(self.test_run_dir)
         os.makedirs(self.test_run_dir, exist_ok=True)
 
-        # Create some dummy run directories with different modification times
-        self.create_dummy_dir("myrun_dir1", hours_old=0.5)
-        self.create_dummy_dir("myrun_dir2", hours_old=1.5)
-        self.create_dummy_dir("myrun_dir3", hours_old=2)
-        self.create_dummy_dir("myrun_dir4", hours_old=0.25)
-        self.create_dummy_dir("myrun_dir5", hours_old=1)
-        self.create_dummy_dir("myrun_dir6", hours_old=0)
-        self.create_dummy_dir("other_dir7", hours_old=1.5) # doesn't have the prefix, so don't delete
-        self.create_dummy_file("other_file.txt", hours_old=5) # doesn't have the prefix, so don't delete
-        self.create_dummy_file("myrun_file1.txt", hours_old=0.25)
-        self.create_dummy_file("myrun_file2.txt", hours_old=1.5)
+        self.uuid_old_valid = str(uuid.uuid4())
+        self.uuid_recent_valid = str(uuid.uuid4())
+        self.uuid_old_missing_start = str(uuid.uuid4())
+        self.uuid_old_missing_plan = str(uuid.uuid4())
+        self.uuid_old_zip = str(uuid.uuid4()) + ".zip"
+
+        self._create_run_dir(self.uuid_old_valid, hours_old=2.0, with_start=True, with_plan=True)
+        self._create_run_dir(self.uuid_recent_valid, hours_old=0.1, with_start=True, with_plan=True)
+        self._create_run_dir(self.uuid_old_missing_start, hours_old=2.0, with_start=False, with_plan=True)
+        self._create_run_dir(self.uuid_old_missing_plan, hours_old=2.0, with_start=True, with_plan=False)
+        self._create_run_dir("not-a-uuid", hours_old=2.0, with_start=True, with_plan=True)
+        self._create_file(self.uuid_old_zip, hours_old=2.0)
+        self._create_file("not-a-uuid.zip", hours_old=2.0)
+        self._create_file("random.txt", hours_old=2.0)
 
     def tearDown(self):
-        """Clean up test environment after each test."""
-        # Remove the temporary run directory and its contents
         if os.path.exists(self.test_run_dir):
             shutil.rmtree(self.test_run_dir)
 
-    def create_dummy_dir(self, dirname: str, hours_old: float):
-        """Creates a dummy run directory with a specific modification time."""
+    def _set_mtime(self, path: str, hours_old: float):
+        mtime = time.time() - (hours_old * 3600)
+        os.utime(path, (mtime, mtime))
+
+    def _create_run_dir(self, dirname: str, hours_old: float, with_start: bool, with_plan: bool):
         path = os.path.join(self.test_run_dir, dirname)
         os.makedirs(path, exist_ok=True)
+        if with_start:
+            with open(os.path.join(path, "001-1-start_time.json"), "w", encoding="utf-8") as f:
+                f.write("{}")
+        if with_plan:
+            with open(os.path.join(path, "001-2-plan.txt"), "w", encoding="utf-8") as f:
+                f.write("plan")
+        self._set_mtime(path, hours_old)
 
-        # Set the modification time of the directory
-        mtime = time.time() - (hours_old * 3600)  # seconds
-        os.utime(path, (mtime, mtime))
-
-    def create_dummy_file(self, filename: str, hours_old: float):
-        """Create a dummy file in the test directory."""
+    def _create_file(self, filename: str, hours_old: float):
         path = os.path.join(self.test_run_dir, filename)
-        with open(path, "w") as f:
-            f.write("This is a dummy file.")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("dummy")
+        self._set_mtime(path, hours_old)
 
-        # Set the modification time of the file
-        mtime = time.time() - (hours_old * 3600)  # seconds
-        os.utime(path, (mtime, mtime))
+    def test_purge_uuid_run_dirs_with_required_files_only(self):
+        purge_old_runs(self.test_run_dir, max_age_hours=1.0, prefix="")
 
-    def test_purge_old_runs(self):
-        """Tests the purge_old_runs function."""
-        max_age_hours = 0.95
-        purge_old_runs(self.test_run_dir, max_age_hours=max_age_hours, prefix="myrun_")  # Pass the directory
+        self.assertFalse(os.path.exists(os.path.join(self.test_run_dir, self.uuid_old_valid)))
+        self.assertTrue(os.path.exists(os.path.join(self.test_run_dir, self.uuid_recent_valid)))
+        self.assertTrue(os.path.exists(os.path.join(self.test_run_dir, self.uuid_old_missing_start)))
+        self.assertTrue(os.path.exists(os.path.join(self.test_run_dir, self.uuid_old_missing_plan)))
+        self.assertTrue(os.path.exists(os.path.join(self.test_run_dir, "not-a-uuid")))
+        self.assertTrue(os.path.exists(os.path.join(self.test_run_dir, self.uuid_old_zip)))
+        self.assertTrue(os.path.exists(os.path.join(self.test_run_dir, "not-a-uuid.zip")))
+        self.assertTrue(os.path.exists(os.path.join(self.test_run_dir, "random.txt")))
 
-        # Check which runs should have been purged
-        runs_to_keep = ["myrun_dir1", "myrun_dir4", "myrun_dir6", "other_dir7", "other_file.txt", "myrun_file1.txt"]
-        runs_to_purge = ["myrun_dir2", "myrun_dir3", "myrun_dir5", "myrun_file2.txt"]
+    def test_purge_respects_prefix_filter(self):
+        prefixed_uuid = "keepme-" + str(uuid.uuid4())
+        self._create_run_dir(prefixed_uuid, hours_old=2.0, with_start=True, with_plan=True)
+        purge_old_runs(self.test_run_dir, max_age_hours=1.0, prefix="keepme-")
+        self.assertTrue(os.path.exists(os.path.join(self.test_run_dir, prefixed_uuid)))
 
-        for run_id in runs_to_keep:
-            run_path = os.path.join(self.test_run_dir, run_id)
-            self.assertTrue(os.path.exists(run_path), f"Run {run_id} should not have been purged.")
 
-        for run_id in runs_to_purge:
-            run_path = os.path.join(self.test_run_dir, run_id)
-            self.assertFalse(os.path.exists(run_path), f"Run {run_id} should have been purged.")
-
-    def test_purge_no_runs(self):
-        """Test when no runs are older than the max_age_hours."""
-
-        # Set all runs to be very recent.
-        for item in os.listdir(self.test_run_dir):
-          item_path = os.path.join(self.test_run_dir, item)
-          mtime = time.time()  # Now
-          os.utime(item_path, (mtime, mtime))
-
-        max_age_hours = 1.0
-        purge_old_runs(self.test_run_dir, max_age_hours=max_age_hours, prefix="myrun_")  # Pass the directory
-
-        # All runs should still exist, including the one with the wrong prefix.
-        expected_runs = ["myrun_dir1", "myrun_dir2", "myrun_dir3", "myrun_dir4", "myrun_dir5", "myrun_dir6", "other_dir7", "other_file.txt", "myrun_file1.txt", "myrun_file2.txt"]
-        for run_id in expected_runs:
-            run_path = os.path.join(self.test_run_dir, run_id)
-            self.assertTrue(os.path.exists(run_path), f"Run {run_id} should not have been purged.")
+if __name__ == "__main__":
+    unittest.main()
