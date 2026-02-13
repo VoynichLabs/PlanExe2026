@@ -1,10 +1,17 @@
 """
 Custom ModelViews for the PlanExe-server tables.
 """
+import base64
+import json
 import math
+import uuid
+from datetime import datetime
+from decimal import Decimal
+from enum import Enum
 from flask_admin.contrib.sqla import ModelView
+from flask_admin.actions import action
 from markupsafe import Markup
-from flask import url_for, abort, redirect
+from flask import url_for, abort, redirect, Response
 from flask_login import current_user
 
 class AdminOnlyModelView(ModelView):
@@ -16,6 +23,74 @@ class AdminOnlyModelView(ModelView):
         if not current_user.is_authenticated:
             return redirect(url_for("login"))
         abort(403)
+
+    @action("download_json", "Download as JSON", "Download selected rows as JSON?")
+    def action_download_json(self, ids):
+        """Export selected rows as a JSON file from the admin list view."""
+        if not ids:
+            return
+
+        primary_keys = self.model.__mapper__.primary_key
+        if len(primary_keys) != 1:
+            abort(400, "Download as JSON currently supports single-column primary keys only.")
+        primary_key_col = primary_keys[0]
+
+        python_type = None
+        try:
+            python_type = primary_key_col.type.python_type
+        except Exception:
+            python_type = str
+
+        normalized_ids = []
+        for raw_id in ids:
+            if python_type is uuid.UUID:
+                try:
+                    normalized_ids.append(uuid.UUID(str(raw_id)))
+                except Exception:
+                    normalized_ids.append(raw_id)
+            else:
+                try:
+                    normalized_ids.append(python_type(raw_id))
+                except Exception:
+                    normalized_ids.append(raw_id)
+
+        rows = self.session.query(self.model).filter(primary_key_col.in_(normalized_ids)).all()
+        records = [self._serialize_model_row(row) for row in rows]
+        payload = {
+            "model": self.model.__name__,
+            "count": len(records),
+            "records": records,
+        }
+        json_body = json.dumps(payload, indent=2, ensure_ascii=False)
+
+        timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+        filename = f"{self.model.__name__.lower()}_{timestamp}.json"
+        return Response(
+            json_body,
+            mimetype="application/json",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+
+    def _serialize_model_row(self, row):
+        data = {}
+        for column in row.__table__.columns:
+            data[column.name] = self._serialize_value(getattr(row, column.name))
+        return data
+
+    def _serialize_value(self, value):
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value.isoformat()
+        if isinstance(value, uuid.UUID):
+            return str(value)
+        if isinstance(value, Enum):
+            return value.value if hasattr(value, "value") else str(value)
+        if isinstance(value, Decimal):
+            return float(value)
+        if isinstance(value, bytes):
+            return base64.b64encode(value).decode("ascii")
+        return value
 
 class WorkerItemView(AdminOnlyModelView):
     """Custom ModelView for WorkerItem"""
