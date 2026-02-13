@@ -507,7 +507,11 @@ def execute_pipeline_for_job(task_id: str, user_id: str, run_id_dir: Path, speed
     # instrumentation (for example token metrics) can access db.session safely.
     with app.app_context():
         set_current_task_id(task_id)
+        previous_track_activity_path = track_activity.jsonl_file_path
         try:
+            # Always keep activity tracking in the task run directory, including PING_LLM mode.
+            track_activity.jsonl_file_path = run_id_dir / ExtraFilenameEnum.TRACK_ACTIVITY_JSONL.value
+
             if speedvsdetail == SpeedVsDetailEnum.PING_LLM:
                 logger.info("PING_LLM mode requested; running a single LLM ping.")
                 run_ping_llm_report(
@@ -518,13 +522,9 @@ def execute_pipeline_for_job(task_id: str, user_id: str, run_id_dir: Path, speed
                 pipeline_instance.setup()
                 logger.info(f"ExecutePipeline instance: {pipeline_instance!r}")
 
-                # LLM/reasoning models often fail, due to censorship, invalid json, timeouts.
-                # Thus I track whenever a LLM/reasoning model is used, by appended the payload+backtrace to the "track_activity" file.
-                # so the developer can troubleshoot problems with the LLM/reasoning model.
-                track_activity.jsonl_file_path = run_id_dir / ExtraFilenameEnum.TRACK_ACTIVITY_JSONL.value
-
                 pipeline_instance.run()
         finally:
+            track_activity.jsonl_file_path = previous_track_activity_path
             set_current_task_id(None)
 
     end_time = time.time()
