@@ -549,7 +549,12 @@ async def call_tool(
     This endpoint wraps the stdio-based MCP tool handlers for HTTP access.
     Download URLs use the request host when PLANEXE_MCP_PUBLIC_BASE_URL is not set (set in middleware).
     """
-    return await call_tool_via_registry(fastmcp_server, payload.tool, payload.arguments)
+    arguments = dict(payload.arguments or {})
+    if payload.tool == "task_create":
+        authenticated_user_api_key = _get_authenticated_user_api_key()
+        if authenticated_user_api_key and not arguments.get("user_api_key"):
+            arguments["user_api_key"] = authenticated_user_api_key
+    return await call_tool_via_registry(fastmcp_server, payload.tool, arguments)
 
 
 @app.get("/mcp/tools")
