@@ -283,6 +283,15 @@ class MyFlaskApp:
                 if "stop_requested_timestamp" not in columns:
                     conn.execute(text("ALTER TABLE task_item ADD COLUMN IF NOT EXISTS stop_requested_timestamp TIMESTAMP"))
 
+        def _ensure_token_metrics_columns() -> None:
+            insp = inspect(self.db.engine)
+            if "token_metrics" not in insp.get_table_names():
+                return
+            columns = {col["name"] for col in insp.get_columns("token_metrics")}
+            with self.db.engine.begin() as conn:
+                if "task_id" not in columns:
+                    conn.execute(text("ALTER TABLE token_metrics ADD COLUMN IF NOT EXISTS task_id VARCHAR(255)"))
+
         def _seed_initial_records() -> None:
             # Add initial records if the table is empty
             if TaskItem.query.count() == 0:
@@ -310,6 +319,7 @@ class MyFlaskApp:
                     with self.app.app_context():
                         self.db.create_all()
                         _ensure_taskitem_artifact_columns()
+                        _ensure_token_metrics_columns()
                         _seed_initial_records()
                     return
                 except OperationalError as exc:

@@ -190,6 +190,16 @@ def ensure_taskitem_artifact_columns() -> None:
         if "stop_requested_timestamp" not in columns:
             conn.execute(text("ALTER TABLE task_item ADD COLUMN IF NOT EXISTS stop_requested_timestamp TIMESTAMP"))
 
+
+def ensure_token_metrics_columns() -> None:
+    insp = inspect(db.engine)
+    if "token_metrics" not in insp.get_table_names():
+        return
+    columns = {col["name"] for col in insp.get_columns("token_metrics")}
+    with db.engine.begin() as conn:
+        if "task_id" not in columns:
+            conn.execute(text("ALTER TABLE token_metrics ADD COLUMN IF NOT EXISTS task_id VARCHAR(255)"))
+
 def worker_process_started() -> None:
     planexe_worker_id = os.environ.get("PLANEXE_WORKER_ID")
     event_context = {
@@ -807,6 +817,7 @@ def startup_worker():
         try:
             db.create_all()
             ensure_taskitem_artifact_columns()
+            ensure_token_metrics_columns()
             logger.debug(f"Ensured database tables exist.")
             WorkerItem.upsert_heartbeat(worker_id=WORKER_ID)
         except Exception as e:    
