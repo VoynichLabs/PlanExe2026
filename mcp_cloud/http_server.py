@@ -5,6 +5,7 @@ Provides HTTP/JSON endpoints for MCP tool calls with API key authentication.
 Supports deployment to Railway and other cloud platforms.
 """
 import asyncio
+import contextvars
 import json
 import logging
 import os
@@ -103,6 +104,9 @@ if not CORS_ORIGINS:
 
 _rate_lock = asyncio.Lock()
 _rate_buckets: dict[str, deque[float]] = defaultdict(deque)
+_authenticated_user_api_key_ctx: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
+    "authenticated_user_api_key", default=None
+)
 
 
 def _extract_api_key(request: Request) -> Optional[str]:
@@ -138,14 +142,24 @@ async def _validate_api_key(request: Request) -> Optional[JSONResponse]:
 
     # Accept PLANEXE_MCP_API_KEY (shared secret) if configured
     if REQUIRED_API_KEY and provided_key == REQUIRED_API_KEY:
+        _authenticated_user_api_key_ctx.set(None)
         return None
 
     # Accept valid UserApiKey from database (pex_... keys from home.planexe.org)
     user = await asyncio.to_thread(_resolve_user_from_api_key, provided_key)
     if user:
+        _authenticated_user_api_key_ctx.set(provided_key)
         return None
 
     return JSONResponse(status_code=403, content={"detail": "Invalid API key"})
+
+
+def _get_authenticated_user_api_key() -> Optional[str]:
+    """Return the current request's authenticated UserApiKey, if available."""
+    try:
+        return _authenticated_user_api_key_ctx.get()
+    except LookupError:
+        return None
 
 
 def _client_identifier(request: Request) -> str:
@@ -315,8 +329,15 @@ async def task_create(
     ] = "ping",
 ) -> Annotated[CallToolResult, TaskCreateOutput]:
     """Create a new PlanExe task. Use prompt_examples first for example prompts."""
+    authenticated_user_api_key = _get_authenticated_user_api_key()
+    arguments: dict[str, Any] = {
+        "prompt": prompt,
+        "speed_vs_detail": speed_vs_detail,
+    }
+    if authenticated_user_api_key:
+        arguments["user_api_key"] = authenticated_user_api_key
     return await handle_task_create(
-        {"prompt": prompt, "speed_vs_detail": speed_vs_detail},
+        arguments,
     )
 
 
@@ -463,6 +484,7 @@ async def enforce_api_key(
     try:
         response = await call_next(request)
     finally:
+        _authenticated_user_api_key_ctx.set(None)
         if request.url.path.startswith("/mcp"):
             clear_download_base_url()
     if request.url.path.startswith("/mcp"):
