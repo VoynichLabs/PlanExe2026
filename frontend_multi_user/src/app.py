@@ -16,7 +16,6 @@ import secrets
 import hashlib
 from urllib.parse import quote_plus, urlparse
 from typing import ClassVar, Dict, Optional, Tuple, Any
-from dataclasses import dataclass
 from pathlib import Path
 from flask import Flask, render_template, Response, request, jsonify, send_file, redirect, url_for, session, abort
 from flask_admin import Admin, AdminIndexView, expose
@@ -29,7 +28,6 @@ from urllib.error import URLError
 from flask import make_response
 import requests
 import stripe
-from worker_plan_api.generate_run_id import generate_run_id
 from worker_plan_api.start_time import StartTime
 from worker_plan_api.plan_file import PlanFile
 from worker_plan_api.filenames import FilenameEnum, ExtraFilenameEnum
@@ -72,14 +70,6 @@ def build_postgres_uri_from_env(env: Dict[str, str]) -> Tuple[str, Dict[str, str
     uri = f"postgresql+psycopg2://{quote_plus(user)}:{quote_plus(password)}@{host}:{port}/{dbname}"
     safe_config = {"host": host, "port": port, "dbname": dbname, "user": user}
     return uri, safe_config
-
-@dataclass
-class Config:
-    use_uuid_as_run_id: bool
-
-CONFIG = Config(
-    use_uuid_as_run_id=False,
-)
 
 class User(UserMixin):
     def __init__(self, user_id: str, is_admin: bool = False):

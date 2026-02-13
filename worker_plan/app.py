@@ -22,7 +22,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from worker_plan_api.filenames import FilenameEnum
-from worker_plan_api.generate_run_id import RUN_ID_PREFIX, generate_run_id
+from worker_plan_api.generate_run_id import generate_run_id
 from worker_plan_api.llm_info import LLMInfo
 from worker_plan_internal.plan.pipeline_environment import PipelineEnvironmentEnum
 from worker_plan_api.plan_file import PlanFile
@@ -51,7 +51,7 @@ RELAY_PROCESS_OUTPUT = os.environ.get("PLANEXE_WORKER_RELAY_PROCESS_OUTPUT", "fa
 PURGE_ENABLED = os.environ.get("PLANEXE_PURGE_ENABLED", "false").lower() == "true"
 PURGE_MAX_AGE_HOURS = float(os.environ.get("PLANEXE_PURGE_MAX_AGE_HOURS", "1"))
 PURGE_INTERVAL_SECONDS = float(os.environ.get("PLANEXE_PURGE_INTERVAL_SECONDS", "3600"))
-PURGE_PREFIX = os.environ.get("PLANEXE_PURGE_RUN_PREFIX", RUN_ID_PREFIX)
+PURGE_PREFIX = os.environ.get("PLANEXE_PURGE_RUN_PREFIX", "")
 
 RUN_BASE_PATH.mkdir(parents=True, exist_ok=True)
 
@@ -62,7 +62,6 @@ class StartRunRequest(BaseModel):
     llm_model: str = Field(..., description="LLM model identifier.")
     speed_vs_detail: str = Field(..., description="Speed vs detail preference.")
     openrouter_api_key: Optional[str] = Field(None, description="Optional OpenRouter API key.")
-    use_uuid_as_run_id: bool = Field(False, description="Force UUID based run IDs.")
     run_id: Optional[str] = Field(None, description="Existing run ID to retry.")
 
 
@@ -192,7 +191,7 @@ def create_run_directory(request: StartRunRequest) -> tuple[str, Path]:
         return request.run_id, run_dir.resolve()
 
     start_time = datetime.now().astimezone()
-    run_id = generate_run_id(use_uuid=request.use_uuid_as_run_id, start_time=start_time)
+    run_id = generate_run_id()
     run_dir = RUN_BASE_PATH / run_id
     if run_dir.exists():
         raise HTTPException(status_code=409, detail=f"Run directory already exists: {run_dir}")

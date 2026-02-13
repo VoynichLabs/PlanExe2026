@@ -20,7 +20,6 @@ import time
 # Load environment variables from .env file (if it exists)
 load_dotenv()
 from worker_plan_api.llm_info import LLMInfo, OllamaStatus
-from worker_plan_api.generate_run_id import RUN_ID_PREFIX
 from worker_plan_api.speedvsdetail import SpeedVsDetailEnum
 from worker_plan_api.prompt_catalog import PromptCatalog
 
@@ -37,7 +36,6 @@ logging.basicConfig(
 
 @dataclass
 class Config:
-    use_uuid_as_run_id: bool
     visible_top_header: bool
     visible_open_output_dir_button: bool
     visible_llm_info: bool
@@ -47,7 +45,6 @@ class Config:
     browser_state_secret: str
 
 CONFIG_LOCAL = Config(
-    use_uuid_as_run_id=False,
     visible_top_header=True,
     visible_open_output_dir_button=True,
     visible_openrouter_api_key_textbox=False,
@@ -398,7 +395,6 @@ def run_planner(submit_or_retry_button, plan_prompt, browser_state, session_stat
         "llm_model": session_state.llm_model,
         "speed_vs_detail": speedvsdetail_string,
         "openrouter_api_key": session_state.openrouter_api_key or None,
-        "use_uuid_as_run_id": CONFIG.use_uuid_as_run_id,
     }
     if run_id:
         payload["run_id"] = run_id
@@ -737,7 +733,7 @@ with gr.Blocks(title="PlanExe") as demo_text2plan:
         )
 
     with gr.Tab("Advanced"):
-        gr.Markdown("Trigger a manual purge of old `PlanExe_TIMESTAMP` dirs and `PlanExe_TIMESTAMP.zip` files from the run directory.")
+        gr.Markdown("Trigger a manual purge of old run directories and zip files from the run directory.")
         purge_max_age_hours = gr.Number(
             label="Max age (hours). Dirs and files older than this will be purged.",
             value=24,
@@ -747,7 +743,7 @@ with gr.Blocks(title="PlanExe") as demo_text2plan:
         )
         purge_prefix = gr.Textbox(
             label="Run prefix to purge. Dirs and files with this prefix will be purged.",
-            value=RUN_ID_PREFIX,
+            value="",
             placeholder="Prefix to match, leave empty to use worker default",
         )
         purge_button = gr.Button("Purge old runs now")

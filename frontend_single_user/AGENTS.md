@@ -8,7 +8,7 @@ Scope: single-user Gradio UI that talks to `worker_plan` and optionally
   update `WorkerClient` if routes or response shapes change.
 - Maintain `.env` loading and logging setup early in `app.py` so local
   development behaves consistently.
-- Keep the run-id conventions (`RUN_ID_PREFIX`) and prompt defaults
+- Keep UUID-only task/run identifiers and prompt defaults
   (`DEFAULT_PROMPT_UUID` with `PromptCatalog`) unless all docs are updated.
 - Only show the open-output-dir UI when the opener service is configured and
   reachable (`/healthcheck`).
