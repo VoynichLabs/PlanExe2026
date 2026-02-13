@@ -728,6 +728,94 @@ class MyFlaskApp:
             logger.error("Failed to persist event item. message=%s error=%s", message, exc, exc_info=True)
             self.db.session.rollback()
 
+    def _finalize_stripe_checkout_session(self, user: UserAccount, checkout_session_id: str) -> str:
+        """Best-effort Stripe session reconciliation from success redirect."""
+        stripe_secret = os.environ.get("PLANEXE_STRIPE_SECRET_KEY")
+        if not stripe_secret:
+            self._record_event(
+                EventType.GENERIC_ERROR,
+                "Stripe success return ignored (Stripe not configured)",
+                context={"user_id": str(user.id), "checkout_session_id": checkout_session_id},
+            )
+            return "stripe_not_configured"
+
+        stripe.api_key = stripe_secret
+        try:
+            session_obj = stripe.checkout.Session.retrieve(checkout_session_id)
+        except Exception as exc:
+            self._record_event(
+                EventType.GENERIC_ERROR,
+                "Stripe session retrieval failed",
+                context={"user_id": str(user.id), "checkout_session_id": checkout_session_id, "error": str(exc)},
+            )
+            return "session_retrieve_failed"
+
+        metadata = session_obj.get("metadata") or {}
+        metadata_user_id = str(metadata.get("user_id") or "")
+        metadata_credits = int(metadata.get("credits", "0") or 0)
+        payment_status = session_obj.get("payment_status") or ""
+
+        if metadata_user_id != str(user.id):
+            self._record_event(
+                EventType.GENERIC_ERROR,
+                "Stripe session user mismatch",
+                context={
+                    "user_id": str(user.id),
+                    "metadata_user_id": metadata_user_id,
+                    "checkout_session_id": checkout_session_id,
+                },
+            )
+            return "user_mismatch"
+
+        if payment_status != "paid":
+            self._record_event(
+                EventType.GENERIC_ERROR,
+                "Stripe session not paid",
+                context={
+                    "user_id": str(user.id),
+                    "checkout_session_id": checkout_session_id,
+                    "payment_status": payment_status,
+                },
+            )
+            return "not_paid"
+
+        if metadata_credits <= 0:
+            self._record_event(
+                EventType.GENERIC_ERROR,
+                "Stripe session missing credits metadata",
+                context={
+                    "user_id": str(user.id),
+                    "checkout_session_id": checkout_session_id,
+                    "metadata": metadata,
+                },
+            )
+            return "missing_credits"
+
+        status = self._apply_payment_credits(
+            user_id=str(user.id),
+            provider="stripe",
+            provider_payment_id=session_obj.get("id", ""),
+            credits=metadata_credits,
+            amount=session_obj.get("amount_total") or 0,
+            currency=session_obj.get("currency") or "usd",
+            raw_payload=session_obj,
+        )
+        self._record_event(
+            EventType.GENERIC_EVENT if status in ("applied", "duplicate_payment") else EventType.GENERIC_ERROR,
+            "Stripe success return processed",
+            context={
+                "user_id": str(user.id),
+                "checkout_session_id": checkout_session_id,
+                "payment_status": payment_status,
+                "credits": metadata_credits,
+                "amount_minor": session_obj.get("amount_total") or 0,
+                "amount_major": (session_obj.get("amount_total") or 0) / 100.0,
+                "currency": session_obj.get("currency") or "usd",
+                "status": status,
+            },
+        )
+        return status
+
     def _setup_routes(self):
         @self.app.before_request
         def _auto_login_open_access():
@@ -888,6 +976,21 @@ class MyFlaskApp:
             if not user:
                 return redirect(url_for('logout'))
 
+            stripe_result = request.args.get("stripe")
+            stripe_session_id = request.args.get("session_id", "").strip()
+            if request.method == "GET" and stripe_result in ("success", "cancel"):
+                self._record_event(
+                    EventType.GENERIC_EVENT,
+                    "Stripe return to account page",
+                    context={
+                        "user_id": str(user.id),
+                        "stripe_result": stripe_result,
+                        "checkout_session_id": stripe_session_id or None,
+                    },
+                )
+                if stripe_result == "success" and stripe_session_id:
+                    self._finalize_stripe_checkout_session(user, stripe_session_id)
+
             new_api_key = session.pop("new_api_key", None)
             if request.method == 'POST':
                 action = request.form.get('action')
@@ -927,7 +1030,11 @@ class MyFlaskApp:
             price_per_credit = int(os.environ.get("PLANEXE_CREDIT_PRICE_CENTS", "100"))
             amount = credits * price_per_credit
             currency = os.environ.get("PLANEXE_STRIPE_CURRENCY", "usd")
-            success_url = f"{self.public_base_url}/account?stripe=success" if self.public_base_url else url_for("account", _external=True)
+            success_url = (
+                f"{self.public_base_url}/account?stripe=success&session_id={{CHECKOUT_SESSION_ID}}"
+                if self.public_base_url
+                else url_for("account", _external=True)
+            )
             cancel_url = f"{self.public_base_url}/account?stripe=cancel" if self.public_base_url else url_for("account", _external=True)
             self._record_event(
                 EventType.GENERIC_EVENT,
