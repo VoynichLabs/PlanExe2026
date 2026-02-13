@@ -6,7 +6,7 @@ Extracts input_tokens, output_tokens, and thinking_tokens when available.
 """
 import logging
 from typing import Optional, Any, Dict
-from llama_index.core.llms.llm import ChatResponse
+from llama_index.core.llms import ChatResponse
 
 logger = logging.getLogger(__name__)
 
