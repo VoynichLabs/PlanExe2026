@@ -39,6 +39,7 @@ class TrackActivity(BaseEventHandler):
             raise ValueError(f"write_to_logger must be a bool, got: {write_to_logger!r}")
         self.jsonl_file_path = jsonl_file_path
         self.write_to_logger = write_to_logger
+        self._llm_start_time_by_key: dict[str, datetime] = {}
     
     def _filter_sensitive_data(self, data: Any) -> Any:
         """Recursively filter out sensitive fields from event data."""
@@ -250,7 +251,7 @@ class TrackActivity(BaseEventHandler):
         except Exception:
             logger.debug("Failed to write activity overview file: %s", overview_path, exc_info=True)
 
-    def _record_token_metrics_row(self, event_data: dict) -> None:
+    def _record_token_metrics_row(self, event_data: dict, duration_seconds: Optional[float] = None) -> None:
         """Persist per-event token metrics directly from instrumentation payloads."""
         try:
             from worker_plan_internal.llm_util.token_instrumentation import get_current_task_id, get_current_user_id
@@ -290,6 +291,7 @@ class TrackActivity(BaseEventHandler):
                 output_tokens=token_usage.get("output_tokens"),
                 thinking_tokens=token_usage.get("thinking_tokens"),
                 cost_usd=cost_usd if cost_usd != 0.0 else None,
+                duration_seconds=duration_seconds,
                 success=True,
                 raw_usage_data=token_usage.get("raw_usage_data"),
             )
@@ -308,6 +310,35 @@ class TrackActivity(BaseEventHandler):
         provider, model = model_name.split(":", 1)
         return provider or None, model or None
 
+    @staticmethod
+    def _parse_event_timestamp(event_data: dict) -> Optional[datetime]:
+        if not isinstance(event_data, dict):
+            return None
+        ts = event_data.get("timestamp")
+        if not isinstance(ts, str) or not ts:
+            return None
+        try:
+            return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+        except Exception:
+            return None
+
+    @staticmethod
+    def _event_match_key(event_data: dict) -> Optional[str]:
+        if not isinstance(event_data, dict):
+            return None
+        span_id = event_data.get("span_id")
+        if isinstance(span_id, str) and span_id:
+            return f"span:{span_id}"
+        event_id = event_data.get("id_")
+        if isinstance(event_id, str) and event_id:
+            return f"id:{event_id}"
+        tags = event_data.get("tags")
+        if isinstance(tags, dict):
+            llm_exec_id = tags.get("llm_executor_uuid")
+            if isinstance(llm_exec_id, str) and llm_exec_id:
+                return f"llm_executor_uuid:{llm_exec_id}"
+        return None
+
     def handle(self, event: Any) -> None:
         if isinstance(event, (LLMChatStartEvent, LLMChatEndEvent, LLMCompletionStartEvent, LLMCompletionEndEvent, LLMStructuredPredictStartEvent, LLMStructuredPredictEndEvent)):
             # Create event record with timestamp and backtrace
@@ -322,11 +353,24 @@ class TrackActivity(BaseEventHandler):
             }
 
             if isinstance(event, (LLMChatEndEvent, LLMCompletionEndEvent, LLMStructuredPredictEndEvent)):
+                duration_seconds: Optional[float] = None
+                match_key = self._event_match_key(filtered_event_data)
+                if match_key:
+                    start_ts = self._llm_start_time_by_key.pop(match_key, None)
+                    end_ts = self._parse_event_timestamp(filtered_event_data)
+                    if start_ts and end_ts:
+                        duration_seconds = max(0.0, (end_ts - start_ts).total_seconds())
+
                 token_usage = self._extract_token_usage(filtered_event_data)
                 if token_usage is not None:
                     event_record["token_usage"] = token_usage
                 self._update_activity_overview(filtered_event_data)
-                self._record_token_metrics_row(filtered_event_data)
+                self._record_token_metrics_row(filtered_event_data, duration_seconds=duration_seconds)
+            elif isinstance(event, (LLMChatStartEvent, LLMCompletionStartEvent, LLMStructuredPredictStartEvent)):
+                match_key = self._event_match_key(filtered_event_data)
+                start_ts = self._parse_event_timestamp(filtered_event_data)
+                if match_key and start_ts:
+                    self._llm_start_time_by_key[match_key] = start_ts
             
             # Append to JSONL file
             with open(self.jsonl_file_path, 'a', encoding='utf-8') as f:
