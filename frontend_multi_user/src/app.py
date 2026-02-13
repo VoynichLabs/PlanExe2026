@@ -1006,11 +1006,34 @@ class MyFlaskApp:
                 return redirect(url_for('account'))
 
             active_key = UserApiKey.query.filter_by(user_id=user.id, revoked_at=None).first()
+            payment_rows = (
+                PaymentRecord.query
+                .filter_by(user_id=user.id)
+                .order_by(PaymentRecord.created_at.desc())
+                .limit(20)
+                .all()
+            )
+            recent_payments: list[dict[str, Any]] = []
+            for row in payment_rows:
+                created_at = row.created_at
+                if created_at and created_at.tzinfo is None:
+                    created_at = created_at.replace(tzinfo=UTC)
+                amount_minor = int(row.amount or 0)
+                recent_payments.append({
+                    "created_at": created_at.strftime("%Y-%m-%d %H:%M:%S UTC") if created_at else "—",
+                    "provider": (row.provider or "").upper(),
+                    "status": row.status or "unknown",
+                    "credits": int(row.credits or 0),
+                    "amount_major": amount_minor / 100.0,
+                    "currency": (row.currency or "usd").upper(),
+                    "payment_id": row.provider_payment_id or "",
+                })
             return render_template(
                 'account.html',
                 user=user,
                 active_key=active_key,
                 new_api_key=new_api_key,
+                recent_payments=recent_payments,
                 stripe_enabled=bool(os.environ.get("PLANEXE_STRIPE_SECRET_KEY")),
                 telegram_enabled=bool(os.environ.get("PLANEXE_TELEGRAM_BOT_TOKEN")),
             )
