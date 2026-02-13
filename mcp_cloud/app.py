@@ -247,6 +247,7 @@ def _create_task_sync(
     with app.app_context():
         parameters = dict(config or {})
         parameters["speed_vs_detail"] = resolve_speed_vs_detail(parameters)
+        parameters["trigger_source"] = "mcp task_create"
 
         task = TaskItem(
             prompt=prompt,
