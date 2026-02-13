@@ -12,6 +12,7 @@ import time
 import json
 import uuid
 import io
+import zipfile
 import secrets
 import hashlib
 from urllib.parse import quote_plus, urlparse
@@ -1398,7 +1399,7 @@ class MyFlaskApp:
 
             rows, summary = self._build_reconciliation_report(max_tasks=max_tasks, tolerance_usd=tolerance_usd)
             has_alert = summary["mismatch_count"] > 0
-            return render_template(
+            return self.admin.index_view.render(
                 "admin/reconciliation.html",
                 rows=rows,
                 summary=summary,
