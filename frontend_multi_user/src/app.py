@@ -909,7 +909,11 @@ class MyFlaskApp:
             rows.append(
                 {
                     "task_id": task_id,
-                    "timestamp_created": task.timestamp_created,
+                    "timestamp_created": (
+                        task.timestamp_created.strftime("%Y-%m-%d %H:%M:%S")
+                        if task.timestamp_created
+                        else None
+                    ),
                     "state": task.state.name if isinstance(task.state, TaskState) else str(task.state),
                     "billed_usage_cost_usd": billed_usage_cost_usd,
                     "tracked_usage_cost_usd": tracked_usage_cost_usd,
