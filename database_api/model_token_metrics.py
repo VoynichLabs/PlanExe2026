@@ -28,6 +28,8 @@ class TokenMetrics(db.Model):
 
     # Optional TaskItem.id associated with this LLM invocation.
     task_id = db.Column(String(255), nullable=True, index=True)
+    # UserAccount.id associated with the task for billing and support investigations.
+    user_id = db.Column(String(255), nullable=True, index=True)
 
     # Provider/model route selected upstream (for gateway providers like OpenRouter).
     upstream_provider = db.Column(String(255), nullable=True, index=True)
@@ -73,6 +75,7 @@ class TokenMetrics(db.Model):
             'id': self.id,
             'timestamp': self.timestamp.isoformat() if self.timestamp else None,
             'task_id': self.task_id,
+            'user_id': self.user_id,
             'llm_model': self.llm_model,
             'upstream_provider': self.upstream_provider,
             'upstream_model': self.upstream_model,

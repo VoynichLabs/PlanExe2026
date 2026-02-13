@@ -253,13 +253,14 @@ class TrackActivity(BaseEventHandler):
     def _record_token_metrics_row(self, event_data: dict) -> None:
         """Persist per-event token metrics directly from instrumentation payloads."""
         try:
-            from worker_plan_internal.llm_util.token_instrumentation import get_current_task_id
+            from worker_plan_internal.llm_util.token_instrumentation import get_current_task_id, get_current_user_id
             from worker_plan_internal.llm_util.token_metrics_store import get_token_metrics_store
         except Exception as exc:
             logger.debug("Token metrics store unavailable in TrackActivity: %s", exc)
             return
 
         task_id = get_current_task_id()
+        user_id = get_current_user_id()
         if not task_id:
             return
 
@@ -267,19 +268,22 @@ class TrackActivity(BaseEventHandler):
         cost_usd = self._extract_cost(event_data)
         model_name = self._extract_model_name(event_data)
         upstream_provider, upstream_model = self._split_provider_and_model(model_name)
+        if model_name.strip().lower() == "unknown":
+            model_name = ""
 
         has_usage = any(
             token_usage.get(key) is not None
             for key in ("input_tokens", "output_tokens", "thinking_tokens", "total_tokens")
         )
-        if not has_usage and cost_usd == 0.0 and not upstream_provider and not upstream_model:
+        if not has_usage and cost_usd == 0.0:
             return
 
         try:
             store = get_token_metrics_store()
             store.record_token_usage(
                 task_id=str(task_id),
-                llm_model=model_name or "unknown",
+                user_id=str(user_id) if user_id else None,
+                llm_model=model_name or (upstream_model or "unknown"),
                 upstream_provider=upstream_provider,
                 upstream_model=upstream_model,
                 input_tokens=token_usage.get("input_tokens"),
@@ -295,6 +299,9 @@ class TrackActivity(BaseEventHandler):
     @staticmethod
     def _split_provider_and_model(model_name: str) -> tuple[Optional[str], Optional[str]]:
         if not model_name:
+            return None, None
+        normalized = model_name.strip().lower()
+        if normalized in {"unknown", "none", "null"}:
             return None, None
         if ":" not in model_name:
             return None, model_name

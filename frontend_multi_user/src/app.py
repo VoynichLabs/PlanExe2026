@@ -296,6 +296,8 @@ class MyFlaskApp:
                     conn.execute(text("ALTER TABLE token_metrics DROP COLUMN IF EXISTS task_name"))
                 if "task_id" not in columns:
                     conn.execute(text("ALTER TABLE token_metrics ADD COLUMN IF NOT EXISTS task_id VARCHAR(255)"))
+                if "user_id" not in columns:
+                    conn.execute(text("ALTER TABLE token_metrics ADD COLUMN IF NOT EXISTS user_id VARCHAR(255)"))
                 if "upstream_provider" not in columns:
                     conn.execute(text("ALTER TABLE token_metrics ADD COLUMN IF NOT EXISTS upstream_provider VARCHAR(255)"))
                 if "upstream_model" not in columns:

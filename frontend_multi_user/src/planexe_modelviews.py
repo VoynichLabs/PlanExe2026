@@ -85,6 +85,7 @@ class TokenMetricsView(AdminOnlyModelView):
         'id',
         'timestamp',
         'task_id',
+        'user_id',
         'llm_model',
         'upstream_provider',
         'upstream_model',
@@ -98,5 +99,5 @@ class TokenMetricsView(AdminOnlyModelView):
         'error_message',
     ]
     column_default_sort = ('timestamp', True)
-    column_searchable_list = ['task_id', 'llm_model', 'upstream_provider', 'upstream_model']
-    column_filters = ['timestamp', 'llm_model', 'upstream_provider', 'upstream_model', 'success']
+    column_searchable_list = ['task_id', 'user_id', 'llm_model', 'upstream_provider', 'upstream_model']
+    column_filters = ['timestamp', 'user_id', 'llm_model', 'upstream_provider', 'upstream_model', 'success']

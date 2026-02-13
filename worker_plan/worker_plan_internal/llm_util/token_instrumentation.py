@@ -16,9 +16,12 @@ __all__ = [
     "record_llm_tokens",
     "get_current_task_id",
     "set_current_task_id",
+    "get_current_user_id",
+    "set_current_user_id",
 ]
 
 _current_task_id: Optional[str] = None
+_current_user_id: Optional[str] = None
 
 def set_current_task_id(task_id: Optional[str]) -> None:
     """Set the current TaskItem.id for token tracking."""
@@ -30,6 +33,18 @@ def set_current_task_id(task_id: Optional[str]) -> None:
 def get_current_task_id() -> Optional[str]:
     """Get the current TaskItem.id for token tracking."""
     return _current_task_id
+
+
+def set_current_user_id(user_id: Optional[str]) -> None:
+    """Set the current UserAccount.id for token tracking."""
+    global _current_user_id
+    _current_user_id = user_id
+    logger.debug(f"Set current user_id for token tracking: {user_id}")
+
+
+def get_current_user_id() -> Optional[str]:
+    """Get the current UserAccount.id for token tracking."""
+    return _current_user_id
 
 
 def record_llm_tokens(
@@ -77,6 +92,7 @@ def record_llm_tokens(
                     success = token_count.total_tokens > 0 or result is not None
                     store.record_token_usage(
                         task_id=resolved_task_id,
+                        user_id=get_current_user_id(),
                         llm_model=llm_model,
                         upstream_provider=token_count.upstream_provider,
                         upstream_model=token_count.upstream_model,
@@ -127,6 +143,7 @@ def record_attempt_tokens(
     task_id = get_current_task_id()
     if task_id is None:
         return
+    user_id = get_current_user_id()
 
     try:
         store = get_token_metrics_store()
@@ -148,6 +165,7 @@ def record_attempt_tokens(
 
         store.record_token_usage(
             task_id=task_id,
+            user_id=user_id,
             llm_model=llm_model,
             upstream_provider=token_count.upstream_provider if token_count else None,
             upstream_model=token_count.upstream_model if token_count else None,

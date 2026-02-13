@@ -127,7 +127,7 @@ try:
     from worker_plan_internal.plan.filenames import FilenameEnum
     from worker_plan_api.planexe_dotenv import PlanExeDotEnv
     from worker_plan_internal.llm_util.llm_executor import LLMModelFromName, PipelineStopRequested
-    from worker_plan_internal.llm_util.token_instrumentation import set_current_task_id
+    from worker_plan_internal.llm_util.token_instrumentation import set_current_task_id, set_current_user_id
     from worker_plan_internal.llm_util.track_activity import TrackActivity
     from worker_plan_internal.plan.filenames import ExtraFilenameEnum
     from worker_plan_internal.plan.ping_llm import run_ping_llm_report
@@ -204,6 +204,8 @@ def ensure_token_metrics_columns() -> None:
             conn.execute(text("ALTER TABLE token_metrics DROP COLUMN IF EXISTS task_name"))
         if "task_id" not in columns:
             conn.execute(text("ALTER TABLE token_metrics ADD COLUMN IF NOT EXISTS task_id VARCHAR(255)"))
+        if "user_id" not in columns:
+            conn.execute(text("ALTER TABLE token_metrics ADD COLUMN IF NOT EXISTS user_id VARCHAR(255)"))
         if "upstream_provider" not in columns:
             conn.execute(text("ALTER TABLE token_metrics ADD COLUMN IF NOT EXISTS upstream_provider VARCHAR(255)"))
         if "upstream_model" not in columns:
@@ -528,6 +530,7 @@ def execute_pipeline_for_job(task_id: str, user_id: str, run_id_dir: Path, speed
     # instrumentation (for example token metrics) can access db.session safely.
     with app.app_context():
         set_current_task_id(task_id)
+        set_current_user_id(user_id)
         previous_track_activity_path = track_activity.jsonl_file_path
         try:
             # Always keep activity tracking in the task run directory, including PING_LLM mode.
@@ -546,6 +549,7 @@ def execute_pipeline_for_job(task_id: str, user_id: str, run_id_dir: Path, speed
                 pipeline_instance.run()
         finally:
             track_activity.jsonl_file_path = previous_track_activity_path
+            set_current_user_id(None)
             set_current_task_id(None)
 
     end_time = time.time()
