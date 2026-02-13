@@ -5,6 +5,8 @@ when found. It then executes the pipeline for each task.
 PROMPT> PLANEXE_WORKER_ID=1 python -m app.py
 """
 from datetime import UTC, datetime
+import json
+import math
 import os
 import shutil
 import sys
@@ -133,6 +135,8 @@ try:
     from database_api.model_taskitem import TaskItem, TaskState
     from database_api.model_event import EventType, EventItem
     from database_api.model_worker import WorkerItem
+    from database_api.model_user_account import UserAccount
+    from database_api.model_credit_history import CreditHistory
     from worker_plan_database.speedvsdetail import resolve_speedvsdetail
     from worker_plan_database.machai import MachAI
     from flask import Flask
@@ -346,6 +350,115 @@ def create_zip_bytes(run_dir: Path) -> bytes:
     buffer.seek(0)
     return buffer.read()
 
+
+def _read_inference_cost_usd_from_run_dir(run_id_dir: Path) -> float:
+    """Extract total inference cost from activity_overview.json for a run."""
+    activity_overview_path = run_id_dir / ExtraFilenameEnum.ACTIVITY_OVERVIEW_JSON.value
+    if not activity_overview_path.exists():
+        return 0.0
+    try:
+        payload = json.loads(activity_overview_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        logger.warning("Unable to parse %s: %s", activity_overview_path, exc)
+        return 0.0
+    if not isinstance(payload, dict):
+        return 0.0
+    try:
+        return max(0.0, float(payload.get("total_cost", 0.0) or 0.0))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _credits_for_usd(usd_amount: float) -> int:
+    """Convert USD amount to integer credits using PLANEXE_CREDIT_PRICE_CENTS."""
+    if usd_amount <= 0:
+        return 0
+    credit_price_cents = max(1, int(os.environ.get("PLANEXE_CREDIT_PRICE_CENTS", "100")))
+    total_cents = int(math.ceil(usd_amount * 100.0))
+    return int(math.ceil(total_cents / credit_price_cents))
+
+
+def _charge_usage_credits_once(task_id: str, run_id_dir: Path, success: bool) -> dict[str, float | int | bool]:
+    """
+    Charge user credits once per task, based on inference cost plus success fee.
+
+    Returns diagnostic values for logging and events.
+    """
+    usage_cost_usd = _read_inference_cost_usd_from_run_dir(run_id_dir)
+    success_fee_usd = 0.0
+    should_charge = True
+
+    with app.app_context():
+        task = db.session.get(TaskItem, task_id)
+        if task is None:
+            logger.warning("Unable to bill task %s: task row not found.", task_id)
+            return {
+                "usage_cost_usd": usage_cost_usd,
+                "success_fee_usd": success_fee_usd,
+                "total_charge_usd": usage_cost_usd,
+                "charged_credits": 0,
+                "charged": False,
+            }
+
+        if isinstance(task.parameters, dict) and bool(task.parameters.get("billing_skip_usage_charge")):
+            should_charge = False
+
+        user = None
+        try:
+            user_uuid = uuid.UUID(str(task.user_id))
+            user = db.session.get(UserAccount, user_uuid)
+        except Exception:
+            user = None
+
+        if user is None:
+            should_charge = False
+
+        if success and should_charge:
+            success_fee_usd = float(os.environ.get("PLANEXE_SUCCESS_PLAN_FEE_USD", "1.0"))
+
+        total_charge_usd = usage_cost_usd + success_fee_usd
+        charged_credits = _credits_for_usd(total_charge_usd) if should_charge else 0
+
+        existing = CreditHistory.query.filter_by(
+            source="usage_billing",
+            external_id=str(task_id),
+        ).first()
+        if existing is not None:
+            return {
+                "usage_cost_usd": usage_cost_usd,
+                "success_fee_usd": success_fee_usd,
+                "total_charge_usd": total_charge_usd,
+                "charged_credits": 0,
+                "charged": False,
+            }
+
+        if user is not None and charged_credits > 0:
+            user.credits_balance = (user.credits_balance or 0) - charged_credits
+            ledger = CreditHistory(
+                user_id=user.id,
+                delta=-charged_credits,
+                reason="plan_created_with_usage_cost" if success else "plan_failed_usage_cost",
+                source="usage_billing",
+                external_id=str(task_id),
+            )
+            db.session.add(ledger)
+            db.session.commit()
+            return {
+                "usage_cost_usd": usage_cost_usd,
+                "success_fee_usd": success_fee_usd,
+                "total_charge_usd": total_charge_usd,
+                "charged_credits": charged_credits,
+                "charged": True,
+            }
+
+        return {
+            "usage_cost_usd": usage_cost_usd,
+            "success_fee_usd": success_fee_usd,
+            "total_charge_usd": total_charge_usd,
+            "charged_credits": 0,
+            "charged": False,
+        }
+
 def upload_report_to_worker_plan(run_id: str, report_path: Path) -> None:
     """
     Best-effort upload of the generated report to the worker_plan service so the frontend can fetch it
@@ -475,6 +588,14 @@ def execute_pipeline_for_job(task_id: str, user_id: str, run_id_dir: Path, speed
     with app.app_context():
         if pipeline_instance.has_report_file:
             update_task_state_with_retry(task_id, TaskState.completed)
+            billing_result = _charge_usage_credits_once(task_id=task_id, run_id_dir=run_id_dir, success=True)
+            event_context.update({
+                "billing_usage_cost_usd": str(billing_result["usage_cost_usd"]),
+                "billing_success_fee_usd": str(billing_result["success_fee_usd"]),
+                "billing_total_charge_usd": str(billing_result["total_charge_usd"]),
+                "billing_charged_credits": str(billing_result["charged_credits"]),
+                "billing_charge_applied": str(billing_result["charged"]),
+            })
             event = EventItem(
                 event_type=EventType.TASK_COMPLETED,
                 message=f"Processing -> Completed",
@@ -484,7 +605,15 @@ def execute_pipeline_for_job(task_id: str, user_id: str, run_id_dir: Path, speed
             db.session.commit()
         else:
             update_task_state_with_retry(task_id, TaskState.failed)
+            billing_result = _charge_usage_credits_once(task_id=task_id, run_id_dir=run_id_dir, success=False)
             event_context["machai_error_message"] = machai_error_message
+            event_context.update({
+                "billing_usage_cost_usd": str(billing_result["usage_cost_usd"]),
+                "billing_success_fee_usd": str(billing_result["success_fee_usd"]),
+                "billing_total_charge_usd": str(billing_result["total_charge_usd"]),
+                "billing_charged_credits": str(billing_result["charged_credits"]),
+                "billing_charge_applied": str(billing_result["charged"]),
+            })
             event = EventItem(
                 event_type=EventType.TASK_FAILED,
                 message=f"Processing -> Failed",
@@ -625,6 +754,7 @@ def process_pending_tasks() -> bool:
         # Update task state to failed
         with app.app_context():
             update_task_state_with_retry(task_id, TaskState.failed)
+        billing_result = _charge_usage_credits_once(task_id=task_id, run_id_dir=run_id_dir, success=False)
         machai_error_message = 'Unknown error happened while processing.'
         machai_instance: MachAI = MachAI.create(use_machai_developer_endpoint=use_machai_developer_endpoint)
         machai_instance.post_confirmation_error(session_id=user_id, message=machai_error_message)
@@ -636,7 +766,12 @@ def process_pending_tasks() -> bool:
                 "speedvsdetail": str(speedvsdetail), 
                 "duration_between_pending_and_processing": str(duration_between_pending_and_processing),
                 "WORKER_ID": str(WORKER_ID),
-                "machai_error_message": str(machai_error_message)
+                "machai_error_message": str(machai_error_message),
+                "billing_usage_cost_usd": str(billing_result["usage_cost_usd"]),
+                "billing_success_fee_usd": str(billing_result["success_fee_usd"]),
+                "billing_total_charge_usd": str(billing_result["total_charge_usd"]),
+                "billing_charged_credits": str(billing_result["charged_credits"]),
+                "billing_charge_applied": str(billing_result["charged"]),
             }
             event = EventItem(
                 event_type=EventType.TASK_FAILED,

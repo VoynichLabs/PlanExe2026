@@ -49,7 +49,6 @@ from database_api.model_taskitem import TaskItem, TaskState
 from database_api.model_event import EventItem, EventType
 from database_api.model_user_account import UserAccount
 from database_api.model_user_api_key import UserApiKey
-from database_api.model_credit_history import CreditHistory
 from flask import Flask, has_app_context
 from mcp_cloud.tool_models import (
     PromptExamplesInput,
@@ -233,27 +232,6 @@ def _resolve_user_from_api_key(raw_key: str) -> Optional[UserAccount]:
             api_key.last_used_at = datetime.now(UTC)
             db.session.commit()
         return user
-
-def _charge_user_credit(user: UserAccount, amount: int, reason: str, source: str) -> bool:
-    if amount <= 0:
-        return True
-    with app.app_context():
-        user = db.session.get(UserAccount, user.id)
-        if not user:
-            return False
-        current_balance = user.credits_balance or 0
-        if current_balance < amount:
-            return False
-        user.credits_balance = current_balance - amount
-        ledger = CreditHistory(
-            user_id=user.id,
-            delta=-amount,
-            reason=reason,
-            source=source,
-        )
-        db.session.add(ledger)
-        db.session.commit()
-        return True
 
 def _create_task_sync(
     prompt: str,
@@ -861,8 +839,6 @@ async def handle_task_create(arguments: dict[str, Any]) -> CallToolResult:
 
     merged_config = _merge_task_create_config(None, req.speed_vs_detail)
     require_user_key = os.environ.get("PLANEXE_MCP_REQUIRE_USER_KEY", "false").lower() in ("1", "true", "yes", "on")
-    credits_per_plan = int(os.environ.get("PLANEXE_CREDITS_PER_PLAN", "1"))
-
     user = None
     if req.user_api_key:
         user = _resolve_user_from_api_key(req.user_api_key.strip())
@@ -881,8 +857,7 @@ async def handle_task_create(arguments: dict[str, Any]) -> CallToolResult:
             isError=True,
         )
 
-    if user:
-        if not _charge_user_credit(user, credits_per_plan, reason="plan_created", source="mcp"):
+    if user and (user.credits_balance or 0) <= 0:
             response = {"error": {"code": "INSUFFICIENT_CREDITS", "message": "Not enough credits."}}
             return CallToolResult(
                 content=[TextContent(type="text", text=json.dumps(response))],

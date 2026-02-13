@@ -1144,10 +1144,12 @@ class MyFlaskApp:
                     if not user.free_plan_used:
                         user.free_plan_used = True
                         self.db.session.commit()
+                        if not isinstance(parameters, dict):
+                            parameters = {}
+                        parameters["billing_skip_usage_charge"] = True
                     else:
                         if (user.credits_balance or 0) <= 0:
                             return jsonify({"error": "No credits available"}), 402
-                        self._apply_credit_delta(user, -1, reason="plan_created", source="web")
 
                 task = TaskItem(
                     state=TaskState.pending,

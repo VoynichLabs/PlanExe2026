@@ -1,0 +1,143 @@
+---
+title: Business model (developer)
+---
+
+# Business model (developer)
+
+This document describes how PlanExe monetization works in hosted mode, how charging is computed, and how self-hosted mode remains unaffected.
+
+---
+
+## Product surfaces
+
+PlanExe currently has two hosted surfaces:
+
+- `home.planexe.org`: authentication and credit purchase (Stripe/Telegram).
+- `mcp.planexe.org`: MCP API for creating plans.
+
+Users buy credits on `home.planexe.org`, then spend credits when plans run through hosted services.
+
+---
+
+## Charging model
+
+Charging is based on **actual token inference cost** plus an optional fixed success fee.
+
+### Definitions
+
+- `inference_cost_usd`: total run inference cost from `activity_overview.json.total_cost`.
+- `success_fee_usd`: fixed fee for successful plans. Default is `1.0` USD.
+
+### Formula
+
+- If plan succeeds: `charge_usd = inference_cost_usd + success_fee_usd`
+- If plan fails: `charge_usd = inference_cost_usd`
+
+This means failed plans still pay for consumed tokens, but do not pay the success fee.
+
+---
+
+## Why this model
+
+- Fair across model choices: expensive models consume more and cost more.
+- Fair on failures: real inference usage is billed even if no report is produced.
+- Predictable business unit on successful plans: fixed success fee per completed output.
+
+---
+
+## Credit conversion
+
+Internal billing deducts integer credits from `UserAccount.credits_balance`.
+
+- `PLANEXE_CREDIT_PRICE_CENTS` defines the value of one credit.
+- USD charge is converted to credits by ceiling to cents and then ceiling to credits.
+
+Example with `PLANEXE_CREDIT_PRICE_CENTS=100`:
+
+- `$1.00` -> `1` credit
+- `$1.31` -> `2` credits
+- `$0.31` -> `1` credit
+
+For finer granularity, set `PLANEXE_CREDIT_PRICE_CENTS=1` (1 credit = $0.01).
+
+---
+
+## Billing timing
+
+Billing is applied at **task completion time** in `worker_plan_database`, not at task creation time.
+
+This ensures we can bill based on final observed inference usage and success/failure outcome.
+
+---
+
+## Data source for inference cost
+
+The worker reads per-run:
+
+- `activity_overview.json`
+- field: `total_cost`
+
+`total_cost` is produced by the token/cost tracking pipeline and reflects aggregated provider-side inference cost.
+
+---
+
+## Hosted flow (high level)
+
+1. User buys credits via Stripe/Telegram.
+2. User starts a plan from web UI or MCP.
+3. Worker runs pipeline and records token/cost activity.
+4. On completion/failure, worker computes charge using formulas above.
+5. Credits are deducted and appended to `CreditHistory` ledger.
+
+Ledger entries use usage-billing metadata for auditability and idempotency.
+
+---
+
+## Self-hosted behavior (must remain unchanged)
+
+PlanExe is open source and can be run via Docker Compose or local environments.
+
+In self-hosted deployments:
+
+- Users manage their own model/provider costs directly (OpenRouter, OpenAI-compatible providers, Ollama, etc.).
+- PlanExe hosted credit billing is not required.
+- If users run local Ollama models, their inference can be effectively free (excluding hardware/power).
+
+Implementation rule: hosted credit billing only applies when a run maps to a real `UserAccount` in the hosted database. Non-hosted run identities are not billed through hosted credits.
+
+---
+
+## Environment variables
+
+- `PLANEXE_SUCCESS_PLAN_FEE_USD` (default `1.0`): fixed fee added only on successful plans.
+- `PLANEXE_CREDIT_PRICE_CENTS` (default `100`): cents per credit.
+
+Related payment-side variables are documented in [Stripe](stripe.md).
+
+---
+
+## Free plan behavior
+
+Hosted web UI supports one free plan per user account.
+
+- First plan can be flagged to skip usage billing.
+- Subsequent plans are usage-billed according to formulas above.
+
+This is implemented as an explicit task parameter so billing logic remains deterministic and auditable.
+
+---
+
+## Operational notes
+
+- Billing is idempotent per task: usage charge is applied once.
+- Billing records should be traceable to task id and run output.
+- If pricing policy changes, update this document and relevant env defaults together.
+
+---
+
+## Related docs
+
+- [User accounts and billing (database)](user_accounts_and_billing.md)
+- [Stripe (credits and local testing)](stripe.md)
+- [Costs and models](costs_and_models.md)
+- [Token counting implementation](TOKEN_COUNTING_IMPLEMENTATION.md)

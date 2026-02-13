@@ -25,6 +25,7 @@ Use the short decision guide: [Start here](start_here.md)
 - [Prompt writing guide](prompt_writing_guide.md)
 - [Plan output anatomy](plan_output_anatomy.md)
 - [Costs and models](costs_and_models.md)
+- [Business model (developer)](business_model.md)
 
 ---
 
