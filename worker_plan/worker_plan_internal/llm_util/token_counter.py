@@ -12,6 +12,19 @@ logger = logging.getLogger(__name__)
 
 __all__ = ["TokenCount", "extract_token_count"]
 
+_USAGE_FIELD_NAMES = {
+    "prompt_tokens",
+    "input_tokens",
+    "completion_tokens",
+    "output_tokens",
+    "reasoning_tokens",
+    "thinking_tokens",
+    "cache_creation_input_tokens",
+    "total_tokens",
+    "cost",
+    "cost_details",
+}
+
 
 class TokenCount:
     """Container for token count information from an LLM response."""
@@ -204,5 +217,13 @@ def _extract_from_dict(response: dict) -> TokenCount:
         input_tokens=input_tokens,
         output_tokens=output_tokens,
         thinking_tokens=thinking_tokens,
-        raw_usage_data=response.copy() if input_tokens or output_tokens or thinking_tokens else {},
+        # Keep raw_usage_data usage-focused even when token fields are top-level.
+        raw_usage_data=_extract_usage_like_fields(response) if input_tokens or output_tokens or thinking_tokens else {},
     )
+
+
+def _extract_usage_like_fields(response: dict) -> dict:
+    """Extract only usage-like keys from a top-level response dict."""
+    if not isinstance(response, dict):
+        return {}
+    return {key: value for key, value in response.items() if key in _USAGE_FIELD_NAMES}
