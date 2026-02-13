@@ -438,7 +438,10 @@ def _charge_usage_credits_once(task_id: str, run_id_dir: Path, success: bool) ->
         if user is None:
             should_charge = False
 
-        if success and should_charge:
+        speed_mode = resolve_speedvsdetail(task.parameters if isinstance(task.parameters, dict) else None)
+        is_ping_task = speed_mode == SpeedVsDetailEnum.PING_LLM
+
+        if success and should_charge and not is_ping_task:
             success_fee_usd = float(os.environ.get("PLANEXE_SUCCESS_PLAN_FEE_USD", "1.0"))
 
         total_charge_usd = usage_cost_usd + success_fee_usd

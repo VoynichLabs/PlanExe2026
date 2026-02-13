@@ -32,6 +32,7 @@ Charging is based on **actual token inference cost** plus an optional fixed succ
 
 - If plan succeeds: `charge_usd = inference_cost_usd + success_fee_usd`
 - If plan fails: `charge_usd = inference_cost_usd`
+- Exception for `speed_vs_detail=ping_llm`: `charge_usd = inference_cost_usd` (no success fee)
 
 This means failed plans still pay for consumed tokens, but do not pay the success fee.
 
