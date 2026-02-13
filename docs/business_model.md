@@ -140,4 +140,4 @@ This is implemented as an explicit task parameter so billing logic remains deter
 - [User accounts and billing (database)](user_accounts_and_billing.md)
 - [Stripe (credits and local testing)](stripe.md)
 - [Costs and models](costs_and_models.md)
-- [Token counting implementation](TOKEN_COUNTING_IMPLEMENTATION.md)
+- [Token counting implementation](token_counting.md)

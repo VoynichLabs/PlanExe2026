@@ -1,0 +1,258 @@
+---
+title: Token counting implementation
+---
+
+# Token counting implementation
+
+This document describes the token counting feature that tracks LLM usage for each plan run. It includes architecture, API usage, migration behavior, and implementation status.
+
+---
+
+## Implementation summary
+
+Token counting and per-call metrics are implemented and integrated into plan execution.
+
+### Files added
+
+- `database_api/model_token_metrics.py`
+- `worker_plan/worker_plan_internal/llm_util/token_counter.py`
+- `worker_plan/worker_plan_internal/llm_util/token_metrics_store.py`
+- `worker_plan/worker_plan_internal/llm_util/token_instrumentation.py`
+- `docs/token_counting.md`
+
+### Files updated
+
+- `worker_plan/app.py`
+- `frontend_multi_user/src/app.py`
+- `worker_plan/worker_plan_internal/plan/run_plan_pipeline.py`
+
+### Features delivered
+
+- Automatic token tracking across LLM calls
+- Aggregated and detailed run-level metrics endpoints
+- Database-backed persistence with indexed queries
+- Graceful degradation when database access is unavailable
+- Provider-aware extraction for OpenAI-compatible, Anthropic, and LLamaIndex response shapes
+
+---
+
+## Overview
+
+The token counting system captures and stores metrics from LLM calls made during plan execution, including:
+
+- **Input tokens**: Tokens in prompt/query content
+- **Output tokens**: Tokens in model responses
+- **Thinking tokens**: Reasoning/internal tokens (when provided by provider)
+- **Call duration**: Time per invocation
+- **Success/failure**: Call outcome and optional error message
+
+---
+
+## Architecture
+
+### Components
+
+1. **Database model** (`database_api/model_token_metrics.py`)
+   - `TokenMetrics`: Stores per-call metrics
+   - `TokenMetricsSummary`: Aggregated run statistics
+
+2. **Token extraction** (`worker_plan/worker_plan_internal/llm_util/token_counter.py`)
+   - `TokenCount`: Container object for parsed counts
+   - `extract_token_count()`: Handles common response formats
+
+3. **Metrics storage** (`worker_plan/worker_plan_internal/llm_util/token_metrics_store.py`)
+   - `TokenMetricsStore`: Record, list, and summarize metrics
+   - Lazy database loading to reduce import coupling
+
+4. **Pipeline integration** (`worker_plan/worker_plan_internal/llm_util/token_instrumentation.py`)
+   - `set_current_run_id()`
+   - `record_llm_tokens()`
+   - `record_attempt_tokens()`
+
+5. **API endpoints** (`worker_plan/app.py`)
+   - `GET /runs/{run_id}/token-metrics`
+   - `GET /runs/{run_id}/token-metrics/detailed`
+
+---
+
+## Database schema
+
+### `token_metrics`
+
+```sql
+CREATE TABLE token_metrics (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    run_id VARCHAR(255) NOT NULL,
+    llm_model VARCHAR(255) NOT NULL,
+    task_name VARCHAR(255),
+    input_tokens INTEGER,
+    output_tokens INTEGER,
+    thinking_tokens INTEGER,
+    duration_seconds FLOAT,
+    success BOOLEAN NOT NULL DEFAULT FALSE,
+    error_message TEXT,
+    raw_usage_data JSON,
+    INDEX idx_run_id (run_id),
+    INDEX idx_llm_model (llm_model),
+    INDEX idx_task_name (task_name),
+    INDEX idx_timestamp (timestamp)
+);
+```
+
+---
+
+## Migration behavior
+
+For existing installations, the table is created automatically on Flask startup via `db.create_all()`. Manual migration is typically not required.
+
+If needed:
+
+```python
+from database_api.planexe_db_singleton import db
+from database_api.model_token_metrics import TokenMetrics
+
+db.create_all()
+```
+
+---
+
+## API usage
+
+### Aggregated metrics
+
+```bash
+curl http://localhost:8000/runs/PlanExe_20250210_120000/token-metrics
+```
+
+Example response:
+
+```json
+{
+  "run_id": "PlanExe_20250210_120000",
+  "total_input_tokens": 45231,
+  "total_output_tokens": 12450,
+  "total_thinking_tokens": 0,
+  "total_tokens": 57681,
+  "total_duration_seconds": 234.5,
+  "total_calls": 42,
+  "successful_calls": 41,
+  "failed_calls": 1,
+  "metrics": []
+}
+```
+
+### Detailed metrics
+
+```bash
+curl http://localhost:8000/runs/PlanExe_20250210_120000/token-metrics/detailed
+```
+
+Example response:
+
+```json
+{
+  "run_id": "PlanExe_20250210_120000",
+  "count": 42,
+  "metrics": [
+    {
+      "id": 1,
+      "timestamp": "2025-02-10T12:00:15.123456",
+      "llm_model": "gpt-4-turbo",
+      "task_name": "IdentifyPurpose",
+      "input_tokens": 1234,
+      "output_tokens": 567,
+      "thinking_tokens": 0,
+      "total_tokens": 1801,
+      "duration_seconds": 5.2,
+      "success": true,
+      "error_message": null
+    }
+  ]
+}
+```
+
+---
+
+## Provider support
+
+Supported targets include:
+
+- OpenAI-compatible providers (OpenAI, OpenRouter, Groq, custom endpoints)
+- Anthropic responses (including cache-related usage fields)
+- Ollama and LM Studio through compatible response structures
+- LLamaIndex `ChatResponse` wrappers
+
+The extractor accepts partial usage payloads and records `None` where fields are missing.
+
+---
+
+## Manual instrumentation
+
+```python
+from worker_plan_internal.llm_util.token_instrumentation import set_current_run_id
+from worker_plan_internal.llm_util.token_metrics_store import get_token_metrics_store
+
+set_current_run_id("PlanExe_20250210_120000")
+
+store = get_token_metrics_store()
+store.record_token_usage(
+    run_id="PlanExe_20250210_120000",
+    llm_model="gpt-4",
+    input_tokens=1000,
+    output_tokens=500,
+    duration_seconds=3.5,
+    task_name="MyTask",
+    success=True,
+)
+```
+
+---
+
+## Troubleshooting
+
+### Metrics not recorded
+
+1. Confirm `RUN_ID_DIR` is set.
+2. Confirm database connectivity.
+3. Check logs for token instrumentation warnings/errors.
+
+### Missing token values
+
+Common causes:
+
+1. Provider response does not include usage data.
+2. Response shape differs from expected parser inputs.
+3. Wrapper strips usage before returning response.
+
+Debug extraction directly:
+
+```python
+from worker_plan_internal.llm_util.token_counter import extract_token_count
+
+token_count = extract_token_count(your_response)
+print(token_count)
+```
+
+### Database lock errors
+
+- Avoid concurrent writers without proper pooling/transaction setup.
+- Review database configuration for multi-process deployment.
+
+---
+
+## Performance notes
+
+- Per-call overhead is designed to be low.
+- Metrics persistence uses indexed fields for common run and model queries.
+- Lazy-loading minimizes startup/import impact.
+
+---
+
+## Future enhancements
+
+1. Cost calculation from token usage and model pricing
+2. Budget guardrails and rate limiting
+3. Usage dashboards and trend analysis
+4. Provider/model optimization recommendations
+5. Extended cache-efficiency reporting
