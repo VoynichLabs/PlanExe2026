@@ -93,6 +93,30 @@ Available artifacts:
 "report" | "zip"
 ```
 
+Typical successful response:
+```json
+{
+  "content_type": "application/zip",
+  "sha256": "f8ad556b635b14e375222150664e85b426bf7f9209ede2f37f47a8975e286323",
+  "download_size": 17262032,
+  "download_url": "https://mcp.planexe.org/download/<task_id>/run.zip"
+}
+```
+
+### Download with `curl`
+
+When `task_file_info` returns a `download_url`, you can download directly with the same `X-API-Key` used for MCP authentication.
+
+Download zip:
+```bash
+curl -H "X-API-Key: pex_0123456789abcdef" -O "https://mcp.planexe.org/download/2d57a448-1b09-45aa-ad37-e69891ff6ec7/run.zip"
+```
+
+Download report:
+```bash
+curl -H "X-API-Key: pex_0123456789abcdef" -O "https://mcp.planexe.org/download/2d57a448-1b09-45aa-ad37-e69891ff6ec7/030-report.html"
+```
+
 ## Tool Catalog, `mcp_local`
 
 The local proxy exposes the same tools as the server, and adds:
