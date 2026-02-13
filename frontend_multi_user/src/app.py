@@ -32,7 +32,7 @@ import stripe
 from worker_plan_api.generate_run_id import generate_run_id
 from worker_plan_api.start_time import StartTime
 from worker_plan_api.plan_file import PlanFile
-from worker_plan_api.filenames import FilenameEnum
+from worker_plan_api.filenames import FilenameEnum, ExtraFilenameEnum
 from worker_plan_api.prompt_catalog import PromptCatalog
 from sqlalchemy import text, inspect
 from sqlalchemy.exc import OperationalError
@@ -817,6 +817,106 @@ class MyFlaskApp:
         )
         return status
 
+    @staticmethod
+    def _safe_float(value: Any) -> Optional[float]:
+        if value is None:
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    def _read_inference_cost_from_run_zip(self, run_zip_snapshot: Optional[bytes]) -> Optional[float]:
+        if not run_zip_snapshot:
+            return None
+        try:
+            with zipfile.ZipFile(io.BytesIO(run_zip_snapshot), "r") as archive:
+                activity_name = ExtraFilenameEnum.ACTIVITY_OVERVIEW_JSON.value
+                for member_name in archive.namelist():
+                    if member_name.endswith(activity_name):
+                        payload = json.loads(archive.read(member_name).decode("utf-8"))
+                        return self._safe_float(payload.get("total_cost", 0.0))
+        except Exception as exc:
+            logger.warning("Unable to parse run_zip_snapshot activity overview: %s", exc)
+        return None
+
+    def _build_reconciliation_report(self, max_tasks: int, tolerance_usd: float) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+        tasks = (
+            TaskItem.query
+            .order_by(TaskItem.timestamp_created.desc())
+            .limit(max_tasks)
+            .all()
+        )
+        task_ids = {str(task.id) for task in tasks}
+        billing_events_by_task_id: dict[str, EventItem] = {}
+        max_event_scan = max(1000, max_tasks * 20)
+        billing_events = (
+            EventItem.query
+            .filter(EventItem.event_type.in_([EventType.TASK_COMPLETED, EventType.TASK_FAILED]))
+            .order_by(EventItem.timestamp.desc())
+            .limit(max_event_scan)
+            .all()
+        )
+
+        for event in billing_events:
+            context = event.context if isinstance(event.context, dict) else {}
+            task_id = str(context.get("task_id") or "").strip()
+            if not task_id or task_id not in task_ids or task_id in billing_events_by_task_id:
+                continue
+            if context.get("billing_usage_cost_usd") is None:
+                continue
+            billing_events_by_task_id[task_id] = event
+            if len(billing_events_by_task_id) == len(task_ids):
+                break
+
+        rows: list[dict[str, Any]] = []
+        mismatch_count = 0
+        missing_count = 0
+
+        for task in tasks:
+            task_id = str(task.id)
+            tracked_usage_cost_usd = self._read_inference_cost_from_run_zip(task.run_zip_snapshot)
+
+            billing_event = billing_events_by_task_id.get(task_id)
+            context = billing_event.context if billing_event and isinstance(billing_event.context, dict) else {}
+            billed_usage_cost_usd = self._safe_float(context.get("billing_usage_cost_usd"))
+
+            delta_usd: Optional[float] = None
+            status = "ok"
+            if billed_usage_cost_usd is None or tracked_usage_cost_usd is None:
+                status = "missing_data"
+                missing_count += 1
+            else:
+                delta_usd = billed_usage_cost_usd - tracked_usage_cost_usd
+                if abs(delta_usd) > tolerance_usd:
+                    status = "mismatch"
+                    mismatch_count += 1
+
+            rows.append(
+                {
+                    "task_id": task_id,
+                    "timestamp_created": task.timestamp_created,
+                    "state": task.state.name if isinstance(task.state, TaskState) else str(task.state),
+                    "billed_usage_cost_usd": billed_usage_cost_usd,
+                    "tracked_usage_cost_usd": tracked_usage_cost_usd,
+                    "delta_usd": delta_usd,
+                    "status": status,
+                    "has_report": bool(task.generated_report_html),
+                    "has_run_zip": bool(task.run_zip_snapshot),
+                    "billing_event_timestamp": billing_event.timestamp if billing_event else None,
+                }
+            )
+
+        summary = {
+            "total_tasks_checked": len(rows),
+            "mismatch_count": mismatch_count,
+            "missing_count": missing_count,
+            "ok_count": len(rows) - mismatch_count - missing_count,
+            "tolerance_usd": tolerance_usd,
+            "scanned_billing_events": len(billing_events),
+        }
+        return rows, summary
+
     def _setup_routes(self):
         @self.app.before_request
         def _auto_login_open_access():
@@ -1295,6 +1395,28 @@ class MyFlaskApp:
         @login_required
         def ping():
             return render_template('ping.html')
+
+        @self.app.route('/admin/reconciliation')
+        @admin_required
+        def admin_reconciliation():
+            max_tasks = int(request.args.get("limit", "200") or "200")
+            max_tasks = max(1, min(max_tasks, 2000))
+            tolerance_usd = self._safe_float(request.args.get("tolerance_usd", "0.01")) or 0.01
+            tolerance_usd = max(0.0, tolerance_usd)
+            refresh_seconds = int(request.args.get("refresh_seconds", "60") or "60")
+            refresh_seconds = max(10, min(refresh_seconds, 3600))
+
+            rows, summary = self._build_reconciliation_report(max_tasks=max_tasks, tolerance_usd=tolerance_usd)
+            has_alert = summary["mismatch_count"] > 0
+            return render_template(
+                "admin/reconciliation.html",
+                rows=rows,
+                summary=summary,
+                has_alert=has_alert,
+                max_tasks=max_tasks,
+                tolerance_usd=tolerance_usd,
+                refresh_seconds=refresh_seconds,
+            )
 
         @self.app.route('/ping/stream')
         @login_required
