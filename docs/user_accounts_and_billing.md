@@ -18,7 +18,7 @@ Fields:
 - `locale`, `avatar_url`
 - `is_admin` (bool)
 - `free_plan_used` (bool)
-- `credits_balance` (int)
+- `credits_balance` (numeric, fractional credits supported)
 - `last_login_at`, `created_at`, `updated_at`
 
 ---
@@ -61,7 +61,7 @@ Append‑only ledger of credit changes.
 Fields:
 - `id` (UUID, primary key)
 - `user_id` (UUID, foreign key)
-- `delta` (int, positive or negative)
+- `delta` (numeric, positive or negative)
 - `reason` (string)
 - `source` (string, e.g. stripe/telegram/mcp/web)
 - `external_id` (string)
@@ -78,7 +78,7 @@ Fields:
 - `user_id` (UUID, foreign key)
 - `provider` (string, stripe/telegram)
 - `provider_payment_id` (string)
-- `credits` (int)
+- `credits` (numeric)
 - `amount` (int, minor units)
 - `currency` (string)
 - `status` (string)
@@ -103,8 +103,8 @@ Fields:
 
 ### Spend credits (create a plan)
 1. User submits a plan.
-2. App deducts 1 credit.
-3. A **CreditHistory** entry is created (delta = -1, reason = plan_created).
+2. App deducts fractional credits based on token usage and pricing.
+3. A **CreditHistory** entry is created with the exact delta.
 
 ### Close account (user wants money back)
 Typical approach:

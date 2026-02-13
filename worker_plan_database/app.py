@@ -5,8 +5,8 @@ when found. It then executes the pipeline for each task.
 PROMPT> PLANEXE_WORKER_ID=1 python -m app.py
 """
 from datetime import UTC, datetime
+from decimal import Decimal
 import json
-import math
 import os
 import shutil
 import sys
@@ -55,6 +55,7 @@ PLANEXE_CONFIG_PATH_VAR = BASE_DIR
 BROWSER_INACTIVE_AFTER_N_SECONDS = 80
 CONTINUE_GENERATING_PLAN_DESPITE_BROWSER_INACTIVE = True
 HEARTBEAT_INTERVAL_IN_SECONDS = 60
+CREDIT_SCALE = Decimal("0.000000001")
 
 # --- Configure Logging Section ---
 log_format_str = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -212,6 +213,33 @@ def ensure_token_metrics_columns() -> None:
             conn.execute(text("ALTER TABLE token_metrics ADD COLUMN IF NOT EXISTS upstream_model VARCHAR(255)"))
         if "cost_usd" not in columns:
             conn.execute(text("ALTER TABLE token_metrics ADD COLUMN IF NOT EXISTS cost_usd DOUBLE PRECISION"))
+
+
+def ensure_fractional_credit_columns() -> None:
+    if db.engine.dialect.name != "postgresql":
+        return
+    insp = inspect(db.engine)
+    table_names = set(insp.get_table_names())
+    with db.engine.begin() as conn:
+        if "user_account" in table_names:
+            conn.execute(text(
+                "ALTER TABLE user_account "
+                "ALTER COLUMN credits_balance TYPE NUMERIC(18,9) "
+                "USING credits_balance::NUMERIC(18,9)"
+            ))
+            conn.execute(text("ALTER TABLE user_account ALTER COLUMN credits_balance SET DEFAULT 0"))
+        if "credit_history" in table_names:
+            conn.execute(text(
+                "ALTER TABLE credit_history "
+                "ALTER COLUMN delta TYPE NUMERIC(18,9) "
+                "USING delta::NUMERIC(18,9)"
+            ))
+        if "payment_record" in table_names:
+            conn.execute(text(
+                "ALTER TABLE payment_record "
+                "ALTER COLUMN credits TYPE NUMERIC(18,9) "
+                "USING credits::NUMERIC(18,9)"
+            ))
 
 def worker_process_started() -> None:
     planexe_worker_id = os.environ.get("PLANEXE_WORKER_ID")
@@ -394,16 +422,17 @@ def _read_inference_cost_usd_from_run_dir(run_id_dir: Path) -> float:
         return 0.0
 
 
-def _credits_for_usd(usd_amount: float) -> int:
-    """Convert USD amount to integer credits using PLANEXE_CREDIT_PRICE_CENTS."""
+def _credits_for_usd(usd_amount: float) -> Decimal:
+    """Convert USD amount to credits with fractional precision."""
     if usd_amount <= 0:
-        return 0
+        return Decimal("0").quantize(CREDIT_SCALE)
     credit_price_cents = max(1, int(os.environ.get("PLANEXE_CREDIT_PRICE_CENTS", "100")))
-    total_cents = int(math.ceil(usd_amount * 100.0))
-    return int(math.ceil(total_cents / credit_price_cents))
+    credit_price_usd = Decimal(str(credit_price_cents)) / Decimal("100")
+    usd_decimal = Decimal(str(usd_amount))
+    return (usd_decimal / credit_price_usd).quantize(CREDIT_SCALE)
 
 
-def _charge_usage_credits_once(task_id: str, run_id_dir: Path, success: bool) -> dict[str, float | int | bool]:
+def _charge_usage_credits_once(task_id: str, run_id_dir: Path, success: bool) -> dict[str, float | Decimal | bool]:
     """
     Charge user credits once per task, based on inference cost plus success fee.
 
@@ -421,7 +450,7 @@ def _charge_usage_credits_once(task_id: str, run_id_dir: Path, success: bool) ->
                 "usage_cost_usd": usage_cost_usd,
                 "success_fee_usd": success_fee_usd,
                 "total_charge_usd": usage_cost_usd,
-                "charged_credits": 0,
+                "charged_credits": Decimal("0"),
                 "charged": False,
             }
 
@@ -445,7 +474,7 @@ def _charge_usage_credits_once(task_id: str, run_id_dir: Path, success: bool) ->
             success_fee_usd = float(os.environ.get("PLANEXE_SUCCESS_PLAN_FEE_USD", "1.0"))
 
         total_charge_usd = usage_cost_usd + success_fee_usd
-        charged_credits = _credits_for_usd(total_charge_usd) if should_charge else 0
+        charged_credits = _credits_for_usd(total_charge_usd) if should_charge else Decimal("0")
 
         existing = CreditHistory.query.filter_by(
             source="usage_billing",
@@ -456,12 +485,13 @@ def _charge_usage_credits_once(task_id: str, run_id_dir: Path, success: bool) ->
                 "usage_cost_usd": usage_cost_usd,
                 "success_fee_usd": success_fee_usd,
                 "total_charge_usd": total_charge_usd,
-                "charged_credits": 0,
+                "charged_credits": Decimal("0"),
                 "charged": False,
             }
 
         if user is not None and charged_credits > 0:
-            user.credits_balance = (user.credits_balance or 0) - charged_credits
+            current_balance = Decimal(str(user.credits_balance or 0)).quantize(CREDIT_SCALE)
+            user.credits_balance = (current_balance - charged_credits).quantize(CREDIT_SCALE)
             ledger = CreditHistory(
                 user_id=user.id,
                 delta=-charged_credits,
@@ -483,7 +513,7 @@ def _charge_usage_credits_once(task_id: str, run_id_dir: Path, success: bool) ->
             "usage_cost_usd": usage_cost_usd,
             "success_fee_usd": success_fee_usd,
             "total_charge_usd": total_charge_usd,
-            "charged_credits": 0,
+            "charged_credits": Decimal("0"),
             "charged": False,
         }
 
@@ -836,6 +866,7 @@ def startup_worker():
             db.create_all()
             ensure_taskitem_artifact_columns()
             ensure_token_metrics_columns()
+            ensure_fractional_credit_columns()
             logger.debug(f"Ensured database tables exist.")
             WorkerItem.upsert_heartbeat(worker_id=WORKER_ID)
         except Exception as e:    

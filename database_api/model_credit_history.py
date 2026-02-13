@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime, UTC
 from database_api.planexe_db_singleton import db
 from sqlalchemy_utils import UUIDType
+from sqlalchemy import Numeric
 
 
 class CreditHistory(db.Model):
@@ -30,7 +31,7 @@ class CreditHistory(db.Model):
     # Owning user account.
     user_id = db.Column(UUIDType(binary=False), nullable=False, index=True)
     # Credit delta (positive for purchase, negative for usage).
-    delta = db.Column(db.Integer, nullable=False)
+    delta = db.Column(Numeric(18, 9), nullable=False)
     # Short reason and source for audit (e.g., plan_created, stripe).
     reason = db.Column(db.String(128), nullable=False)
     source = db.Column(db.String(32), nullable=False)

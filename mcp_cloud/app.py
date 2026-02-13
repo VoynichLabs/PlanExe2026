@@ -233,7 +233,7 @@ def _resolve_user_from_api_key(raw_key: str) -> Optional[dict[str, Any]]:
 
         user_context = {
             "user_id": str(user.id),
-            "credits_balance": int(user.credits_balance or 0),
+            "credits_balance": float(user.credits_balance or 0),
         }
         api_key.last_used_at = datetime.now(UTC)
         db.session.commit()
@@ -890,7 +890,7 @@ async def handle_task_create(arguments: dict[str, Any]) -> CallToolResult:
             isError=True,
         )
 
-    if user_context and int(user_context.get("credits_balance", 0)) <= 0:
+    if user_context and float(user_context.get("credits_balance", 0.0)) <= 0.0:
             response = {"error": {"code": "INSUFFICIENT_CREDITS", "message": "Not enough credits."}}
             return CallToolResult(
                 content=[TextContent(type="text", text=json.dumps(response))],

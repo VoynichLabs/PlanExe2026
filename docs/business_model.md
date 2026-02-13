@@ -48,18 +48,18 @@ This means failed plans still pay for consumed tokens, but do not pay the succes
 
 ## Credit conversion
 
-Internal billing deducts integer credits from `UserAccount.credits_balance`.
+Internal billing deducts **fractional** credits from `UserAccount.credits_balance`.
 
 - `PLANEXE_CREDIT_PRICE_CENTS` defines the value of one credit.
-- USD charge is converted to credits by ceiling to cents and then ceiling to credits.
+- USD charge is converted by exact division:
+  - `charge_credits = charge_usd / (PLANEXE_CREDIT_PRICE_CENTS / 100)`
+- Credits are stored with decimal precision (`NUMERIC(18,9)`), so tiny token costs are preserved.
 
 Example with `PLANEXE_CREDIT_PRICE_CENTS=100`:
 
-- `$1.00` -> `1` credit
-- `$1.31` -> `2` credits
-- `$0.31` -> `1` credit
-
-For finer granularity, set `PLANEXE_CREDIT_PRICE_CENTS=1` (1 credit = $0.01).
+- `$1.00` -> `1.0` credits
+- `$1.31` -> `1.31` credits
+- `$0.0000068` -> `0.0000068` credits
 
 ---
 

@@ -4,6 +4,7 @@ Flask UI for PlanExe-server.
 PROMPT> python3 -m src.app
 """
 from datetime import datetime, UTC
+from decimal import Decimal
 import logging
 import os
 import re
@@ -54,6 +55,8 @@ from worker_plan_api.planexe_config import PlanExeConfig
 RUN_DIR = "run"
 
 SHOW_DEMO_PLAN = False
+
+CREDIT_SCALE = Decimal("0.000000001")
 
 DEMO_FORM_RUN_PROMPT_UUIDS = [
     "0ad5ea63-cf38-4d10-a3f3-d51baa609abd",
@@ -305,6 +308,32 @@ class MyFlaskApp:
                 if "cost_usd" not in columns:
                     conn.execute(text("ALTER TABLE token_metrics ADD COLUMN IF NOT EXISTS cost_usd DOUBLE PRECISION"))
 
+        def _ensure_fractional_credit_columns() -> None:
+            if self.db.engine.dialect.name != "postgresql":
+                return
+            insp = inspect(self.db.engine)
+            table_names = set(insp.get_table_names())
+            with self.db.engine.begin() as conn:
+                if "user_account" in table_names:
+                    conn.execute(text(
+                        "ALTER TABLE user_account "
+                        "ALTER COLUMN credits_balance TYPE NUMERIC(18,9) "
+                        "USING credits_balance::NUMERIC(18,9)"
+                    ))
+                    conn.execute(text("ALTER TABLE user_account ALTER COLUMN credits_balance SET DEFAULT 0"))
+                if "credit_history" in table_names:
+                    conn.execute(text(
+                        "ALTER TABLE credit_history "
+                        "ALTER COLUMN delta TYPE NUMERIC(18,9) "
+                        "USING delta::NUMERIC(18,9)"
+                    ))
+                if "payment_record" in table_names:
+                    conn.execute(text(
+                        "ALTER TABLE payment_record "
+                        "ALTER COLUMN credits TYPE NUMERIC(18,9) "
+                        "USING credits::NUMERIC(18,9)"
+                    ))
+
         def _seed_initial_records() -> None:
             # Add initial records if the table is empty
             if TaskItem.query.count() == 0:
@@ -333,6 +362,7 @@ class MyFlaskApp:
                         self.db.create_all()
                         _ensure_taskitem_artifact_columns()
                         _ensure_token_metrics_columns()
+                        _ensure_fractional_credit_columns()
                         _seed_initial_records()
                     return
                 except OperationalError as exc:
@@ -670,11 +700,13 @@ class MyFlaskApp:
         self.db.session.commit()
         return raw_key
 
-    def _apply_credit_delta(self, user: UserAccount, delta: int, reason: str, source: str, external_id: Optional[str] = None) -> None:
-        user.credits_balance = max(0, (user.credits_balance or 0) + delta)
+    def _apply_credit_delta(self, user: UserAccount, delta: Decimal, reason: str, source: str, external_id: Optional[str] = None) -> None:
+        current_balance = self._to_credit_decimal(user.credits_balance)
+        next_balance = current_balance + self._to_credit_decimal(delta)
+        user.credits_balance = max(Decimal("0"), next_balance).quantize(CREDIT_SCALE)
         ledger = CreditHistory(
             user_id=user.id,
-            delta=delta,
+            delta=self._to_credit_decimal(delta),
             reason=reason,
             source=source,
             external_id=external_id,
@@ -687,7 +719,7 @@ class MyFlaskApp:
         user_id: str,
         provider: str,
         provider_payment_id: str,
-        credits: int,
+        credits: Decimal,
         amount: int,
         currency: str,
         raw_payload: dict[str, Any],
@@ -708,11 +740,12 @@ class MyFlaskApp:
             ).first()
             if existing:
                 return "duplicate_payment"
+            credit_amount = self._to_credit_decimal(credits)
             payment = PaymentRecord(
                 user_id=user.id,
                 provider=provider,
                 provider_payment_id=provider_payment_id,
-                credits=credits,
+                credits=credit_amount,
                 amount=amount,
                 currency=currency,
                 status="completed",
@@ -722,7 +755,7 @@ class MyFlaskApp:
             self.db.session.commit()
             self._apply_credit_delta(
                 user,
-                delta=credits,
+                delta=credit_amount,
                 reason="credits_purchased",
                 source=provider,
                 external_id=provider_payment_id,
@@ -767,7 +800,7 @@ class MyFlaskApp:
 
         metadata = session_obj.get("metadata") or {}
         metadata_user_id = str(metadata.get("user_id") or "")
-        metadata_credits = int(metadata.get("credits", "0") or 0)
+        metadata_credits = self._to_credit_decimal(metadata.get("credits", "0") or 0)
         payment_status = session_obj.get("payment_status") or ""
 
         if metadata_user_id != str(user.id):
@@ -822,7 +855,7 @@ class MyFlaskApp:
                 "user_id": str(user.id),
                 "checkout_session_id": checkout_session_id,
                 "payment_status": payment_status,
-                "credits": metadata_credits,
+                "credits": str(metadata_credits),
                 "amount_minor": session_obj.get("amount_total") or 0,
                 "amount_major": (session_obj.get("amount_total") or 0) / 100.0,
                 "currency": session_obj.get("currency") or "usd",
@@ -839,6 +872,19 @@ class MyFlaskApp:
             return float(value)
         except (TypeError, ValueError):
             return None
+
+    @staticmethod
+    def _to_credit_decimal(value: Any) -> Decimal:
+        try:
+            return Decimal(str(value or 0)).quantize(CREDIT_SCALE)
+        except Exception:
+            return Decimal("0").quantize(CREDIT_SCALE)
+
+    @staticmethod
+    def _format_credit_display(value: Any) -> str:
+        amount = MyFlaskApp._to_credit_decimal(value)
+        text = format(amount, "f").rstrip("0").rstrip(".")
+        return text if text else "0"
 
     def _read_inference_cost_from_run_zip(self, run_zip_snapshot: Optional[bytes]) -> Optional[float]:
         if not run_zip_snapshot:
@@ -989,6 +1035,7 @@ class MyFlaskApp:
             return render_template(
                 'index.html',
                 user=user,
+                credits_balance_display=self._format_credit_display(user.credits_balance) if user else "0",
                 recent_tasks=recent_tasks,
                 is_admin=is_admin,
             )
@@ -1142,7 +1189,7 @@ class MyFlaskApp:
                     "created_at": created_at.strftime("%Y-%m-%d %H:%M:%S UTC") if created_at else "—",
                     "provider": (row.provider or "").upper(),
                     "status": row.status or "unknown",
-                    "credits": int(row.credits or 0),
+                    "credits": self._format_credit_display(row.credits),
                     "amount_major": amount_minor / 100.0,
                     "currency": (row.currency or "usd").upper(),
                     "payment_id": row.provider_payment_id or "",
@@ -1150,6 +1197,8 @@ class MyFlaskApp:
             return render_template(
                 'account.html',
                 user=user,
+                credits_balance_display=self._format_credit_display(user.credits_balance),
+                credit_price_cents=max(1, int(os.environ.get("PLANEXE_CREDIT_PRICE_CENTS", "100"))),
                 active_key=active_key,
                 new_api_key=new_api_key,
                 recent_payments=recent_payments,
@@ -1279,7 +1328,7 @@ class MyFlaskApp:
                 session_obj = event["data"]["object"]
                 metadata = session_obj.get("metadata") or {}
                 user_id = metadata.get("user_id")
-                credits = int(metadata.get("credits", "0") or 0)
+                credits = self._to_credit_decimal(metadata.get("credits", "0") or 0)
                 if user_id and credits > 0:
                     status = self._apply_payment_credits(
                         user_id=user_id,
@@ -1297,7 +1346,7 @@ class MyFlaskApp:
                             "stripe_event_id": event_id,
                             "stripe_event_type": event_type,
                             "user_id": user_id,
-                            "credits": credits,
+                            "credits": str(credits),
                             "amount_minor": session_obj.get("amount_total") or 0,
                             "amount_major": (session_obj.get("amount_total") or 0) / 100.0,
                             "currency": session_obj.get("currency") or "usd",
@@ -1316,7 +1365,7 @@ class MyFlaskApp:
                             "checkout_session_id": session_obj.get("id", ""),
                             "metadata_present": bool(metadata),
                             "user_id": user_id,
-                            "credits": credits,
+                            "credits": str(credits),
                         },
                     )
             elif event_type in ("checkout.session.async_payment_failed", "payment_intent.payment_failed", "checkout.session.expired"):
@@ -1389,14 +1438,14 @@ class MyFlaskApp:
                 payload = payment.get("invoice_payload", "")
                 try:
                     _, user_id, credits, _nonce = payload.split(":", 3)
-                    credits_int = int(credits)
+                    credits_decimal = self._to_credit_decimal(credits)
                 except Exception:
                     return jsonify({"status": "ignored"})
                 self._apply_payment_credits(
                     user_id=user_id,
                     provider="telegram",
                     provider_payment_id=payment.get("telegram_payment_charge_id", ""),
-                    credits=credits_int,
+                    credits=credits_decimal,
                     amount=payment.get("total_amount") or 0,
                     currency=payment.get("currency") or "XTR",
                     raw_payload=payment,

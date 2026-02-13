@@ -3,6 +3,7 @@ from datetime import datetime, UTC
 from database_api.planexe_db_singleton import db
 from sqlalchemy_utils import UUIDType
 from sqlalchemy import JSON
+from sqlalchemy import Numeric
 
 
 class PaymentRecord(db.Model):
@@ -14,7 +15,7 @@ class PaymentRecord(db.Model):
     provider = db.Column(db.String(32), nullable=False, index=True)
     provider_payment_id = db.Column(db.String(256), nullable=False, index=True)
     # Credits granted for this payment.
-    credits = db.Column(db.Integer, nullable=False)
+    credits = db.Column(Numeric(18, 9), nullable=False)
     # Amount and currency in minor units (e.g., cents).
     amount = db.Column(db.Integer, nullable=False)  # minor currency units (e.g., cents)
     currency = db.Column(db.String(16), nullable=False)

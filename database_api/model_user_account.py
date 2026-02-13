@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime, UTC
 from database_api.planexe_db_singleton import db
 from sqlalchemy_utils import UUIDType
+from sqlalchemy import Numeric
 
 
 class UserAccount(db.Model):
@@ -25,8 +26,8 @@ class UserAccount(db.Model):
     is_admin = db.Column(db.Boolean, default=False, nullable=False)
     # Tracks the one-time free plan.
     free_plan_used = db.Column(db.Boolean, default=False, nullable=False)
-    # Current credit balance (integer credits).
-    credits_balance = db.Column(db.Integer, default=0, nullable=False)
+    # Current credit balance (decimal credits, supports tiny token-cost deductions).
+    credits_balance = db.Column(Numeric(18, 9), default=0, nullable=False)
 
     # Last time the user logged in via OAuth.
     last_login_at = db.Column(db.DateTime, nullable=True)
