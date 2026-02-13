@@ -676,23 +676,23 @@ class MyFlaskApp:
         amount: int,
         currency: str,
         raw_payload: dict[str, Any],
-    ) -> None:
+    ) -> str:
         try:
             user_uuid = uuid.UUID(str(user_id))
         except ValueError:
             logger.error("Invalid user_id in payment payload: %s", user_id)
-            return
+            return "invalid_user_id"
         with self.app.app_context():
             user = self.db.session.get(UserAccount, user_uuid)
             if not user:
                 logger.error("Payment user not found: %s", user_id)
-                return
+                return "user_not_found"
             existing = PaymentRecord.query.filter_by(
                 provider=provider,
                 provider_payment_id=provider_payment_id,
             ).first()
             if existing:
-                return
+                return "duplicate_payment"
             payment = PaymentRecord(
                 user_id=user.id,
                 provider=provider,
@@ -712,6 +712,21 @@ class MyFlaskApp:
                 source=provider,
                 external_id=provider_payment_id,
             )
+            return "applied"
+
+    def _record_event(self, event_type: EventType, message: str, context: Optional[dict[str, Any]] = None) -> None:
+        """Best-effort event logging for operational visibility."""
+        try:
+            event = EventItem(
+                event_type=event_type,
+                message=message,
+                context=context,
+            )
+            self.db.session.add(event)
+            self.db.session.commit()
+        except Exception as exc:
+            logger.error("Failed to persist event item. message=%s error=%s", message, exc, exc_info=True)
+            self.db.session.rollback()
 
     def _setup_routes(self):
         @self.app.before_request
@@ -911,23 +926,62 @@ class MyFlaskApp:
                 return jsonify({"error": "credits must be >= 1"}), 400
             price_per_credit = int(os.environ.get("PLANEXE_CREDIT_PRICE_CENTS", "100"))
             amount = credits * price_per_credit
+            currency = os.environ.get("PLANEXE_STRIPE_CURRENCY", "usd")
             success_url = f"{self.public_base_url}/account?stripe=success" if self.public_base_url else url_for("account", _external=True)
             cancel_url = f"{self.public_base_url}/account?stripe=cancel" if self.public_base_url else url_for("account", _external=True)
-            session_obj = stripe.checkout.Session.create(
-                mode="payment",
-                success_url=success_url,
-                cancel_url=cancel_url,
-                line_items=[{
-                    "price_data": {
-                        "currency": os.environ.get("PLANEXE_STRIPE_CURRENCY", "usd"),
-                        "product_data": {"name": "PlanExe credits"},
-                        "unit_amount": amount,
-                    },
-                    "quantity": 1,
-                }],
-                metadata={
+            self._record_event(
+                EventType.GENERIC_EVENT,
+                "Stripe checkout requested",
+                context={
                     "user_id": str(current_user.id),
-                    "credits": str(credits),
+                    "credits": credits,
+                    "amount_minor": amount,
+                    "amount_major": amount / 100.0,
+                    "currency": currency,
+                },
+            )
+            try:
+                session_obj = stripe.checkout.Session.create(
+                    mode="payment",
+                    success_url=success_url,
+                    cancel_url=cancel_url,
+                    line_items=[{
+                        "price_data": {
+                            "currency": currency,
+                            "product_data": {"name": "PlanExe credits"},
+                            "unit_amount": amount,
+                        },
+                        "quantity": 1,
+                    }],
+                    metadata={
+                        "user_id": str(current_user.id),
+                        "credits": str(credits),
+                    },
+                )
+            except Exception as exc:
+                self._record_event(
+                    EventType.GENERIC_ERROR,
+                    "Stripe checkout creation failed",
+                    context={
+                        "user_id": str(current_user.id),
+                        "credits": credits,
+                        "amount_minor": amount,
+                        "currency": currency,
+                        "error": str(exc),
+                    },
+                )
+                return jsonify({"error": "stripe checkout failed"}), 400
+            self._record_event(
+                EventType.GENERIC_EVENT,
+                "Stripe checkout session created",
+                context={
+                    "user_id": str(current_user.id),
+                    "credits": credits,
+                    "amount_minor": amount,
+                    "amount_major": amount / 100.0,
+                    "currency": currency,
+                    "checkout_session_id": session_obj.get("id"),
+                    "checkout_payment_status": session_obj.get("payment_status"),
                 },
             )
             return redirect(session_obj.url)
@@ -941,22 +995,44 @@ class MyFlaskApp:
             stripe.api_key = stripe_secret
             payload = request.get_data()
             sig_header = request.headers.get("Stripe-Signature")
+            event_id = None
+            event_type = None
             try:
                 if webhook_secret:
                     event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
                 else:
                     event = json.loads(payload)
+                event_id = event.get("id")
+                event_type = event.get("type")
             except Exception as exc:
                 logger.error("Stripe webhook error: %s", exc)
+                self._record_event(
+                    EventType.GENERIC_ERROR,
+                    "Stripe webhook rejected",
+                    context={
+                        "error": str(exc),
+                        "has_signature_header": bool(sig_header),
+                        "webhook_secret_configured": bool(webhook_secret),
+                    },
+                )
                 return jsonify({"error": "invalid payload"}), 400
 
-            if event.get("type") == "checkout.session.completed":
+            self._record_event(
+                EventType.GENERIC_EVENT,
+                "Stripe webhook received",
+                context={
+                    "stripe_event_id": event_id,
+                    "stripe_event_type": event_type,
+                },
+            )
+
+            if event_type == "checkout.session.completed":
                 session_obj = event["data"]["object"]
                 metadata = session_obj.get("metadata") or {}
                 user_id = metadata.get("user_id")
                 credits = int(metadata.get("credits", "0") or 0)
                 if user_id and credits > 0:
-                    self._apply_payment_credits(
+                    status = self._apply_payment_credits(
                         user_id=user_id,
                         provider="stripe",
                         provider_payment_id=session_obj.get("id", ""),
@@ -965,6 +1041,55 @@ class MyFlaskApp:
                         currency=session_obj.get("currency") or "usd",
                         raw_payload=session_obj,
                     )
+                    self._record_event(
+                        EventType.GENERIC_EVENT if status in ("applied", "duplicate_payment") else EventType.GENERIC_ERROR,
+                        "Stripe payment completion processed",
+                        context={
+                            "stripe_event_id": event_id,
+                            "stripe_event_type": event_type,
+                            "user_id": user_id,
+                            "credits": credits,
+                            "amount_minor": session_obj.get("amount_total") or 0,
+                            "amount_major": (session_obj.get("amount_total") or 0) / 100.0,
+                            "currency": session_obj.get("currency") or "usd",
+                            "checkout_session_id": session_obj.get("id", ""),
+                            "checkout_payment_status": session_obj.get("payment_status"),
+                            "status": status,
+                        },
+                    )
+                else:
+                    self._record_event(
+                        EventType.GENERIC_ERROR,
+                        "Stripe completed event missing billing metadata",
+                        context={
+                            "stripe_event_id": event_id,
+                            "stripe_event_type": event_type,
+                            "checkout_session_id": session_obj.get("id", ""),
+                            "metadata_present": bool(metadata),
+                            "user_id": user_id,
+                            "credits": credits,
+                        },
+                    )
+            elif event_type in ("checkout.session.async_payment_failed", "payment_intent.payment_failed", "checkout.session.expired"):
+                event_object = event.get("data", {}).get("object", {}) if isinstance(event.get("data"), dict) else {}
+                metadata = event_object.get("metadata") or {}
+                self._record_event(
+                    EventType.GENERIC_ERROR,
+                    "Stripe payment failed",
+                    context={
+                        "stripe_event_id": event_id,
+                        "stripe_event_type": event_type,
+                        "user_id": metadata.get("user_id"),
+                        "credits": metadata.get("credits"),
+                        "amount_minor": event_object.get("amount_total") or event_object.get("amount"),
+                        "amount_major": ((event_object.get("amount_total") or event_object.get("amount") or 0) / 100.0),
+                        "currency": event_object.get("currency"),
+                        "checkout_session_id": event_object.get("id"),
+                        "payment_intent_id": event_object.get("payment_intent"),
+                        "payment_status": event_object.get("payment_status"),
+                        "failure_message": event_object.get("last_payment_error", {}).get("message") if isinstance(event_object.get("last_payment_error"), dict) else None,
+                    },
+                )
             return jsonify({"status": "ok"})
 
         @self.app.route('/billing/telegram/invoice', methods=['POST'])
