@@ -425,9 +425,16 @@ app.add_middleware(
 
 
 def _request_origin(request: Request) -> str:
-    """Return scheme + netloc for the request (e.g. http://192.168.1.40:8001)."""
+    """Return externally visible scheme+host, honoring reverse-proxy headers."""
     parsed = urlparse(str(request.base_url))
-    return f"{parsed.scheme}://{parsed.netloc}"
+
+    # Railway/reverse proxies terminate TLS and forward the original scheme/host.
+    forwarded_proto = (request.headers.get("X-Forwarded-Proto") or "").split(",")[0].strip().lower()
+    forwarded_host = (request.headers.get("X-Forwarded-Host") or "").split(",")[0].strip()
+
+    scheme = forwarded_proto if forwarded_proto in {"http", "https"} else parsed.scheme
+    netloc = forwarded_host or request.headers.get("Host") or parsed.netloc
+    return f"{scheme}://{netloc}"
 
 
 @app.middleware("http")
