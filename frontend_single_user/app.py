@@ -645,12 +645,12 @@ def update_open_dir_button_visibility():
     return gr.update(visible=is_open_dir_service_running())
 
 
-def trigger_purge_runs(max_age_hours, prefix, session_state: SessionState):
+def trigger_purge_runs(max_age_hours, session_state: SessionState):
     """
     Calls the worker to purge old runs on demand.
     """
     try:
-        response = worker_client.purge_runs(max_age_hours=max_age_hours, prefix=prefix or None)
+        response = worker_client.purge_runs(max_age_hours=max_age_hours, prefix=None)
         msg = response.get("message", "Purge requested.")
     except httpx.HTTPStatusError as exc:
         status_code = exc.response.status_code if exc.response else "unknown"
@@ -740,11 +740,6 @@ with gr.Blocks(title="PlanExe") as demo_text2plan:
             minimum=1,
             maximum=240,
             precision=2,
-        )
-        purge_prefix = gr.Textbox(
-            label="Run prefix to purge. Dirs and files with this prefix will be purged.",
-            value="",
-            placeholder="Prefix to match, leave empty to use worker default",
         )
         purge_button = gr.Button("Purge old runs now")
         purge_status = gr.Markdown("")
@@ -838,7 +833,7 @@ with gr.Blocks(title="PlanExe") as demo_text2plan:
 
     purge_button.click(
         fn=trigger_purge_runs,
-        inputs=[purge_max_age_hours, purge_prefix, session_state],
+        inputs=[purge_max_age_hours, session_state],
         outputs=[purge_status, session_state]
     )
 
