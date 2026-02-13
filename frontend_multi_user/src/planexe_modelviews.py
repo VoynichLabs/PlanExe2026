@@ -1,6 +1,7 @@
 """
 Custom ModelViews for the PlanExe-server tables.
 """
+import math
 from flask_admin.contrib.sqla import ModelView
 from markupsafe import Markup
 from flask import url_for, abort, redirect
@@ -101,3 +102,22 @@ class TokenMetricsView(AdminOnlyModelView):
     column_default_sort = ('timestamp', True)
     column_searchable_list = ['task_id', 'user_id', 'llm_model', 'upstream_provider', 'upstream_model']
     column_filters = ['timestamp', 'user_id', 'llm_model', 'upstream_provider', 'upstream_model', 'success']
+    column_formatters = {
+        'timestamp': lambda v, c, m, p: _format_timestamp_seconds(m.timestamp),
+        'cost_usd': lambda v, c, m, p: _ceil_decimal(m.cost_usd, 3),
+        'duration_seconds': lambda v, c, m, p: _ceil_decimal(m.duration_seconds, 2),
+    }
+
+
+def _ceil_decimal(value, decimals: int) -> str:
+    if value is None:
+        return '—'
+    scale = 10 ** decimals
+    rounded = math.ceil(float(value) * scale) / scale
+    return f"{rounded:.{decimals}f}"
+
+
+def _format_timestamp_seconds(value) -> str:
+    if value is None:
+        return '—'
+    return value.strftime('%Y-%m-%d %H:%M:%S')
