@@ -13,7 +13,7 @@ PlanExe has multiple MCP servers that can be connected to.
 |#|Difficulty|Description|
 |-|----------|-----------|
 | 1 | Beginner | MCP server at [mcp.planexe.org/](https://mcp.planexe.org/) and cost credits to use. Manage your credits via this page: [home.planexe.org](https://home.planexe.org) |
-| 2 | Medium | MCP server inside docker on your own computer. |
+| 2 | Medium | MCP server inside docker on your own computer. I recommend using OpenRouter for inference, which cost money. You can be lucky finding a free model on OpenRouter, but this requires developer skills and several attempts. You can also run models on your own computer. |
 | 3 | Expert | MCP server as a python program on your own computer. |
 
 ## Approach 1. MCP server at mcp.planexe.org
@@ -85,7 +85,7 @@ Follow these steps:
 
 ### Prerequisites
 
-I assume you are able to create plans on your computer via the `frontend_single_user` web interface, [http://localhost:7860/](http://localhost:7860/). It doesn't make sense proceeding if there is a problem with LLMs and no plan can be created.
+I assume you are able to create plans on your computer via the `frontend_single_user` web interface, [http://localhost:7860/](http://localhost:7860/). It doesn't make sense proceeding if there is a problem with LLMs and no plans can be created.
 
 ### Start docker
 
