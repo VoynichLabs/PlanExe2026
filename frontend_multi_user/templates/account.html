@@ -100,17 +100,15 @@
             {% endif %}
         </form>
 
-        <form method="POST" action="/billing/telegram/invoice">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <div class="form-group">
-                <label for="credits_telegram">Credits</label>
-                <input type="number" class="form-control" name="credits" id="credits_telegram" value="1" min="1">
-            </div>
-            {% if telegram_enabled %}
+        {% if telegram_enabled %}
+            <form method="POST" action="/billing/telegram/invoice">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="form-group">
+                    <label for="credits_telegram">Credits</label>
+                    <input type="number" class="form-control" name="credits" id="credits_telegram" value="1" min="1">
+                </div>
                 <button class="btn btn-info">Pay with Telegram Stars</button>
-            {% else %}
-                <button class="btn btn-info" disabled>Telegram not configured</button>
-            {% endif %}
-        </form>
+            </form>
+        {% endif %}
     </div>
 {% endblock %}
