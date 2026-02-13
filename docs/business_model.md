@@ -79,6 +79,12 @@ The worker reads per-run:
 
 `total_cost` is produced by the token/cost tracking pipeline and reflects aggregated provider-side inference cost.
 
+Operationally, per-call diagnostics are available in `token_metrics`:
+
+- `task_id` and `user_id` for support and billing triage
+- routed provider/model (`upstream_provider`, `upstream_model`) for cost-variance analysis
+- per-call token counts, duration, and `cost_usd` when present
+
 ---
 
 ## Hosted flow (high level)
@@ -131,6 +137,7 @@ This is implemented as an explicit task parameter so billing logic remains deter
 
 - Billing is idempotent per task: usage charge is applied once.
 - Billing records should be traceable to task id and run output.
+- Payment/support investigations should join `CreditHistory` with `token_metrics` via task context and `user_id`.
 - If pricing policy changes, update this document and relevant env defaults together.
 
 ---
