@@ -991,7 +991,11 @@ class MyFlaskApp:
         @self.app.context_processor
         def inject_current_user_name():
             """Inject current_user_name for header display (full name or None)."""
-            extra: dict[str, Any] = {"open_access": self.open_access}
+            ga_id = (os.environ.get("PLANEXE_GOOGLE_ANALYTICS") or "").strip()
+            extra: dict[str, Any] = {
+                "open_access": self.open_access,
+                "google_analytics_id": ga_id or None,
+            }
             if not current_user.is_authenticated:
                 extra["current_user_name"] = None
                 return extra
