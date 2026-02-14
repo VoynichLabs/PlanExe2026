@@ -69,21 +69,21 @@
         "arguments": {
             "model": "x-ai/grok-4.1-fast",
             "api_key": "${OPENROUTER_API_KEY}",
-            "temperature": 0.1,
+            "temperature": 0.5,
             "timeout": 60.0,
             "is_function_calling_model": false,
             "is_chat_model": true,
-            "max_tokens": 8192,
+            "max_tokens": 18192,
             "max_retries": 5
         }
     },
-    "openrouter-paid-qwen3-30b-a3b": {
+    "openrouter-paid-qwen3-coder-next": {
         "comment": "This is slow. It's paid, so check the pricing before use. Created Apr 28, 2025. 40,960 context. $0.08/M input tokens. $0.29/M output tokens.",
         "priority": 3,
         "luigi_workers": 4,
         "class": "OpenRouter",
         "arguments": {
-            "model": "qwen/qwen3-30b-a3b",
+            "model": "qwen/qwen3-coder-next",
             "api_key": "${OPENROUTER_API_KEY}",
             "temperature": 0.1,
             "timeout": 60.0,
