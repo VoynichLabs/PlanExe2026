@@ -236,11 +236,19 @@
         background: var(--color-bg);
         transition: background 0.1s;
     }
+    .task-row-link {
+        display: block;
+        text-decoration: none;
+        color: inherit;
+    }
     .task-row:last-child {
         border-bottom: none;
     }
     .task-row:hover {
         background: var(--color-bg-soft);
+    }
+    .task-row-link:hover {
+        text-decoration: none;
     }
     .task-status {
         flex-shrink: 0;
@@ -336,6 +344,9 @@
 <h2 class="section-title">Recent Plans</h2>
 <div class="tasks-list">
     {% for task in recent_tasks %}
+    {% if task.generated_report_html %}
+    <a class="task-row-link" href="{{ url_for('viewplan') }}?run_id={{ task.id }}">
+    {% endif %}
     <div class="task-row">
         <span class="task-status {{ task.state.name if task.state else 'pending' }}"></span>
         <span class="task-prompt" title="{{ task.prompt }}">{{ task.prompt }}</span>
@@ -343,6 +354,9 @@
             {% if task.state %}{{ task.state.name | capitalize }}{% else %}Pending{% endif %}
         </span>
     </div>
+    {% if task.generated_report_html %}
+    </a>
+    {% endif %}
     {% endfor %}
 </div>
 {% else %}

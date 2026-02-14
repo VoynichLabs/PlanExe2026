@@ -1657,6 +1657,7 @@ class MyFlaskApp:
             return jsonify({"progress_percentage": progress_percentage, "progress_message": progress_message, "status": status}), 200
 
         @self.app.route('/viewplan')
+        @login_required
         def viewplan():
             run_id = request.args.get('run_id', '')
             logger.info(f"ViewPlan endpoint requested for run_id: {run_id!r}")
@@ -1665,6 +1666,10 @@ class MyFlaskApp:
             if task is None:
                 logger.error(f"Task not found for run_id: {run_id!r}")
                 return jsonify({"error": "Task not found"}), 400
+
+            if not current_user.is_admin and str(task.user_id) != str(current_user.id):
+                logger.warning("Unauthorized report access attempt. run_id=%s user_id=%s", run_id, current_user.id)
+                return jsonify({"error": "Forbidden"}), 403
 
             if SHOW_DEMO_PLAN:
                 run_id = '20250524_universal_manufacturing'
