@@ -15,18 +15,18 @@
             "max_retries": 5
         }
     },
-    "openrouter-paid-openai-gpt-oss-20b": {
-        "comment": "This is very fast. It's paid, so check the pricing before use. Created August 5, 2025. 131,072 context. $0.05/M input tokens. $0.20/M output tokens. This is a reasoning model, and uses more tokens than LLMs.",
+    "openrouter-paid-minimax-m2.5": {
+        "comment": "MiniMax-M2.5 is a SOTA large language model designed for real-world productivity. Trained in diverse real-world digital working environments, extends coding expertise to general office work. Scoring 80.2% on SWE-Bench Verified, 51.3% on Multi-SWE-Bench, 76.3% on BrowseComp. 230B total parameters, 10B activated during inference. Very fast and cost-effective. Created February 12, 2026. Large context window. $0.30/M input tokens. $0.30/M output tokens. Excellent for coding and agent tasks.",
         "luigi_workers": 4,
         "class": "OpenRouter",
         "arguments": {
-            "model": "openai/gpt-oss-20b",
+            "model": "minimax/minimax-m2.5",
             "api_key": "${OPENROUTER_API_KEY}",
             "temperature": 0.1,
             "timeout": 60.0,
             "is_function_calling_model": false,
             "is_chat_model": true,
-            "max_tokens": 8192,
+            "max_tokens": 38192,
             "max_retries": 5
         }
     },
@@ -41,7 +41,7 @@
             "timeout": 60.0,
             "is_function_calling_model": false,
             "is_chat_model": true,
-            "max_tokens": 8192,
+            "max_tokens": 80192,
             "max_retries": 5
         }
     },
@@ -61,13 +61,13 @@
             "max_retries": 5
         }
     },
-    "openrouter-paid-openai-gpt-4o-mini": {
-        "comment": "This is medium fast. It's paid, so check the pricing before use. Created Jul 18, 2024. 128,000 context. Starting at $0.15/M input tokens. Starting at $0.60/M output tokens.",
-        "priority": 2,
+    "openrouter-paid-xai-grok-4.1-fast": {
+        "comment": "This is very fast. It's paid, so check the pricing before use. Created Feb 13, 2026. 2,000,000 context. $0.20/M input tokens. $0.50/M output tokens. Reasoning can be toggled via the OpenRouter reasoning parameter.",
+        "priority": 1,
         "luigi_workers": 4,
         "class": "OpenRouter",
         "arguments": {
-            "model": "openai/gpt-4o-mini",
+            "model": "x-ai/grok-4.1-fast",
             "api_key": "${OPENROUTER_API_KEY}",
             "temperature": 0.1,
             "timeout": 60.0,
