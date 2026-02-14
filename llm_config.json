@@ -17,6 +17,7 @@
     },
     "openrouter-paid-minimax-m2.5": {
         "comment": "MiniMax-M2.5 is a SOTA large language model designed for real-world productivity. Trained in diverse real-world digital working environments, extends coding expertise to general office work. Scoring 80.2% on SWE-Bench Verified, 51.3% on Multi-SWE-Bench, 76.3% on BrowseComp. 230B total parameters, 10B activated during inference. Very fast and cost-effective. Created February 12, 2026. Large context window. $0.30/M input tokens. $0.30/M output tokens. Excellent for coding and agent tasks.",
+        "priority": 3,
         "luigi_workers": 4,
         "class": "OpenRouter",
         "arguments": {
@@ -45,19 +46,19 @@
             "max_retries": 5
         }
     },
-    "openrouter-paid-gemini-3-flash-preview": {
+        "openrouter-paid-gemini-3-flash-preview": {
         "comment": "This is very fast. It's paid, so check the pricing before use. Created Feb 25, 2025. 1,048,576 context. $0.075/M input tokens. $0.30/M output tokens.",
-        "priority": 1,
+        "priority": 2,
         "luigi_workers": 4,
         "class": "OpenRouter",
         "arguments": {
             "model": "google/gemini-3-flash-preview",
             "api_key": "${OPENROUTER_API_KEY}",
-            "temperature": 0.1,
+            "temperature": 0.3,
             "timeout": 60.0,
             "is_function_calling_model": false,
             "is_chat_model": true,
-            "max_tokens": 8192,
+            "max_tokens": 38192,
             "max_retries": 5
         }
     },
@@ -67,9 +68,9 @@
         "luigi_workers": 4,
         "class": "OpenRouter",
         "arguments": {
-            "model": "x-ai/grok-4.1-fast",
+            "model": "xai/grok-4.1-fast",
             "api_key": "${OPENROUTER_API_KEY}",
-            "temperature": 0.5,
+            "temperature": 0.1,
             "timeout": 60.0,
             "is_function_calling_model": false,
             "is_chat_model": true,
