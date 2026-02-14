@@ -260,7 +260,9 @@ def worker_process_started() -> None:
         db.session.add(event)
         db.session.commit()
 
-worker_process_started()
+# NOTE: worker_process_started() used to be called here at module level,
+# but that caused a crash-loop on fresh databases because db.create_all()
+# hadn't run yet. Moved into startup_worker() after db.create_all().
 
 def update_task_state_with_retry(task_id: str, new_state: TaskState, max_retries: int = 3, retry_delay: int = 5) -> bool:
     """Helper function to update task state with retry logic for database operations."""
@@ -868,6 +870,7 @@ def startup_worker():
             ensure_token_metrics_columns()
             ensure_fractional_credit_columns()
             logger.debug(f"Ensured database tables exist.")
+            worker_process_started()
             WorkerItem.upsert_heartbeat(worker_id=WORKER_ID)
         except Exception as e:    
             logger.critical(f"Error during startup: {e}", exc_info=True)
