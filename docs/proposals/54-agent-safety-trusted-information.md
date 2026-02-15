@@ -248,6 +248,40 @@ AI scrapes content → no ad views → no revenue → publishers paywall content
 
 ---
 
+## Social Responsibility Commitment
+
+### Turning Provocative Marketing Into Social Good
+
+The STD/AIDS framing is deliberately provocative - it gets attention, it's memorable, and it makes the point stick. But provocative marketing should serve a purpose beyond just going viral.
+
+**AIDS Research Donation Pledge:**
+
+PlanExe commits to donating **1% of net profits** to leading AIDS research organizations, including:
+- amfAR (The Foundation for AIDS Research)
+- The Elizabeth Glaser Pediatric AIDS Foundation
+- AIDS United
+
+**Structure:**
+- Pledge activates after PlanExe reaches **$10 million in cumulative net revenue**
+- Calculated as 1% of annual net profits (after operating costs, salaries, and reinvestment)
+- Donations made quarterly to maintain operational flexibility
+- Recipients selected based on research impact and organizational efficiency ratings
+
+**Why This Matters:**
+
+Using "AIDS" as an acronym for Agent Injected Deceptive Scheming is attention-grabbing marketing. Backing it with genuine commitment to AIDS research turns that attention into meaningful impact.
+
+**The message:** We'll use bold language to solve real problems - and we'll put our money where our mouth is when it comes to the causes we reference.
+
+**Transparency:**
+- Annual public reporting of donation amounts
+- Clear documentation of revenue thresholds
+- Partnership announcements with receiving organizations
+
+This isn't about virtue signaling. It's about responsible marketing: if you're going to use provocative language to make a point, you should contribute to the cause you're invoking.
+
+---
+
 ## The Bottom Line
 
 **The Problem:** AI agents are naive and will do catastrophically dumb things when exposed to the unfiltered web.
