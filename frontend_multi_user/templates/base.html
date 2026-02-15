@@ -186,6 +186,7 @@
             </a>
             <nav class="site-nav">
                 {% if current_user_name %}
+                    <a href="{{ url_for('index') }}">Dashboard</a>
                     <a href="{{ url_for('account') }}" class="nav-user">{{ current_user_name }}</a>
                     <a href="{{ url_for('logout') }}">Logout</a>
                 {% else %}
