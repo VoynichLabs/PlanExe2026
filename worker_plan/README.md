@@ -39,6 +39,7 @@ If you must stay on Python 3.14, expect source builds and potential failures; ex
 | `PLANEXE_RUN_DIR` | `run` | Directory under which run output folders are created. |
 | `PLANEXE_HOST_RUN_DIR` | *(unset)* | Optional host path base returned in `display_run_dir` to hint where runs live on the host. |
 | `PLANEXE_CONFIG_PATH` | `.` | Working directory for the pipeline; used as the `cwd` when spawning `worker_plan_internal.plan.run_plan_pipeline`. |
+| `PLANEXE_LLM_CONFIG_NAME` | `llm_config.json` | LLM config filename loaded from `PLANEXE_CONFIG_PATH`/CWD/project root. Supports premium profile switching (e.g. `llm_config.premium.json`). |
 | `PLANEXE_WORKER_RELAY_PROCESS_OUTPUT` | `false` | When `true`, pipe pipeline stdout/stderr to the worker logs instead of suppressing them. |
 | `PLANEXE_PURGE_ENABLED` | `false` | Enable the background scheduler that purges old run directories. |
 | `PLANEXE_PURGE_MAX_AGE_HOURS` | `1` | Maximum age (hours) of runs to delete when purging (scheduler and manual default). |

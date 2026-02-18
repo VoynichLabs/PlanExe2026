@@ -8,6 +8,18 @@ This file defines which LLM providers and models PlanExe can use. Each top‑lev
 
 `llm_config.json` lives in the PlanExe repo root and is read at runtime. Environment variables are substituted from `.env`.
 
+You can also select an alternate config file with:
+
+- `PLANEXE_LLM_CONFIG_NAME` (default: `llm_config.json`)
+
+Example:
+
+```bash
+PLANEXE_LLM_CONFIG_NAME=llm_config.premium.json
+```
+
+This is used by the worker when users pick **Premium mode** in the single-user UI.
+
 ---
 
 ## File structure
@@ -69,7 +81,20 @@ These keys are common across most providers:
 
 ---
 
+## Premium mode
+
+PlanExe supports a separate premium profile file:
+
+- `llm_config.premium.json`
+
+In the single-user UI, users can switch **Plan version** between:
+
+- **Standard mode** → uses `llm_config.json`
+- **Premium mode** → uses `llm_config.premium.json`
+
+Premium mode is intended for stronger (often costlier) models and therefore can consume credits faster.
+
 ## Notes
 
-- If `llm_config.json` is missing, PlanExe logs a warning and proceeds with defaults.
-- Changes to `llm_config.json` require a container restart (or rebuild if baked into the image).
+- If the selected config file is missing, PlanExe logs a warning and fails required config checks.
+- Changes to config files require a container restart (or rebuild if baked into the image).

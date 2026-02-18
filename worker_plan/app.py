@@ -55,12 +55,20 @@ PURGE_PREFIX = os.environ.get("PLANEXE_PURGE_RUN_PREFIX", "")
 
 RUN_BASE_PATH.mkdir(parents=True, exist_ok=True)
 
+PLAN_VERSION_STANDARD = "standard"
+PLAN_VERSION_PREMIUM = "premium"
+PLAN_VERSION_TO_LLM_CONFIG_NAME: Dict[str, str] = {
+    PLAN_VERSION_STANDARD: "llm_config.json",
+    PLAN_VERSION_PREMIUM: "llm_config.premium.json",
+}
+
 
 class StartRunRequest(BaseModel):
     submit_or_retry: Literal["submit", "retry"] = Field(description="Whether this is a new run or a retry of an existing run.")
     plan_prompt: str = Field(..., description="The user provided plan description.")
     llm_model: str = Field(..., description="LLM model identifier.")
     speed_vs_detail: str = Field(..., description="Speed vs detail preference.")
+    plan_version: Literal["standard", "premium"] = Field("standard", description="Which model profile to use: standard or premium.")
     openrouter_api_key: Optional[str] = Field(None, description="Optional OpenRouter API key.")
     run_id: Optional[str] = Field(None, description="Existing run ID to retry.")
 
@@ -162,12 +170,22 @@ def build_display_run_dir(run_dir: Path) -> str:
     return str(run_dir)
 
 
-def build_env(run_dir: Path, llm_model: str, speed_vs_detail: str, openrouter_api_key: Optional[str]) -> Dict[str, str]:
+def build_env(
+    run_dir: Path,
+    llm_model: str,
+    speed_vs_detail: str,
+    plan_version: str,
+    openrouter_api_key: Optional[str],
+) -> Dict[str, str]:
     env = os.environ.copy()
     env[PipelineEnvironmentEnum.RUN_ID_DIR.value] = str(run_dir)
     env["PLANEXE_TASK_ID"] = run_dir.name
     env[PipelineEnvironmentEnum.LLM_MODEL.value] = llm_model
     env[PipelineEnvironmentEnum.SPEED_VS_DETAIL.value] = speed_vs_detail
+
+    llm_config_name = PLAN_VERSION_TO_LLM_CONFIG_NAME.get(plan_version, PLAN_VERSION_TO_LLM_CONFIG_NAME[PLAN_VERSION_STANDARD])
+    env["PLANEXE_LLM_CONFIG_NAME"] = llm_config_name
+
     if openrouter_api_key:
         env["OPENROUTER_API_KEY"] = openrouter_api_key
     return env
@@ -215,7 +233,20 @@ def start_run(request: StartRunRequest) -> StartRunResponse:
         if existing and existing.is_running():
             raise HTTPException(status_code=409, detail=f"Run {run_id} is already active.")
 
-    env = build_env(run_dir=run_dir, llm_model=request.llm_model, speed_vs_detail=request.speed_vs_detail, openrouter_api_key=request.openrouter_api_key)
+    env = build_env(
+        run_dir=run_dir,
+        llm_model=request.llm_model,
+        speed_vs_detail=request.speed_vs_detail,
+        plan_version=request.plan_version,
+        openrouter_api_key=request.openrouter_api_key,
+    )
+    logger.info(
+        "Starting run %s with plan_version=%s (llm_config=%s)",
+        run_id,
+        request.plan_version,
+        env.get("PLANEXE_LLM_CONFIG_NAME"),
+    )
+
     process = start_pipeline_subprocess(env)
 
     info = RunProcessInfo(

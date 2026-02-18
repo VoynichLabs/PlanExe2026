@@ -26,7 +26,12 @@ logger = logging.getLogger(__name__)
 
 class ConfigNameEnum(str, Enum):
     DOTENV = ".env"
-    LLM_CONFIG_JSON = "llm_config.json"
+    LLM_CONFIG_JSON_DEFAULT = "llm_config.json"
+
+
+class EnvNameEnum(str, Enum):
+    PLANEXE_CONFIG_PATH = "PLANEXE_CONFIG_PATH"
+    PLANEXE_LLM_CONFIG_NAME = "PLANEXE_LLM_CONFIG_NAME"
 
 class PlanExeConfigError(Exception):
     """Raised when there is an error with the configuration."""
@@ -40,10 +45,12 @@ class PlanExeConfig:
     Attributes:
         planexe_config_path: Optional[Path] - The directory specified by PLANEXE_CONFIG_PATH
         dotenv_path: Optional[Path] - Path to the .env file
-        llm_config_json_path: Optional[Path] - Path to the llm_config.json file
+        llm_config_json_name: str - Name of the LLM config file selected via PLANEXE_LLM_CONFIG_NAME.
+        llm_config_json_path: Optional[Path] - Path to the resolved LLM config file.
     """
     planexe_config_path: Optional[Path]
     dotenv_path: Optional[Path]
+    llm_config_json_name: str
     llm_config_json_path: Optional[Path]
     
     _instance: ClassVar[Optional['PlanExeConfig']] = None
@@ -57,7 +64,7 @@ class PlanExeConfig:
         """
         missing_files = []
         if self.llm_config_json_path is None:
-            missing_files.append(ConfigNameEnum.LLM_CONFIG_JSON.value)
+            missing_files.append(self.llm_config_json_name)
         
         if missing_files:
             msg = f"Required configuration file(s) not found: {', '.join(missing_files)}"
@@ -80,11 +87,13 @@ class PlanExeConfig:
 
         logger.debug("PlanExeConfig.load() creating a new instance...")
         planexe_config_path = cls.resolve_planexe_config_path()
+        llm_config_json_name = cls.resolve_llm_config_name()
         dotenv_path = cls.find_file_in_search_order(ConfigNameEnum.DOTENV.value, planexe_config_path, is_optional=True)
-        llm_config_json_path = cls.find_file_in_search_order(ConfigNameEnum.LLM_CONFIG_JSON.value, planexe_config_path)
+        llm_config_json_path = cls.find_file_in_search_order(llm_config_json_name, planexe_config_path)
         cls._instance = cls(
             planexe_config_path=planexe_config_path,
             dotenv_path=dotenv_path,
+            llm_config_json_name=llm_config_json_name,
             llm_config_json_path=llm_config_json_path
         )
         return cls._instance
@@ -97,7 +106,7 @@ class PlanExeConfig:
         
         :return: A Path object if valid, otherwise None.
         """
-        path_str = os.environ.get("PLANEXE_CONFIG_PATH")
+        path_str = os.environ.get(EnvNameEnum.PLANEXE_CONFIG_PATH.value)
         if path_str is None:
             logger.debug("PLANEXE_CONFIG_PATH is not set")
             return None
@@ -115,6 +124,36 @@ class PlanExeConfig:
             return None
         logger.debug(f"Using PLANEXE_CONFIG_PATH: {path_obj!r}")
         return path_obj
+
+    @classmethod
+    def resolve_llm_config_name(cls) -> str:
+        """
+        Resolves the LLM config filename from PLANEXE_LLM_CONFIG_NAME.
+        Falls back to "llm_config.json" when unset.
+        """
+        llm_config_name = os.environ.get(
+            EnvNameEnum.PLANEXE_LLM_CONFIG_NAME.value,
+            ConfigNameEnum.LLM_CONFIG_JSON_DEFAULT.value,
+        ).strip()
+
+        if not llm_config_name:
+            logger.warning(
+                "%s was empty. Falling back to %s",
+                EnvNameEnum.PLANEXE_LLM_CONFIG_NAME.value,
+                ConfigNameEnum.LLM_CONFIG_JSON_DEFAULT.value,
+            )
+            return ConfigNameEnum.LLM_CONFIG_JSON_DEFAULT.value
+
+        if Path(llm_config_name).is_absolute() or "/" in llm_config_name or "\\" in llm_config_name:
+            logger.warning(
+                "Invalid %s=%r. Expected a filename, not a path. Falling back to %s.",
+                EnvNameEnum.PLANEXE_LLM_CONFIG_NAME.value,
+                llm_config_name,
+                ConfigNameEnum.LLM_CONFIG_JSON_DEFAULT.value,
+            )
+            return ConfigNameEnum.LLM_CONFIG_JSON_DEFAULT.value
+
+        return llm_config_name
 
     @classmethod
     def find_file_in_search_order(cls, filename: str, planexe_config_path: Optional[Path], is_optional: bool = False) -> Optional[Path]:
