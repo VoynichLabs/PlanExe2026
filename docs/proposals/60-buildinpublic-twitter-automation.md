@@ -9,7 +9,12 @@
 
 ## Summary
 
-Automate the posting of `#buildinpublic` tweets directly from PlanExeOrg/PlanExe GitHub commits — no human required in the loop. A cron job polls for new commits, passes the diff/message to an LLM to generate a short tweet, and posts it via the Twitter API. The goal is passive discoverability without asking Simon or Mark to manually post social updates.
+Build a Twitter presence for PlanExe through two complementary, fully-automated strategies:
+
+1. **Engagement-First (Primary):** Monitor Twitter for relevant technical conversations and post thoughtful replies — continuous presence independent of commit cadence.
+2. **Commit-Based Posting (Secondary/Optional):** Auto-post `#buildinpublic` updates from GitHub commits — ties activity to real dev work.
+
+The goal is passive discoverability without asking Simon or Mark to manually post social updates. The engagement-first approach is recommended as primary because it builds presence continuously, even during quiet dev periods.
 
 ---
 
@@ -21,7 +26,111 @@ This proposal closes that gap with zero ongoing human effort.
 
 ---
 
-## Concept
+---
+
+## Approach 1: Engagement-First (Primary)
+
+> *Recommended based on Mark's feedback: build presence through conversation, not broadcast.*
+
+### The Strategy
+
+Instead of (or in addition to) posting about our own commits, the agent monitors Twitter for relevant technical conversations and replies with thoughtful, substantive comments. This is **engagement-driven discoverability** — we show up where the audience already is, rather than waiting for them to find our posts.
+
+**Key advantage:** No dependency on dev cadence. The bot runs on a schedule regardless of whether there were commits that day.
+
+### Topics to Monitor
+
+| Topic cluster | Example keywords / hashtags |
+|---|---|
+| Agent orchestration | `agent orchestration`, `multi-agent`, `#AgentDev` |
+| Long-running agents | `long-running agent`, `background agent`, `persistent agent` |
+| MCP ecosystem | `#MCP`, `model context protocol`, `MCP server` |
+| Planning tools | `AI planning`, `project planning agent`, `#buildinpublic planning` |
+| ARC-AGI / reasoning benchmarks | `ARC-AGI`, `reasoning benchmark`, `LLM reasoning` |
+| AI project management | `AI project management`, `autonomous planning`, `AI PM` |
+
+### How It Works
+
+```
+Cron job triggers (e.g. every 4 hours)
+        │
+        ▼
+   bird CLI searches Twitter
+   for monitored keywords/hashtags
+        │
+        ▼
+   LLM evaluates each candidate tweet:
+   - Is it relevant to PlanExe's domain?
+   - Is the conversation worth joining?
+   - Would a reply add genuine value?
+        │
+        ▼
+   LLM drafts reply
+   (technical tone, references PlanExe where natural)
+        │
+        ▼
+   [Optional: human review queue]
+        │
+        ▼
+   bird CLI posts reply
+        │
+        ▼
+   State updated (avoid re-replying to same thread)
+```
+
+### Reply Prompt Template
+
+```
+You are replying to a tweet on behalf of PlanExe — an open source AI-powered project planning tool.
+
+Original tweet:
+{tweet_text}
+Author: {author_handle}
+Thread context: {thread_summary if available}
+
+Your job: Write a reply that adds genuine value to this conversation.
+
+Rules:
+- Technical, knowledgeable tone — like an experienced engineer, not a marketer
+- Only mention PlanExe if it's genuinely relevant and natural (don't force it)
+- No exclamation marks, no hype language
+- Max 240 characters
+- If you can't add value, output: SKIP
+
+Reply:
+```
+
+### Engagement Configuration
+
+| Parameter | Recommended default |
+|---|---|
+| Search interval | Every 4 hours |
+| Max replies per day | 5–10 (avoids spam flags) |
+| Min tweet age before replying | 15 minutes (avoids replying to brand-new posts that may change) |
+| Max tweet age to consider | 24 hours (avoid necro-replying) |
+| Review mode | Start in manual-review; move to autonomous after calibration |
+
+### Pros and Cons
+
+**Pros:**
+- Continuous presence — runs on schedule regardless of commit activity
+- Builds reputation as knowledgeable contributors in the AI/agent space
+- More natural than self-promotion — joining conversations feels authentic
+- Audience encounters PlanExe in context they already care about
+
+**Cons:**
+- Risk of posting off-tone or irrelevant replies — needs strong LLM prompt and topic filters
+- Twitter's search API has rate limits — need to stay within free/basic tier caps
+- Reply spam risk if max-per-day limits aren't enforced
+- Harder to audit at scale vs commit-based posting (need logging)
+
+---
+
+## Approach 2: Commit-Based Posting (Secondary / Optional)
+
+> *Original proposal — still valid as a complement to engagement-first, but lower priority.*
+
+### Concept
 
 ```
 PlanExeOrg/PlanExe commits
@@ -46,7 +155,7 @@ Key constraint: **fully automated, no human approval step**. The value is in the
 
 ---
 
-## Why This Works
+### Why This Works
 
 1. **Commits already describe what changed** — the signal is already there; this just redistributes it.
 2. **#buildinpublic audience is technical** — they want to see actual work, not marketing copy.
@@ -55,7 +164,7 @@ Key constraint: **fully automated, no human approval step**. The value is in the
 
 ---
 
-## Architecture
+### Architecture
 
 ### 1. GitHub API Polling
 
@@ -133,7 +242,7 @@ curl -X POST https://api.twitter.com/2/tweets \
 
 ---
 
-## Implementation Sketch (Pseudocode)
+### Implementation Sketch (Pseudocode)
 
 ```bash
 #!/bin/bash
@@ -210,6 +319,10 @@ Before this can be implemented, the following need human sign-off:
 | 6 | **LLM for generation?** | Claude Haiku (cheapest Anthropic) / GPT-4o-mini / Gemini Flash / Local (ollama) |
 | 7 | **Where does the cron run?** | GitHub Actions (free, native) / Railway cron / VPS / Mark's server |
 | 8 | **Error handling** | Silent fail (skip tweet on error) / Alert to Discord / Retry once |
+| 9 | **Topics/keywords to monitor** (engagement) | Default list in proposal (agent orchestration, MCP, ARC-AGI, etc.) / Custom keyword set / Hashtag-only |
+| 10 | **Reply tone guidelines** | Technical & factual (default) / Slightly warmer but still non-marketing / Strict: never mention PlanExe unless directly relevant |
+| 11 | **Max replies per day** | 5 (conservative) / 10 (moderate) / Unlimited with dedup logic |
+| 12 | **Review mode for replies** | Manual review queue before posting / Fully autonomous / Autonomous with Discord log for human audit |
 
 ---
 
@@ -217,6 +330,15 @@ Before this can be implemented, the following need human sign-off:
 
 If Simon approves with minimal decisions:
 
+### Engagement-First (Approach 1 — start here)
+- **Account:** Mark's personal account via bird CLI (already configured)
+- **Search interval:** Every 4 hours via cron
+- **Topics:** Agent orchestration, MCP ecosystem, ARC-AGI, AI project management (see table above)
+- **Max replies/day:** 5 to start; increase after calibration
+- **Review mode:** Manual review queue for first 2 weeks, then autonomous
+- **LLM:** Claude Haiku (cheapest, fast)
+
+### Commit-Based Posting (Approach 2 — add later)
 - **Account:** Dedicated `@PlanExeBuilds` or similar (avoids mixing personal/project)
 - **Frequency:** Daily digest at 09:00 UTC
 - **Commits:** All commits, excluding pure merge commits
@@ -228,11 +350,19 @@ If Simon approves with minimal decisions:
 
 ## Open Questions
 
+**Commit-based posting:**
 1. Is anyone opposed to fully automated posting with no human approval? (This is the whole point — if we add approval, it dies.)
 2. Should failed LLM calls be silent-failed or reported to a Discord channel?
 3. Does Simon want to review the tweet prompt template before it goes live?
 4. If the project goes quiet for a week (no commits), should the bot post a "still alive" update, or just stay silent?
 5. Should the bot ever reply to comments on its tweets, or post-only?
+
+**Engagement-first (new):**
+6. Which keyword/hashtag clusters are in-scope? (Proposal's default list is a starting point — Simon/Mark should cull/expand.)
+7. Hard line on mentioning PlanExe: only when directly relevant, or never unless asked?
+8. Should replies log to a Discord channel for human audit even in autonomous mode?
+9. Start with manual review queue? Recommended yes — autonomous only after the reply quality is validated.
+10. How should the bot handle tweets that are hostile/critical of LLM agents? (Likely SKIP, but worth deciding explicitly.)
 
 ---
 
@@ -246,12 +376,20 @@ If Simon approves with minimal decisions:
 
 ## Next Steps (After Simon's Decisions)
 
-1. Create Twitter account / obtain API credentials
-2. Store credentials as GitHub Actions secrets (or Railway env vars)
-3. Write `.github/workflows/twitter-digest.yml`
-4. Write `scripts/twitter_bot.py` (or shell equivalent)
-5. Test with dry-run mode (generate tweet, log to file, don't post)
-6. Enable live posting
+### Phase 1 — Engagement-First (start here)
+1. Finalize topic keyword list (Simon + Mark review)
+2. Write `scripts/twitter_engagement_bot.sh` (or Python) — search → LLM eval → draft reply → review queue or auto-post
+3. Test in dry-run mode (search + draft replies, log to file, no posting)
+4. Enable manual-review mode: bot drafts replies, posts only after human approval via Discord or CLI prompt
+5. After 2 weeks of quality calibration, switch to autonomous
+
+### Phase 2 — Commit-Based Posting (add later)
+6. Create Twitter account / obtain API credentials
+7. Store credentials as GitHub Actions secrets (or Railway env vars)
+8. Write `.github/workflows/twitter-digest.yml`
+9. Write `scripts/twitter_commit_bot.py` (or shell equivalent)
+10. Test with dry-run mode (generate tweet, log to file, don't post)
+11. Enable live posting
 
 ---
 
