@@ -914,8 +914,7 @@ class FermiSanityCheckTask(PlanTask):
 
     def requires(self):
         return {
-            'make_assumptions': self.clone(MakeAssumptionsTask),
-            'fermi_sanity_check': self.clone(FermiSanityCheckTask)
+            'make_assumptions': self.clone(MakeAssumptionsTask)
         }
 
     def output(self):
