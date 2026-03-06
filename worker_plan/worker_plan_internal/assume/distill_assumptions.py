@@ -194,11 +194,8 @@ class DistillAssumptions:
         metadata["duration"] = duration
         metadata["response_byte_count"] = response_byte_count
 
-        try:
-            json_response = json.loads(chat_response.message.content)
-        except json.JSONDecodeError as e:
-            logger.error("Failed to parse LLM response as JSON.", exc_info=True)
-            raise ValueError("Invalid JSON response from LLM.") from e
+        structured_response: AssumptionDetails = chat_response.raw
+        json_response = structured_response.model_dump()
 
         markdown = cls.convert_to_markdown(chat_response.raw)
 
