@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field
 from llama_index.core.llms.llm import LLM
 from llama_index.core.llms import ChatMessage, MessageRole
 from worker_plan_internal.llm_util.llm_executor import LLMExecutor, PipelineStopRequested
+from worker_plan_internal.llm_util.structured_response_util import require_raw
 
 logger = logging.getLogger(__name__)
 
@@ -183,6 +184,7 @@ class ExpertFinder:
             logger.debug("Starting LLM chat interaction 1.")
             start_time = time.perf_counter()
             chat_response = sllm.chat(chat_message_list1)
+            raw_response = require_raw(chat_response, ExpertDetails)
             end_time = time.perf_counter()
             duration = int(ceil(end_time - start_time))
             response_byte_count = len(chat_response.message.content.encode('utf-8'))
@@ -192,7 +194,7 @@ class ExpertFinder:
             metadata["llm_classname"] = llm.class_name()
             metadata["duration"] = duration
             metadata["response_byte_count"] = response_byte_count
-            metadata["expert_count"] = len(chat_response.raw.experts)
+            metadata["expert_count"] = len(raw_response.experts)
             
             return {
                 "chat_response": chat_response,
@@ -227,6 +229,7 @@ class ExpertFinder:
             logger.debug("Starting LLM chat interaction 2.")
             start_time = time.perf_counter()
             chat_response = sllm.chat(chat_message_list2)
+            raw_response = require_raw(chat_response, ExpertDetails)
             end_time = time.perf_counter()
             duration = int(ceil(end_time - start_time))
             response_byte_count = len(chat_response.message.content.encode('utf-8'))
@@ -236,7 +239,7 @@ class ExpertFinder:
             metadata["llm_classname"] = llm.class_name()
             metadata["duration"] = duration
             metadata["response_byte_count"] = response_byte_count
-            metadata["expert_count"] = len(chat_response.raw.experts)
+            metadata["expert_count"] = len(raw_response.experts)
             
             return {
                 "chat_response": chat_response,

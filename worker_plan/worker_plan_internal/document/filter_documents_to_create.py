@@ -23,6 +23,7 @@ from pydantic import BaseModel, Field
 from llama_index.core.llms import ChatMessage, MessageRole
 from llama_index.core.llms.llm import LLM
 from worker_plan_internal.assume.identify_purpose import IdentifyPurpose, PlanPurposeInfo, PlanPurpose
+from worker_plan_internal.llm_util.structured_response_util import require_raw
 
 logger = logging.getLogger(__name__)
 
@@ -305,6 +306,7 @@ class FilterDocumentsToCreate:
         start_time = time.perf_counter()
         try:
             chat_response = sllm.chat(chat_message_list)
+            raw_response = require_raw(chat_response, DocumentImpactAssessmentResult)
         except Exception as e:
             logger.debug(f"LLM chat interaction failed: {e}")
             logger.error("LLM chat interaction failed.", exc_info=True)
@@ -315,14 +317,14 @@ class FilterDocumentsToCreate:
         response_byte_count = len(chat_response.message.content.encode('utf-8'))
         logger.info(f"LLM chat interaction completed in {duration} seconds. Response byte count: {response_byte_count}")
 
-        json_response = chat_response.raw.model_dump()
+        json_response = raw_response.model_dump()
 
         metadata = dict(llm.metadata)
         metadata["llm_classname"] = llm.class_name()
         metadata["duration"] = duration
         metadata["response_byte_count"] = response_byte_count
 
-        assessment_result = chat_response.raw
+        assessment_result = raw_response
 
         ids_to_keep = cls.extract_integer_ids_to_keep(assessment_result)
         uuids_to_keep_list = [integer_id_to_document_uuid[integer_id] for integer_id in ids_to_keep]

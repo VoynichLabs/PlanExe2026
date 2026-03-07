@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from llama_index.core.llms import ChatMessage, MessageRole
 from llama_index.core.llms.llm import LLM
 from worker_plan_internal.format_json_for_use_in_query import format_json_for_use_in_query
+from worker_plan_internal.llm_util.structured_response_util import require_raw
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +94,7 @@ class EnrichTeamMembersWithEnvironmentInfo:
         start_time = time.perf_counter()
         try:
             chat_response = sllm.chat(chat_message_list)
+            raw_response = require_raw(chat_response, DocumentDetails)
         except Exception as e:
             logger.debug(f"LLM chat interaction failed: {e}")
             logger.error("LLM chat interaction failed.", exc_info=True)
@@ -103,9 +105,9 @@ class EnrichTeamMembersWithEnvironmentInfo:
         response_byte_count = len(chat_response.message.content.encode('utf-8'))
         logger.info(f"LLM chat interaction completed in {duration} seconds. Response byte count: {response_byte_count}")
 
-        json_response = chat_response.raw.model_dump()
+        json_response = raw_response.model_dump()
 
-        team_member_list_enriched = cls.cleanup_enriched_team_members_with_environment_info_and_merge_with_team_members(chat_response.raw, team_member_list)
+        team_member_list_enriched = cls.cleanup_enriched_team_members_with_environment_info_and_merge_with_team_members(raw_response, team_member_list)
 
         metadata = dict(llm.metadata)
         metadata["llm_classname"] = llm.class_name()

@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from pydantic import BaseModel, Field
 from llama_index.core.llms import ChatMessage, MessageRole
 from llama_index.core.llms.llm import LLM
+from worker_plan_internal.llm_util.structured_response_util import require_raw
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +103,7 @@ class IdentifyPurpose:
         response_byte_count = len(chat_response.message.content.encode('utf-8'))
         logger.info(f"LLM chat interaction completed in {duration} seconds. Response byte count: {response_byte_count}")
 
-        plan_purpose_instance: PlanPurposeInfo = chat_response.raw
+        plan_purpose_instance = require_raw(chat_response, PlanPurposeInfo)
         json_response = plan_purpose_instance.model_dump()
         purpose_value = plan_purpose_instance.purpose.value
         json_response['purpose'] = purpose_value

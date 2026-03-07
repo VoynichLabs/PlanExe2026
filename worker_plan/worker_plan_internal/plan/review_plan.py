@@ -16,6 +16,7 @@ from llama_index.core.llms import ChatMessage, MessageRole, ChatResponse
 from llama_index.core.llms.llm import LLM
 from worker_plan_api.speedvsdetail import SpeedVsDetailEnum
 from worker_plan_internal.llm_util.llm_executor import LLMExecutor, LLMModelFromName, PipelineStopRequested
+from worker_plan_internal.llm_util.structured_response_util import require_raw
 
 logger = logging.getLogger(__name__)
 
@@ -173,13 +174,14 @@ class ReviewPlan:
             response_byte_counts.append(response_byte_count)
             logger.info(f"Question {index} of {len(title_question_list)}. LLM chat interaction completed in {duration} seconds. Response byte count: {response_byte_count}")
 
-            json_response = review_plan_run_result.chat_response.raw.model_dump()
+            raw_response = require_raw(review_plan_run_result.chat_response, DocumentDetails)
+            json_response = raw_response.model_dump()
             logger.debug(json.dumps(json_response, indent=2))
 
             question_answers_list.append({
                 "title": title,
                 "question": question,
-                "answers": review_plan_run_result.chat_response.raw.bullet_points,
+                "answers": raw_response.bullet_points,
             })
 
             metadata_list.append(review_plan_run_result.metadata)
