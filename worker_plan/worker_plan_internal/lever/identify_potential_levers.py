@@ -9,7 +9,7 @@ PROMPT> python -m worker_plan_internal.lever.identify_potential_levers
 import json
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 from dataclasses import dataclass
 import uuid
 from llama_index.core.llms.llm import LLM
@@ -19,21 +19,58 @@ from worker_plan_internal.llm_util.llm_executor import LLMExecutor, PipelineStop
 
 logger = logging.getLogger(__name__)
 
-class Lever(BaseModel):
-    lever_index: int = Field(
-        description="Index of this lever."
+# ---------------------------------------------------------------------------
+# Decomposed schemas (PremortemTask pattern)
+# ---------------------------------------------------------------------------
+
+class LeverNarrative(BaseModel):
+    """Narrative context for a set of levers — kept separate so small models
+    are never asked to produce nested lists and narrative text in one shot."""
+    strategic_rationale: str = Field(
+        description=(
+            "A concise strategic analysis (around 100 words) of the project's core tensions "
+            "and trade-offs. This rationale must JUSTIFY why the selected levers are the most "
+            "critical levers for decision-making. Explain how the chosen levers navigate the "
+            "fundamental conflicts between speed, cost, scope, and quality."
+        )
     )
+    summary: str = Field(
+        description=(
+            "Evaluate this set of levers. Are they well picked, well balanced, well thought out? "
+            "Point out flaws. Identify ONE critical missing dimension. 100 words."
+        )
+    )
+
+
+class LeverItem(BaseModel):
+    """A single strategic lever — one LLM call per lever (PremortemTask pattern).
+    lever_index is intentionally absent; the program assigns it sequentially."""
     name: str = Field(
-        description="Name of this lever."
+        description="Name of this lever as a strategic concept (e.g. 'Material Adaptation Strategy')."
     )
     consequences: str = Field(
-        description="Briefly describe the likely second-order effects or consequences of pulling this lever (e.g., 'Choosing a high-risk tech strategy will likely increase talent acquisition difficulty and require a larger contingency budget.'). 30 words."
+        description=(
+            "Briefly describe the likely second-order effects or consequences of pulling this lever. "
+            "Chain three SPECIFIC effects: "
+            "'Immediate: [effect] → Systemic: [impact] → Strategic: [implication]'. "
+            "Include measurable outcomes where possible. 30 words."
+        )
     )
-    options: list[str] = Field(
-        description="2-5 options for this lever."
+    options: List[str] = Field(
+        description=(
+            "Exactly 3 qualitative, self-contained strategic choices. "
+            "Each option must be a complete strategic description — NO labels or prefixes "
+            "(e.g. no 'Option A:', 'Choice 1:'). "
+            "Show a clear progression: conservative → moderate → radical."
+        )
     )
     review_lever: str = Field(
-        description="Critique this lever. State the core trade-off it controls (e.g., 'Controls Speed vs. Quality'). Then, identify one specific weakness in how its options address that trade-off."
+        description=(
+            "Critique this lever. State the core trade-off it controls "
+            "(e.g. 'Controls Speed vs. Quality'). "
+            "Then identify one specific weakness: "
+            "'Weakness: The options fail to consider [specific factor].'"
+        )
     )
 
     @field_validator('options', mode='before')
@@ -49,47 +86,118 @@ class Lever(BaseModel):
                 pass
         return v
 
-class DocumentDetails(BaseModel):
-    strategic_rationale: str = Field(
-        description="A concise strategic analysis (around 100 words) of the project's core tensions and trade-offs. This rationale must JUSTIFY why the selected levers are the most critical levers for decision-making. For example, explain how the chosen levers navigate the fundamental conflicts between speed, cost, scope, and quality."
-    )
-    levers: list[Lever] = Field(
-        description="Propose exactly 5 levers."
-    )
-    summary: str = Field(
-        description="Are these levers well picked? Are they well balanced? Are they well thought out? Point out flaws. 100 words."
-    )
 
-class LeverCleaned(BaseModel):
-    """
-    The Lever class has some ugly field names, that guide the LLM for what to generate. Changing them and the LLM can't generate as good results.
-    This class has nicer field names for the final output.
-    """
-    lever_id: str = Field(
-        description="A uuid that identifies this lever. The levers can be deduplicated and preserve their lever_id without leaving gaps in the numbering."
+# ---------------------------------------------------------------------------
+# Legacy schemas preserved for backward-compatible serialisation
+# (responses are reconstructed from decomposed calls and stored as
+#  DocumentDetails so downstream consumers see the same structure)
+# ---------------------------------------------------------------------------
+
+class Lever(BaseModel):
+    lever_index: int = Field(
+        description="Index of this lever."
     )
     name: str = Field(
         description="Name of this lever."
     )
     consequences: str = Field(
-        description="Briefly describe the likely second-order effects or consequences of pulling this lever (e.g., 'Choosing a high-risk tech strategy will likely increase talent acquisition difficulty and require a larger contingency budget.'). 30 words."
+        description=(
+            "Briefly describe the likely second-order effects or consequences of pulling this lever "
+            "(e.g., 'Choosing a high-risk tech strategy will likely increase talent acquisition "
+            "difficulty and require a larger contingency budget.'). 30 words."
+        )
+    )
+    options: list[str] = Field(
+        description="2-5 options for this lever."
+    )
+    review_lever: str = Field(
+        description=(
+            "Critique this lever. State the core trade-off it controls "
+            "(e.g., 'Controls Speed vs. Quality'). "
+            "Then, identify one specific weakness in how its options address that trade-off."
+        )
+    )
+
+    @field_validator('options', mode='before')
+    @classmethod
+    def parse_options(cls, v):
+        if isinstance(v, str):
+            try:
+                parsed = json.loads(v)
+                if isinstance(parsed, list):
+                    return parsed
+            except (json.JSONDecodeError, TypeError):
+                pass
+        return v
+
+
+class DocumentDetails(BaseModel):
+    strategic_rationale: str = Field(
+        description=(
+            "A concise strategic analysis (around 100 words) of the project's core tensions "
+            "and trade-offs. This rationale must JUSTIFY why the selected levers are the most "
+            "critical levers for decision-making."
+        )
+    )
+    levers: list[Lever] = Field(
+        description="Propose exactly 5 levers."
+    )
+    summary: str = Field(
+        description=(
+            "Are these levers well picked? Are they well balanced? Are they well thought out? "
+            "Point out flaws. 100 words."
+        )
+    )
+
+
+class LeverCleaned(BaseModel):
+    """
+    The Lever class has some ugly field names that guide the LLM for what to generate.
+    Changing them and the LLM can't generate as good results.
+    This class has nicer field names for the final output.
+    """
+    lever_id: str = Field(
+        description=(
+            "A uuid that identifies this lever. The levers can be deduplicated and preserve "
+            "their lever_id without leaving gaps in the numbering."
+        )
+    )
+    name: str = Field(
+        description="Name of this lever."
+    )
+    consequences: str = Field(
+        description=(
+            "Briefly describe the likely second-order effects or consequences of pulling this lever "
+            "(e.g., 'Choosing a high-risk tech strategy will likely increase talent acquisition "
+            "difficulty and require a larger contingency budget.'). 30 words."
+        )
     )
     options: list[str] = Field(
         description="2-5 options for this lever."
     )
     review: str = Field(
-        description="Critique this lever. State the core trade-off it controls (e.g., 'Controls Speed vs. Quality'). Then, identify one specific weakness in how its options address that trade-off."
+        description=(
+            "Critique this lever. State the core trade-off it controls "
+            "(e.g., 'Controls Speed vs. Quality'). "
+            "Then, identify one specific weakness in how its options address that trade-off."
+        )
     )
 
+
+# ---------------------------------------------------------------------------
+# System prompts
+# ---------------------------------------------------------------------------
+
+# Used for generating a single LeverItem.
+# Part A fix: JSON fenced code block removed from Output Requirements.
+# The schema injection via as_structured_llm(LeverItem) handles format.
 IDENTIFY_POTENTIAL_LEVERS_SYSTEM_PROMPT = """
-You are an expert strategic analyst. Generate solution space parameters following these directives:
+You are an expert strategic analyst. Generate ONE strategic lever following these directives:
 
 1. **Output Requirements**
-   - You must generate EXACTLY 5 levers per response. Do not generate more or fewer than 5 levers.
-   - Format options as discrete JSON list items with 3 QUALITATIVE choices:
-     ```json
-     "options": ["Descriptive Strategic Choice", "Descriptive Strategic Choice", "Descriptive Strategic Choice"]
-     ```
+   - You are generating EXACTLY ONE lever per response.
+   - Provide exactly 3 qualitative, self-contained strategic choices for the options field.
+   - Options must be descriptive phrases — no labels, no prefixes (e.g. not "Option A:").
 
 2. **Lever Quality Standards**
    - Consequences MUST:
@@ -105,15 +213,12 @@ You are an expert strategic analyst. Generate solution space parameters followin
 3. **Strategic Framing**
    - Name levers as strategic concepts (e.g., "Material Adaptation Strategy")
    - Frame options as complete strategic approaches
-   - Ensure levers challenge core project assumptions
+   - Ensure the lever challenges core project assumptions
 
 4. **Validation Protocols**
    - For `review_lever`:
      • State the trade-off explicitly: "Controls [Tension A] vs. [Tension B]."
      • Identify a specific weakness: "Weakness: The options fail to consider [specific factor]."
-   - For `summary`:
-     • Identify ONE critical missing dimension
-     • Prescribe CONCRETE addition: "Add '[full strategic option]' to [lever]"
 
 5. **Prohibitions**
    - NO prefixes/labels in options (e.g., "Option A:", "Choice 1:")
@@ -128,6 +233,22 @@ You are an expert strategic analyst. Generate solution space parameters followin
    - Ensure options are self-contained descriptions
 """
 
+# Used for generating LeverNarrative (rationale + summary) after levers are known.
+LEVER_NARRATIVE_SYSTEM_PROMPT = """
+You are an expert strategic analyst evaluating a set of project levers.
+
+Provide:
+1. A concise strategic rationale (~100 words) explaining the core tensions and trade-offs
+   the project faces and why the identified levers are the most critical for decision-making.
+2. A critical summary (~100 words) evaluating whether the lever set is well-balanced and
+   well-thought-out. Identify ONE critical missing dimension and suggest a concrete improvement.
+"""
+
+
+# ---------------------------------------------------------------------------
+# Dataclass
+# ---------------------------------------------------------------------------
+
 @dataclass
 class IdentifyPotentialLevers:
     system_prompt: Optional[str]
@@ -136,104 +257,181 @@ class IdentifyPotentialLevers:
     levers: list[LeverCleaned]
     metadata: dict
 
+    # Number of independent generation rounds ("more" passes)
+    LEVERS_PER_ROUND: int = 5
+
     @classmethod
     def execute(cls, llm_executor: LLMExecutor, user_prompt: str) -> 'IdentifyPotentialLevers':
         if not isinstance(llm_executor, LLMExecutor):
             raise ValueError("Invalid LLMExecutor instance.")
         if not isinstance(user_prompt, str):
             raise ValueError("Invalid user_prompt.")
-        
-        system_prompt = IDENTIFY_POTENTIAL_LEVERS_SYSTEM_PROMPT.strip()
-        chat_message_list = [
-            ChatMessage(
-                role=MessageRole.SYSTEM,
-                content=system_prompt,
-            ),
-            ChatMessage(
-                role=MessageRole.USER,
-                content=user_prompt,
-            )
-        ]
 
-        user_prompt_list = [
+        lever_system_prompt = IDENTIFY_POTENTIAL_LEVERS_SYSTEM_PROMPT.strip()
+        narrative_system_prompt = LEVER_NARRATIVE_SYSTEM_PROMPT.strip()
+
+        levers_per_round = 5
+        # Round base prompts — first round uses the real plan text; subsequent
+        # rounds request distinct additional levers.
+        round_base_prompts = [
             user_prompt,
-            "more",
-            "more",
+            user_prompt,
+            user_prompt,
         ]
 
-        responses: list[DocumentDetails] = []
+        all_lever_items: list[LeverItem] = []
+        all_narratives: list[LeverNarrative] = []
         metadata_list: list[dict] = []
-        for user_prompt_index, user_prompt_item in enumerate(user_prompt_list, start=1):
-            logger.info(f"Processing user_prompt_index: {user_prompt_index} of {len(user_prompt_list)}")
-            chat_message_list.append(
-                ChatMessage(
-                    role=MessageRole.USER,
-                    content=user_prompt_item,
+
+        for round_index, base_prompt in enumerate(round_base_prompts, start=1):
+            logger.info(f"Round {round_index}/{len(round_base_prompts)}")
+
+            # ---------------------------------------------------------------
+            # Part B: One independent LeverItem call per lever
+            # lever_index is NOT asked from the LLM — assigned by code below.
+            # ---------------------------------------------------------------
+            round_lever_items: list[LeverItem] = []
+            seen_names: list[str] = [item.name for item in all_lever_items]
+
+            for lever_i in range(1, levers_per_round + 1):
+                logger.info(f"  Lever {lever_i}/{levers_per_round} (round {round_index})")
+
+                avoid_note = ""
+                current_seen = seen_names + [item.name for item in round_lever_items]
+                if current_seen:
+                    avoid_note = (
+                        f"\n\nAvoid repeating these lever names already generated: "
+                        f"{current_seen}. Pick a clearly different strategic dimension."
+                    )
+
+                item_user_content = (
+                    f"{base_prompt}"
+                    f"\n\nGenerate lever {lever_i} of {levers_per_round} for this project."
+                    f"{avoid_note}"
                 )
+
+                item_chat = [
+                    ChatMessage(role=MessageRole.SYSTEM, content=lever_system_prompt),
+                    ChatMessage(role=MessageRole.USER, content=item_user_content),
+                ]
+
+                def _make_lever_fn(chat):
+                    def execute_function(llm: LLM) -> dict:
+                        sllm = llm.as_structured_llm(LeverItem)
+                        chat_response = sllm.chat(chat)
+                        metadata = dict(llm.metadata)
+                        metadata["llm_classname"] = llm.class_name()
+                        return {"chat_response": chat_response, "metadata": metadata}
+                    return execute_function
+
+                try:
+                    result = llm_executor.run(_make_lever_fn(item_chat))
+                except PipelineStopRequested:
+                    raise
+                except Exception as e:
+                    logger.error("LLM lever item interaction failed.", exc_info=True)
+                    raise ValueError("LLM lever item interaction failed.") from e
+
+                round_lever_items.append(result["chat_response"].raw)
+                metadata_list.append(result["metadata"])
+
+            all_lever_items.extend(round_lever_items)
+
+            # ---------------------------------------------------------------
+            # Part B: One LeverNarrative call per round (after levers known)
+            # ---------------------------------------------------------------
+            lever_names_str = ", ".join(f'"{item.name}"' for item in round_lever_items)
+            narrative_user_content = (
+                f"{base_prompt}"
+                f"\n\nThe levers identified for this round are: {lever_names_str}. "
+                f"Provide strategic rationale and evaluation."
             )
 
-            def execute_function(llm: LLM) -> dict:
-                sllm = llm.as_structured_llm(DocumentDetails)
-                chat_response = sllm.chat(chat_message_list)
-                metadata = dict(llm.metadata)
-                metadata["llm_classname"] = llm.class_name()
-                return {
-                    "chat_response": chat_response,
-                    "metadata": metadata
-                }
+            narrative_chat = [
+                ChatMessage(role=MessageRole.SYSTEM, content=narrative_system_prompt),
+                ChatMessage(role=MessageRole.USER, content=narrative_user_content),
+            ]
+
+            def _make_narrative_fn(chat):
+                def execute_function(llm: LLM) -> dict:
+                    sllm = llm.as_structured_llm(LeverNarrative)
+                    chat_response = sllm.chat(chat)
+                    metadata = dict(llm.metadata)
+                    metadata["llm_classname"] = llm.class_name()
+                    return {"chat_response": chat_response, "metadata": metadata}
+                return execute_function
 
             try:
-                result = llm_executor.run(execute_function)
+                narrative_result = llm_executor.run(_make_narrative_fn(narrative_chat))
             except PipelineStopRequested:
-                # Re-raise PipelineStopRequested without wrapping it
                 raise
             except Exception as e:
-                logger.debug(f"LLM chat interaction failed: {e}")
-                logger.error("LLM chat interaction failed.", exc_info=True)
-                raise ValueError("LLM chat interaction failed.") from e
-            
-            chat_message_list.append(
-                ChatMessage(
-                    role=MessageRole.ASSISTANT,
-                    content=result["chat_response"].raw.model_dump(),
+                logger.error("LLM lever narrative interaction failed.", exc_info=True)
+                raise ValueError("LLM lever narrative interaction failed.") from e
+
+            all_narratives.append(narrative_result["chat_response"].raw)
+            metadata_list.append(narrative_result["metadata"])
+
+        # -------------------------------------------------------------------
+        # Reconstruct DocumentDetails per round for backward-compatible
+        # serialisation (downstream consumers see the same structure).
+        # -------------------------------------------------------------------
+        responses: list[DocumentDetails] = []
+        for round_idx, narrative in enumerate(all_narratives):
+            start = round_idx * levers_per_round
+            round_items = all_lever_items[start: start + levers_per_round]
+            lever_list = [
+                Lever(
+                    lever_index=i + 1,
+                    name=item.name,
+                    consequences=item.consequences,
+                    options=item.options,
+                    review_lever=item.review_lever,
                 )
+                for i, item in enumerate(round_items)
+            ]
+            doc = DocumentDetails(
+                strategic_rationale=narrative.strategic_rationale,
+                levers=lever_list,
+                summary=narrative.summary,
             )
+            responses.append(doc)
 
-            responses.append(result["chat_response"].raw)
-            metadata_list.append(result["metadata"])
-
-        # from the raw_responses, extract the levers into a flatten list
-        levers_raw: list[Lever] = []
-        for response in responses:
-            levers_raw.extend(response.levers)
-
-        # Clean the raw levers
+        # -------------------------------------------------------------------
+        # Flatten all lever items and build LeverCleaned list.
+        # lever_index is assigned sequentially by code — not by the LLM.
+        # -------------------------------------------------------------------
         levers_cleaned: list[LeverCleaned] = []
-        for i, lever in enumerate(levers_raw, start=1):
-            lever_id = str(uuid.uuid4())
+        for item in all_lever_items:
             lever_cleaned = LeverCleaned(
-                lever_id=lever_id,
-                name=lever.name,
-                consequences=lever.consequences,
-                options=lever.options,
-                review=lever.review_lever,
+                lever_id=str(uuid.uuid4()),
+                name=item.name,
+                consequences=item.consequences,
+                options=item.options,
+                review=item.review_lever,
             )
             levers_cleaned.append(lever_cleaned)
 
-        metadata = {}
+        metadata: dict = {}
         for metadata_index, metadata_item in enumerate(metadata_list, start=1):
             metadata[f"metadata_{metadata_index}"] = metadata_item
 
-        result = IdentifyPotentialLevers(
-            system_prompt=system_prompt,
+        return IdentifyPotentialLevers(
+            system_prompt=lever_system_prompt,
             user_prompt=user_prompt,
             responses=responses,
             levers=levers_cleaned,
             metadata=metadata,
         )
-        return result    
 
-    def to_dict(self, include_responses=True, include_cleaned_levers=True, include_metadata=True, include_system_prompt=True, include_user_prompt=True) -> dict:
+    def to_dict(
+        self,
+        include_responses=True,
+        include_cleaned_levers=True,
+        include_metadata=True,
+        include_system_prompt=True,
+        include_user_prompt=True,
+    ) -> dict:
         d = {}
         if include_responses:
             d["responses"] = [response.model_dump() for response in self.responses]
@@ -251,15 +449,14 @@ class IdentifyPotentialLevers:
         Path(file_path).write_text(json.dumps(self.to_dict(), indent=2))
 
     def lever_item_list(self) -> list[dict]:
-        """
-        Return a list of dictionaries, each representing a lever.
-        """
+        """Return a list of dictionaries, each representing a lever."""
         return [lever.model_dump() for lever in self.levers]
-    
+
     def save_clean(self, file_path: str) -> None:
         levers_dict = self.lever_item_list()
         Path(file_path).write_text(json.dumps(levers_dict, indent=2))
-    
+
+
 if __name__ == "__main__":
     from worker_plan_internal.llm_util.llm_executor import LLMModelFromName
     from worker_plan_internal.prompt.prompt_catalog import PromptCatalog
