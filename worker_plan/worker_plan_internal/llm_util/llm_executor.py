@@ -33,6 +33,7 @@ import logging
 import inspect
 import typing
 import traceback
+import re
 from uuid import uuid4
 from typing import Any, Callable, Optional, List
 from dataclasses import dataclass
@@ -103,6 +104,41 @@ class ShouldStopCallbackParameters:
     total_duration: float
     attempt_index: int
     total_attempts: int
+
+def _extract_validation_error_details(error_text: str) -> dict[str, Any]:
+    """Best-effort extraction of missing/invalid field names from validation errors."""
+    if not error_text:
+        return {"missing_fields": [], "invalid_fields": []}
+
+    missing_fields: list[str] = []
+    invalid_fields: list[str] = []
+
+    # Common pydantic pattern: "field_name\n  Field required [type=missing, ...]"
+    lines = error_text.splitlines()
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if "Field required [type=missing" in stripped and i > 0:
+            candidate = lines[i - 1].strip().strip('"').strip("'")
+            if candidate and candidate not in missing_fields:
+                missing_fields.append(candidate)
+
+    # Common pydantic pattern in summary text
+    for match in re.findall(r"([A-Za-z0-9_\.\[\]-]+)\s+Field required", error_text):
+        if match not in missing_fields:
+            missing_fields.append(match)
+
+    for match in re.findall(r"([A-Za-z0-9_\.\[\]-]+).*?\[type=([^,\]]+)", error_text):
+        field_name, error_type = match
+        if error_type != "missing":
+            invalid_marker = f"{field_name}:{error_type}"
+            if invalid_marker not in invalid_fields:
+                invalid_fields.append(invalid_marker)
+
+    return {
+        "missing_fields": missing_fields,
+        "invalid_fields": invalid_fields,
+    }
+
 
 class LLMExecutor:
     """
@@ -238,12 +274,24 @@ class LLMExecutor:
             raise
         except Exception as e:
             duration = time.perf_counter() - attempt_start_time
+            error_text = str(e)
             logger.error(f"LLMExecutor: error when invoking execute_function. LLM {llm_model!r} and llm_executor_uuid: {llm_executor_uuid!r}: {e!r} traceback: {traceback.format_exc()}")
+
+            parsed_details = _extract_validation_error_details(error_text)
+            if parsed_details["missing_fields"] or parsed_details["invalid_fields"]:
+                logger.info(
+                    "LLMExecutor structured_parse_failure task=unknown schema=unknown attempt=%s llm_model=%s missing_fields=%s invalid_fields=%s",
+                    len(self.attempts),
+                    getattr(llm_model, "name", llm.__class__.__name__),
+                    parsed_details["missing_fields"],
+                    parsed_details["invalid_fields"],
+                )
+
             self._record_attempt_token_metrics(
                 llm_model_name=getattr(llm_model, "name", llm.__class__.__name__),
                 duration=duration,
                 success=False,
-                error_message=str(e),
+                error_message=error_text,
                 response=None,
             )
             return LLMAttempt(stage='execute', llm_model=llm_model, success=False, duration=duration, exception=e)
