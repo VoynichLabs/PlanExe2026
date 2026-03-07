@@ -60,6 +60,18 @@ class DocumentDetails(BaseModel):
         description="Are these levers well picked? Are they well balanced? Are they well thought out? Point out flaws. 100 words."
     )
 
+class LeverNarrative(BaseModel):
+    """Minimal per-lever schema. lever_index is assigned by code."""
+    name: str = Field(description="A strategic concept name for this lever (e.g. 'Material Adaptation Strategy').")
+    consequences: str = Field(description="Chain three specific effects: 'Immediate: [effect] → Systemic: [impact] → Strategic: [implication]'.")
+    options: list[str] = Field(description="Exactly 3 qualitative strategic choices: conservative, moderate, and radical/innovative.")
+    review_lever: str = Field(description="State the trade-off explicitly and identify one specific weakness.")
+
+class DocumentNarrative(BaseModel):
+    """Overall framing for the lever set."""
+    strategic_rationale: str = Field(description="Why these levers matter strategically for the project.")
+    summary: str = Field(description="Identify ONE critical missing dimension and prescribe a concrete addition.")
+
 class LeverCleaned(BaseModel):
     """
     The Lever class has some ugly field names, that guide the LLM for what to generate. Changing them and the LLM can't generate as good results.
@@ -141,72 +153,171 @@ class IdentifyPotentialLevers:
             raise ValueError("Invalid user_prompt.")
         
         system_prompt = IDENTIFY_POTENTIAL_LEVERS_SYSTEM_PROMPT.strip()
-        chat_message_list = [
-            ChatMessage(
-                role=MessageRole.SYSTEM,
-                content=system_prompt,
-            ),
-            ChatMessage(
-                role=MessageRole.USER,
-                content=user_prompt,
-            )
-        ]
 
-        user_prompt_list = [
+        # 3 independent rounds; each decomposed into per-lever calls for small-model compatibility.
+        # Round prompts are self-contained (no accumulated history) so small models see a clean context.
+        round_user_prompts = [
             user_prompt,
-            "more",
-            "more",
+            (
+                f"{user_prompt}\n\n"
+                "Generate a second set of 5 levers that are thematically different from the first set."
+            ),
+            (
+                f"{user_prompt}\n\n"
+                "Generate a third set of 5 levers that cover different strategic dimensions from the previous sets."
+            ),
         ]
 
         responses: list[DocumentDetails] = []
         metadata_list: list[dict] = []
-        for user_prompt_index, user_prompt_item in enumerate(user_prompt_list, start=1):
-            logger.info(f"Processing user_prompt_index: {user_prompt_index} of {len(user_prompt_list)}")
-            chat_message_list.append(
+
+        for round_index, round_user_prompt in enumerate(round_user_prompts, start=1):
+            logger.info(f"Processing round {round_index} of {len(round_user_prompts)}")
+
+            lever_narratives: list[LeverNarrative] = []
+            lever_metadata_entries: list[dict] = []
+
+            # --- Per-lever calls (5 per round) ---
+            for lever_pos in range(1, 6):
+                logger.info(f"  Round {round_index}: generating lever {lever_pos} of 5")
+
+                lever_chat_messages = [
+                    ChatMessage(
+                        role=MessageRole.SYSTEM,
+                        content=system_prompt,
+                    ),
+                    ChatMessage(
+                        role=MessageRole.USER,
+                        content=round_user_prompt,
+                    ),
+                    ChatMessage(
+                        role=MessageRole.USER,
+                        content=(
+                            f"Generate lever {lever_pos} of 5. "
+                            "Provide ONE specific strategic lever for this project. "
+                            "Name it as a strategic concept. "
+                            "Give exactly 3 options (conservative, moderate, radical)."
+                        ),
+                    ),
+                ]
+
+                def make_lever_fn(msgs):
+                    def execute_lever(llm: LLM) -> dict:
+                        sllm = llm.as_structured_llm(LeverNarrative)
+                        chat_response = sllm.chat(msgs)
+                        metadata = dict(llm.metadata)
+                        metadata["llm_classname"] = llm.class_name()
+                        return {"chat_response": chat_response, "metadata": metadata}
+                    return execute_lever
+
+                lever_narrative: Optional[LeverNarrative] = None
+                lever_meta: Optional[dict] = None
+
+                for attempt in range(1, 4):
+                    try:
+                        result = llm_executor.run(make_lever_fn(lever_chat_messages))
+                        lever_narrative = result["chat_response"].raw
+                        lever_meta = result["metadata"]
+                        break
+                    except PipelineStopRequested:
+                        raise
+                    except Exception as e:
+                        logger.warning(f"Round {round_index} lever {lever_pos} attempt {attempt} failed: {e}")
+                        if attempt == 3:
+                            logger.error(
+                                f"Round {round_index} lever {lever_pos} failed after 3 attempts. Skipping."
+                            )
+
+                if lever_narrative is not None:
+                    lever_narratives.append(lever_narrative)
+                    if lever_meta:
+                        lever_metadata_entries.append(lever_meta)
+
+            if not lever_narratives:
+                logger.warning(f"Round {round_index}: No levers generated. Skipping round.")
+                continue
+
+            # --- DocumentNarrative call (once per round) ---
+            doc_chat_messages = [
+                ChatMessage(
+                    role=MessageRole.SYSTEM,
+                    content=system_prompt,
+                ),
                 ChatMessage(
                     role=MessageRole.USER,
-                    content=user_prompt_item,
-                )
-            )
+                    content=round_user_prompt,
+                ),
+                ChatMessage(
+                    role=MessageRole.USER,
+                    content=(
+                        "Provide the strategic rationale and summary for this set of levers. "
+                        "Identify ONE critical missing dimension and prescribe a concrete addition."
+                    ),
+                ),
+            ]
 
-            def execute_function(llm: LLM) -> dict:
-                sllm = llm.as_structured_llm(DocumentDetails)
-                chat_response = sllm.chat(chat_message_list)
+            def execute_doc_narrative(llm: LLM) -> dict:
+                sllm = llm.as_structured_llm(DocumentNarrative)
+                chat_response = sllm.chat(doc_chat_messages)
                 metadata = dict(llm.metadata)
                 metadata["llm_classname"] = llm.class_name()
-                return {
-                    "chat_response": chat_response,
-                    "metadata": metadata
-                }
+                return {"chat_response": chat_response, "metadata": metadata}
+
+            doc_narrative: DocumentNarrative
+            doc_meta: Optional[dict] = None
 
             try:
-                result = llm_executor.run(execute_function)
+                doc_result = llm_executor.run(execute_doc_narrative)
+                doc_narrative = doc_result["chat_response"].raw
+                doc_meta = doc_result["metadata"]
             except PipelineStopRequested:
-                # Re-raise PipelineStopRequested without wrapping it
                 raise
             except Exception as e:
-                logger.debug(f"LLM chat interaction failed: {e}")
-                logger.error("LLM chat interaction failed.", exc_info=True)
-                raise ValueError("LLM chat interaction failed.") from e
-            
-            chat_message_list.append(
-                ChatMessage(
-                    role=MessageRole.ASSISTANT,
-                    content=result["chat_response"].raw.model_dump(),
+                logger.error(
+                    f"Round {round_index} DocumentNarrative failed: {e}", exc_info=True
                 )
+                doc_narrative = DocumentNarrative(
+                    strategic_rationale="Strategic rationale not available.",
+                    summary="Summary not available.",
+                )
+
+            # Code assigns lever_index sequentially (1-5); LLM never sees or sets it.
+            levers_for_round: list[Lever] = []
+            for i, ln in enumerate(lever_narratives, start=1):
+                lever = Lever(
+                    lever_index=i,
+                    name=ln.name,
+                    consequences=ln.consequences,
+                    options=ln.options,
+                    review_lever=ln.review_lever,
+                )
+                levers_for_round.append(lever)
+
+            # Assemble into DocumentDetails for backward-compatible save_raw() output.
+            doc_details = DocumentDetails(
+                strategic_rationale=doc_narrative.strategic_rationale,
+                levers=levers_for_round,
+                summary=doc_narrative.summary,
             )
+            responses.append(doc_details)
 
-            responses.append(result["chat_response"].raw)
-            metadata_list.append(result["metadata"])
+            round_metadata: dict = {}
+            for i, m in enumerate(lever_metadata_entries, start=1):
+                round_metadata[f"lever_{i}"] = m
+            if doc_meta:
+                round_metadata["document"] = doc_meta
+            metadata_list.append(round_metadata)
 
-        # from the raw_responses, extract the levers into a flatten list
+        if not responses:
+            raise ValueError("No levers generated across all rounds.")
+
+        # Flatten levers from all rounds and clean field names for downstream consumers.
         levers_raw: list[Lever] = []
         for response in responses:
             levers_raw.extend(response.levers)
 
-        # Clean the raw levers
         levers_cleaned: list[LeverCleaned] = []
-        for i, lever in enumerate(levers_raw, start=1):
+        for lever in levers_raw:
             lever_id = str(uuid.uuid4())
             lever_cleaned = LeverCleaned(
                 lever_id=lever_id,
@@ -221,14 +332,13 @@ class IdentifyPotentialLevers:
         for metadata_index, metadata_item in enumerate(metadata_list, start=1):
             metadata[f"metadata_{metadata_index}"] = metadata_item
 
-        result = IdentifyPotentialLevers(
+        return IdentifyPotentialLevers(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
             responses=responses,
             levers=levers_cleaned,
             metadata=metadata,
         )
-        return result    
 
     def to_dict(self, include_responses=True, include_cleaned_levers=True, include_metadata=True, include_system_prompt=True, include_user_prompt=True) -> dict:
         d = {}
