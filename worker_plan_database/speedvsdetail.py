@@ -12,8 +12,9 @@ def resolve_speedvsdetail(parameters: Optional[dict[str, Any]]) -> SpeedVsDetail
         speed_vs_detail_value = parameters.get("speed_vs_detail") or parameters.get("speedvsdetail")
 
     if isinstance(speed_vs_detail_value, str) and speed_vs_detail_value:
+        normalized = speed_vs_detail_value.strip().lower()
         for enum_value in SpeedVsDetailEnum:
-            if enum_value.value == speed_vs_detail_value:
+            if enum_value.value == normalized:
                 return enum_value
         logger.warning("Invalid speed_vs_detail value %r. Falling back to legacy flags.", speed_vs_detail_value)
 

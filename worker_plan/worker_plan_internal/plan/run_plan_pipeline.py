@@ -4102,9 +4102,10 @@ if __name__ == '__main__':
     speedvsdetail = SpeedVsDetailEnum.ALL_DETAILS_BUT_SLOW
     speedvsdetail_value = pipeline_environment.speed_vs_detail
     if speedvsdetail_value:
+        normalized = speedvsdetail_value.strip().lower()
         found = False
         for e in SpeedVsDetailEnum:
-            if e.value == speedvsdetail_value:
+            if e.value == normalized:
                 speedvsdetail = e
                 found = True
                 logger.info(f"Setting Speed vs Detail: {speedvsdetail}")

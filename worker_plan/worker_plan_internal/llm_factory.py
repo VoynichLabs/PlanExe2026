@@ -23,6 +23,13 @@ from worker_plan_api.llm_info import LLMConfigItem, LLMInfo, OllamaStatus
 # You can disable this if you don't want to send app info to OpenRouter.
 SEND_APP_INFO_TO_OPENROUTER = True
 
+FORCE_JSON_DEFAULT_RESPONSE_FORMAT = {
+    "type": "json_schema",
+    "json_schema": {
+        "type": "object"
+    }
+}
+
 # This is a special case. It will cycle through the available LLM models, if the first one fails, try the next one.
 SPECIAL_AUTO_ID = 'auto'
 SPECIAL_AUTO_LABEL = 'Auto'
@@ -167,6 +174,14 @@ def get_llm(llm_name: Optional[str] = None, **kwargs: Any) -> LLM:
 
     # Override with any kwargs passed to get_llm()
     arguments.update(kwargs)
+
+    force_json_value = config.get("force_json")
+    if class_name == "LMStudio" and force_json_value:
+        if isinstance(force_json_value, dict):
+            response_format = force_json_value
+        else:
+            response_format = FORCE_JSON_DEFAULT_RESPONSE_FORMAT
+        arguments.setdefault("response_format", response_format)
 
     if class_name == "OpenRouter" and SEND_APP_INFO_TO_OPENROUTER:
         # https://openrouter.ai/rankings
