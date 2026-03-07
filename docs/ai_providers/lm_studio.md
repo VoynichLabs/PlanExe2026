@@ -31,6 +31,19 @@ In LM Studio, go to the **Developer** page (Cmd+2 / Ctrl+2 / Windows+2), start t
 - Start with a ~7B model (≈5 GB download). Expect workable speeds on a 16 GB RAM laptop or a GPU with ≥8 GB VRAM; larger models slow sharply without more hardware.
 - Structured output matters: not all models return clean structured output. If you see malformed or JSON errors, try a nearby model or quantization.
 
+### Structured-output reliability baseline (important)
+
+For schema-heavy PlanExe tasks, low output budgets can truncate the tail of JSON objects (often missing the last required fields). In local testing, this showed up repeatedly in tasks like scenario selection and pre-project assessment.
+
+For LM Studio profiles used with PlanExe, use these as a practical baseline:
+
+- `is_function_calling_model: false` (LM Studio does not support PlanExe's function-calling flow here)
+- `num_output: 8192` (4096 often truncates nested or long structured responses)
+- `context_window: 8192` or higher for larger prompts/tasks
+- enable JSON-structured output enforcement when available (`force_json` / response format)
+
+If you still get missing-tail-field failures, keep the run output + error signature and test one variable at a time (model, quantization, `num_output`, `context_window`).
+
 ### Run LM Studio locally with Docker
 
 Containers cannot reach `127.0.0.1` on your host. Set `base_url` in `llm_config/<profile>.json` to `http://host.docker.internal:1234` (Docker Desktop) or your Docker bridge IP on Linux (often `http://172.17.0.1:1234`). On Linux, add `extra_hosts: ["host.docker.internal:host-gateway"]` under `worker_plan` in `docker-compose.yml` if that hostname is missing.
