@@ -24,6 +24,10 @@
         "value": false
       },
       {
+        "key": "ext.virtualModel.customField.qwen.qwen3.535b-a3b.enableThinking",
+        "value": false
+      },
+      {
         "key": "ext.virtualModel.customField.zaiOrg.glm4.7Flash.enableThinking",
         "value": false
       }
