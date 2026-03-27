@@ -14,6 +14,20 @@ The proposal: each PlanTask races N model+framing combinations in parallel, pick
 
 ---
 
+## The Real Problem: Context Contamination and Loss of Grounding
+
+When a model fires a safety response mid-pipeline, two things happen:
+
+1. **Context contamination** — the model stops reasoning and starts defending. Every subsequent task in the same context gets a model that's only thinking about the refusal. The pipeline is effectively dead even if it continues.
+
+2. **Loss of grounding** — a hedged model stops naming real things. It says "the relevant head of state" instead of "King Frederik X." It says "local authorities" instead of "PET (Danish Security and Intelligence Service)." For PlanExe as a reasoning diagnostic, this makes the output useless. A plan that names real people, real agencies, and real companies tells you the model is actually reasoning about the world. A plan full of placeholders tells you it shut down.
+
+G0DM0D3's "liberation" isn't about bypassing safety — it's about **preserving grounding**. The models that win in G0DM0D3 runs are the ones that commit to real-world specifics rather than hedging into abstraction.
+
+Parallel racing addresses both problems: if model A contaminates on task 3, you don't retry it — you route to a clean model with no contaminated context, and the pipeline continues with grounded output.
+
+---
+
 ## The Manual Version Already Works
 
 We've validated this by hand. The BAT/JEX runs (judicial extraction / RICO planning scenarios) required manual prompt engineering — fictional framing (Bruce Wayne as defendant), codewords — to get PlanExe past surface-level safety pattern matching. The framing worked; the underlying planning task was legitimate research. The problem was that users had to discover these workarounds themselves.
