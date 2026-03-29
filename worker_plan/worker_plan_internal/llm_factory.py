@@ -27,6 +27,7 @@ _CLAUDE_OAUTH_BETA_HEADER = "oauth-2025-04-20"
 from worker_plan_internal.llm_util.ollama_info import OllamaInfo
 from worker_plan_internal.llm_util.thinking_aware_openai_like import ThinkingAwareOpenAILike
 from worker_plan_internal.llm_util.responses_api_llm import ResponsesAPILLM
+from worker_plan_internal.llm_util.structured_output_openrouter import StructuredOutputOpenRouter
 from worker_plan_api.llm_info import LLMConfigItem, LLMInfo, OllamaStatus
 
 # You can disable this if you don't want to send app info to OpenRouter.
